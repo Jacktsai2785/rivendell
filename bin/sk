@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SKILLS_DIR="$REPO_DIR/skills"
+IMPORTED_DIR="$REPO_DIR/imported"
+DEPLOY_TARGET="$HOME/.claude/skills"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+usage() {
+  cat <<EOF
+Usage: ./bin/sk <command> [args]
+
+Commands:
+  deploy              Symlink all skills → ~/.claude/skills/
+  undeploy            Remove repo symlinks from ~/.claude/skills/
+  create <name>       Scaffold new skill with SKILL.md template
+  import <name>       Import from SkillsMP via agent-skills-cli
+  import-gh <url>     Clone skill from GitHub URL
+  list                Show all skills + deployment status
+  help                Show this help message
+EOF
+}
+
+# Gather all skill directories (custom + imported)
+all_skill_dirs() {
+  local dirs=()
+  for d in "$SKILLS_DIR"/*/; do
+    [ -d "$d" ] && dirs+=("$d")
+  done
+  for d in "$IMPORTED_DIR"/*/; do
+    [ -d "$d" ] && dirs+=("$d")
+  done
+  printf '%s\n' "${dirs[@]}"
+}
+
+cmd_deploy() {
+  mkdir -p "$DEPLOY_TARGET"
+  local count=0
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local target="$DEPLOY_TARGET/$name"
+    if [ -L "$target" ]; then
+      echo -e "${YELLOW}skip${NC}  $name (already linked)"
+    elif [ -e "$target" ]; then
+      echo -e "${RED}skip${NC}  $name (non-symlink exists at target)"
+    else
+      ln -s "$skill_dir" "$target"
+      echo -e "${GREEN}link${NC}  $name → $target"
+      ((count++))
+    fi
+  done < <(all_skill_dirs)
+  echo -e "\n${GREEN}Deployed $count skill(s).${NC}"
+}
+
+cmd_undeploy() {
+  local count=0
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local target="$DEPLOY_TARGET/$name"
+    if [ -L "$target" ]; then
+      local link_dest
+      link_dest="$(readlink "$target")"
+      # Only remove if it points back into our repo
+      if [[ "$link_dest" == "$REPO_DIR"/* ]]; then
+        rm "$target"
+        echo -e "${GREEN}unlink${NC}  $name"
+        ((count++))
+      fi
+    fi
+  done < <(all_skill_dirs)
+  echo -e "\n${GREEN}Undeployed $count skill(s).${NC}"
+}
+
+cmd_create() {
+  local name="${1:?Usage: sk create <name>}"
+  local dir="$SKILLS_DIR/$name"
+  if [ -d "$dir" ]; then
+    echo -e "${RED}Error:${NC} Skill '$name' already exists at $dir"
+    exit 1
+  fi
+  mkdir -p "$dir"
+  cat > "$dir/SKILL.md" <<'TEMPLATE'
+---
+name: SKILL_NAME
+description: TODO - describe what this skill does
+user_invocable: true
+---
+
+# SKILL_NAME
+
+## Instructions
+
+TODO - write skill instructions here.
+TEMPLATE
+  # Replace placeholder with actual name
+  sed -i '' "s/SKILL_NAME/$name/g" "$dir/SKILL.md"
+  echo -e "${GREEN}Created${NC} $dir/SKILL.md"
+  echo "Edit the file to add your skill instructions."
+}
+
+cmd_import() {
+  local name="${1:?Usage: sk import <name>}"
+  if ! command -v skills &>/dev/null; then
+    echo -e "${RED}Error:${NC} skills CLI not found. Install with: npm install -g agent-skills-cli"
+    exit 1
+  fi
+  # Install to Claude Code's skills dir, then move to our imported/ for tracking
+  skills install "$name" --agent claude -y
+  local claude_dir="$HOME/.claude/skills/$name"
+  if [ -d "$claude_dir" ] && [ ! -L "$claude_dir" ]; then
+    mv "$claude_dir" "$IMPORTED_DIR/$name"
+    echo -e "${GREEN}Imported${NC} $name → $IMPORTED_DIR/$name"
+    echo "Run './bin/sk deploy' to symlink it back."
+  else
+    echo -e "${GREEN}Installed${NC} $name via skills CLI"
+  fi
+}
+
+cmd_import_gh() {
+  local url="${1:?Usage: sk import-gh <github-url>}"
+  local name
+  name="$(basename "$url" .git)"
+  local dest="$IMPORTED_DIR/$name"
+  if [ -d "$dest" ]; then
+    echo -e "${YELLOW}Updating${NC} $name..."
+    git -C "$dest" pull
+  else
+    git clone "$url" "$dest"
+  fi
+  echo -e "${GREEN}Imported${NC} $name → $dest"
+}
+
+cmd_list() {
+  echo -e "${CYAN}Skills:${NC}\n"
+  local found=0
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    found=1
+    local name
+    name="$(basename "$skill_dir")"
+    local source
+    if [[ "$skill_dir" == "$SKILLS_DIR"/* ]]; then
+      source="custom"
+    else
+      source="imported"
+    fi
+    local status
+    local target="$DEPLOY_TARGET/$name"
+    if [ -L "$target" ]; then
+      status="${GREEN}[deployed]${NC}"
+    else
+      status="${YELLOW}[not deployed]${NC}"
+    fi
+    printf "  %-20s %-10s %b\n" "$name" "($source)" "$status"
+  done < <(all_skill_dirs)
+  if [ "$found" -eq 0 ]; then
+    echo "  (no skills found)"
+  fi
+}
+
+# Main dispatch
+case "${1:-help}" in
+  deploy)     cmd_deploy ;;
+  undeploy)   cmd_undeploy ;;
+  create)     cmd_create "${2:-}" ;;
+  import)     cmd_import "${2:-}" ;;
+  import-gh)  cmd_import_gh "${2:-}" ;;
+  list)       cmd_list ;;
+  help|--help|-h) usage ;;
+  *)
+    echo -e "${RED}Unknown command:${NC} $1"
+    usage
+    exit 1
+    ;;
+esac
