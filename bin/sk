@@ -94,6 +94,7 @@ cmd_create() {
 ---
 name: SKILL_NAME
 description: TODO - describe what this skill does
+tags: []
 user_invocable: true
 ---
 
@@ -141,6 +142,18 @@ cmd_import_gh() {
   echo -e "${GREEN}Imported${NC} $name → $dest"
 }
 
+get_tags() {
+  local skill_md="$1/SKILL.md"
+  if [ -f "$skill_md" ]; then
+    # Extract tags from front matter: tags: [foo, bar] or tags: foo, bar
+    sed -n '/^---$/,/^---$/p' "$skill_md" \
+      | grep -E '^tags:' \
+      | sed 's/^tags:[[:space:]]*//' \
+      | tr -d '[]' \
+      | xargs
+  fi
+}
+
 cmd_list() {
   echo -e "${CYAN}Skills:${NC}\n"
   local found=0
@@ -162,7 +175,13 @@ cmd_list() {
     else
       status="${YELLOW}[not deployed]${NC}"
     fi
-    printf "  %-20s %-10s %b\n" "$name" "($source)" "$status"
+    local tags
+    tags="$(get_tags "$skill_dir")"
+    if [ -n "$tags" ]; then
+      printf "  %-20s %-10s %b  ${CYAN}#%s${NC}\n" "$name" "($source)" "$status" "$tags"
+    else
+      printf "  %-20s %-10s %b\n" "$name" "($source)" "$status"
+    fi
   done < <(all_skill_dirs)
   if [ "$found" -eq 0 ]; then
     echo "  (no skills found)"

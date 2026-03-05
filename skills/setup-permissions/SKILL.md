@@ -1,6 +1,7 @@
 ---
 name: setup-permissions
 description: Set up Claude Code permission allowlists for common dev workflows
+tags: [meta]
 user_invocable: true
 ---
 
