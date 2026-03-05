@@ -150,7 +150,8 @@ get_tags() {
       | grep -E '^tags:' \
       | sed 's/^tags:[[:space:]]*//' \
       | tr -d '[]' \
-      | xargs
+      | xargs \
+      || true
   fi
 }
 
