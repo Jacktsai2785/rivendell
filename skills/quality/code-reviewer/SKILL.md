@@ -5,6 +5,7 @@ description: >
   Use when: reviewing code, checking code quality, or when user mentions code review.
   For security-focused audits, use security-review skill instead.
 tags: [quality]
+version: 1
 user_invocable: true
 ---
 

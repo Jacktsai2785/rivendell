@@ -2,6 +2,7 @@
 name: Executing Plans
 description: Execute detailed plans in batches with review checkpoints
 when_to_use: when partner provides a complete implementation plan to execute in controlled batches with review checkpoints
+tags: [workflow]
 version: 2.2.0
 ---
 

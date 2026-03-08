@@ -4,6 +4,8 @@ description: >
   Use when asked to review a pull request. Analyzes PR changes for correctness,
   security, performance, and best practices. Provides structured feedback with
   approve/request-changes/comment recommendations.
+tags: [git]
+version: 1
 user_invocable: true
 ---
 

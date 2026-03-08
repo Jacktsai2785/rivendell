@@ -2,6 +2,7 @@
 name: office-pptx
 description: "PowerPoint (.pptx) creation, editing, and analysis. Layouts, speaker notes, comments, media. Use when working with presentations."
 tags: [docs]
+version: 1
 ---
 
 # PPTX creation, editing, and analysis

@@ -2,6 +2,7 @@
 name: office-docx
 description: "Word document (.docx) creation, editing, and analysis. Tracked changes, comments, formatting preservation, text extraction. Use when working with .docx files."
 tags: [docs]
+version: 1
 ---
 
 # DOCX creation, editing, and analysis

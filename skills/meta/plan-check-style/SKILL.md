@@ -5,6 +5,7 @@ description: >
   styling, component creation, or layout work.
   DO NOT TRIGGER when: backend-only tasks, CLI tools, scripts, or non-UI work.
 tags: [meta]
+version: 1
 user_invocable: false
 ---
 

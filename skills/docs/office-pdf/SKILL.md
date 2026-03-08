@@ -2,6 +2,7 @@
 name: office-pdf
 description: "PDF manipulation: extract text/tables, create PDFs, merge/split, fill forms. Use when working with .pdf files."
 tags: [docs]
+version: 1
 ---
 
 # PDF Processing Guide

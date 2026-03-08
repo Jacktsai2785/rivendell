@@ -3,6 +3,7 @@ name: Systematic Debugging
 description: Four-phase debugging framework that ensures root cause investigation before attempting fixes. Never jump to solutions.
 when_to_use: when encountering any bug, test failure, or unexpected behavior, before proposing fixes
 version: 2.1.0
+tags: [quality, debugging]
 languages: all
 ---
 

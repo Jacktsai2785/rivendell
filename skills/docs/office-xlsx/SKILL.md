@@ -2,6 +2,7 @@
 name: office-xlsx
 description: "Spreadsheet (.xlsx/.csv) creation, editing, and analysis. Formulas, formatting, data analysis, visualization. Use when working with spreadsheets or tabular data."
 tags: [docs]
+version: 1
 ---
 
 # Requirements for Outputs

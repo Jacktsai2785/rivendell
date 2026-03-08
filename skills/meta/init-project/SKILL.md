@@ -6,6 +6,7 @@ description: >
   user says /init-project, or no CLAUDE.md / AGENTS.md detected in project root.
   DO NOT TRIGGER when: project already has both config files.
 tags: [meta]
+version: 1
 user_invocable: false
 ---
 

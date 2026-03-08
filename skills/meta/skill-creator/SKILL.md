@@ -7,6 +7,7 @@ description: >
   or optimize a skill's description for better triggering accuracy.
   DO NOT TRIGGER when: using existing skills normally, or editing non-skill files.
 tags: [meta]
+version: 1
 user_invocable: false
 ---
 

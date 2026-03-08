@@ -4,6 +4,7 @@ description: >
   Read Google Drive documents via MCP, categorize them, and create structured knowledge skills.
   Use when: user wants to import Google Drive files into the skills library, or says /gdrive-to-skills.
 tags: [workflow]
+version: 1
 user_invocable: true
 ---
 
