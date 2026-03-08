@@ -3,7 +3,6 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SKILLS_DIR="$REPO_DIR/skills"
-IMPORTED_DIR="$REPO_DIR/imported"
 DEPLOY_TARGET="$HOME/.claude/skills"
 
 # Colors
@@ -20,24 +19,29 @@ Usage: ./bin/sk <command> [args]
 Commands:
   deploy              Symlink all skills → ~/.claude/skills/
   undeploy            Remove repo symlinks from ~/.claude/skills/
-  create <name>       Scaffold new skill with SKILL.md template
+  create <cat/name>   Scaffold new skill + auto-deploy (e.g. meta/my-skill)
   import <name>       Import from SkillsMP via agent-skills-cli
   import-gh <url>     Clone skill from GitHub URL
   list                Show all skills + deployment status
+  check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
+  sync                Show Google Drive import status for re-import
   help                Show this help message
+
+Categories: meta, workflow, quality, git, frontend, backend, docs
+  Total: 28 skills
 EOF
 }
 
-# Gather all skill directories (custom + imported)
+# Find all skill directories (any that contain SKILL.md)
 all_skill_dirs() {
-  local dirs=()
-  for d in "$SKILLS_DIR"/*/; do
-    [ -d "$d" ] && dirs+=("$d")
-  done
-  for d in "$IMPORTED_DIR"/*/; do
-    [ -d "$d" ] && dirs+=("$d")
-  done
-  printf '%s\n' "${dirs[@]}"
+  find "$SKILLS_DIR" -name "SKILL.md" -maxdepth 3 -exec dirname {} \; | sort
+}
+
+# Get category from skill path
+get_category() {
+  local skill_dir="$1"
+  local rel="${skill_dir#$SKILLS_DIR/}"
+  echo "${rel%%/*}"
 }
 
 cmd_deploy() {
@@ -83,30 +87,50 @@ cmd_undeploy() {
 }
 
 cmd_create() {
-  local name="${1:?Usage: sk create <name>}"
-  local dir="$SKILLS_DIR/$name"
+  local input="${1:?Usage: sk create <category/name> (e.g. meta/my-skill)}"
+
+  # Support both "category/name" and plain "name" (defaults to meta)
+  if [[ "$input" == */* ]]; then
+    local category="${input%%/*}"
+    local name="${input#*/}"
+  else
+    local category="meta"
+    local name="$input"
+  fi
+
+  local dir="$SKILLS_DIR/$category/$name"
   if [ -d "$dir" ]; then
     echo -e "${RED}Error:${NC} Skill '$name' already exists at $dir"
     exit 1
   fi
   mkdir -p "$dir"
-  cat > "$dir/SKILL.md" <<'TEMPLATE'
+  cat > "$dir/SKILL.md" <<TEMPLATE
 ---
-name: SKILL_NAME
+name: $name
 description: TODO - describe what this skill does
-tags: []
+tags: [$category]
+version: 1
+source: manual
 user_invocable: true
 ---
 
-# SKILL_NAME
+# $name
 
 ## Instructions
 
 TODO - write skill instructions here.
 TEMPLATE
-  # Replace placeholder with actual name
-  sed -i '' "s/SKILL_NAME/$name/g" "$dir/SKILL.md"
   echo -e "${GREEN}Created${NC} $dir/SKILL.md"
+
+  # Auto-deploy: create symlink immediately
+  mkdir -p "$DEPLOY_TARGET"
+  local target="$DEPLOY_TARGET/$name"
+  if [ -L "$target" ] || [ -e "$target" ]; then
+    echo -e "${YELLOW}Note:${NC} $target already exists, skipping auto-deploy."
+  else
+    ln -s "$dir" "$target"
+    echo -e "${GREEN}Deployed${NC} $name → $target"
+  fi
   echo "Edit the file to add your skill instructions."
 }
 
@@ -116,12 +140,16 @@ cmd_import() {
     echo -e "${RED}Error:${NC} skills CLI not found. Install with: npm install -g agent-skills-cli"
     exit 1
   fi
-  # Install to Claude Code's skills dir, then move to our imported/ for tracking
+  # Install to Claude Code's skills dir, then move to our repo for tracking
   skills install "$name" --agent claude -y
   local claude_dir="$HOME/.claude/skills/$name"
+  # Default import to workflow/ — user can move to correct category later
+  local dest="$SKILLS_DIR/workflow/$name"
   if [ -d "$claude_dir" ] && [ ! -L "$claude_dir" ]; then
-    mv "$claude_dir" "$IMPORTED_DIR/$name"
-    echo -e "${GREEN}Imported${NC} $name → $IMPORTED_DIR/$name"
+    mkdir -p "$SKILLS_DIR/workflow"
+    mv "$claude_dir" "$dest"
+    echo -e "${GREEN}Imported${NC} $name → $dest"
+    echo -e "${YELLOW}Note:${NC} Placed in workflow/. Move to correct category if needed."
     echo "Run './bin/sk deploy' to symlink it back."
   else
     echo -e "${GREEN}Installed${NC} $name via skills CLI"
@@ -132,20 +160,22 @@ cmd_import_gh() {
   local url="${1:?Usage: sk import-gh <github-url>}"
   local name
   name="$(basename "$url" .git)"
-  local dest="$IMPORTED_DIR/$name"
+  # Default import to workflow/
+  local dest="$SKILLS_DIR/workflow/$name"
   if [ -d "$dest" ]; then
     echo -e "${YELLOW}Updating${NC} $name..."
     git -C "$dest" pull
   else
+    mkdir -p "$SKILLS_DIR/workflow"
     git clone "$url" "$dest"
   fi
   echo -e "${GREEN}Imported${NC} $name → $dest"
+  echo -e "${YELLOW}Note:${NC} Placed in workflow/. Move to correct category if needed."
 }
 
 get_tags() {
   local skill_md="$1/SKILL.md"
   if [ -f "$skill_md" ]; then
-    # Extract tags from front matter: tags: [foo, bar] or tags: foo, bar
     sed -n '/^---$/,/^---$/p' "$skill_md" \
       | grep -E '^tags:' \
       | sed 's/^tags:[[:space:]]*//' \
@@ -155,20 +185,255 @@ get_tags() {
   fi
 }
 
+get_frontmatter_field() {
+  local skill_dir="$1"
+  local field="$2"
+  local skill_md="$skill_dir/SKILL.md"
+  if [ -f "$skill_md" ]; then
+    sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$skill_md" \
+      | grep -m1 -E "^${field}:" \
+      | sed "s/^${field}:[[:space:]]*//" \
+      | tr -d '"'"'" \
+      || true
+  fi
+}
+
+days_since() {
+  local date_str="$1"
+  [ -z "$date_str" ] && echo -1 && return
+  local target_epoch
+  if date -j -f "%Y-%m-%d" "$date_str" "+%s" &>/dev/null; then
+    target_epoch=$(date -j -f "%Y-%m-%d" "$date_str" "+%s")
+  elif date -d "$date_str" "+%s" &>/dev/null; then
+    target_epoch=$(date -d "$date_str" "+%s")
+  else
+    echo -1 && return
+  fi
+  local now_epoch
+  now_epoch=$(date "+%s")
+  echo $(( (now_epoch - target_epoch) / 86400 ))
+}
+
+cmd_check() {
+  local verbose=0
+  [ "${1:-}" = "--verbose" ] && verbose=1
+
+  local stale_days="${SK_STALE_DAYS:-90}"
+
+  echo -e "${CYAN}=== Skill Health Check ===${NC}\n"
+
+  # --- Symlinks ---
+  echo -e "${CYAN}[Symlinks]${NC}"
+  local dangling=0 missing=0 conflict=0 collision=0
+  local dangling_list="" missing_list="" conflict_list="" collision_list=""
+
+  # Check for dangling symlinks in deploy target
+  if [ -d "$DEPLOY_TARGET" ]; then
+    while IFS= read -r link; do
+      [ -z "$link" ] && continue
+      if [ -L "$link" ] && [ ! -e "$link" ]; then
+        ((dangling++))
+        dangling_list+="    $(basename "$link") → $(readlink "$link")\n"
+      fi
+    done < <(find "$DEPLOY_TARGET" -maxdepth 1 -type l 2>/dev/null)
+  fi
+
+  # Check each skill for deploy status and collisions
+  local seen_names=""
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local target="$DEPLOY_TARGET/$name"
+
+    # Name collision detection
+    if echo "$seen_names" | grep -qx "$name"; then
+      ((collision++))
+      collision_list+="    $name (${skill_dir#$REPO_DIR/})\n"
+    fi
+    seen_names+="$name"$'\n'
+
+    if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+      ((missing++))
+      missing_list+="    $name (${skill_dir#$REPO_DIR/})\n"
+    elif [ -e "$target" ] && [ ! -L "$target" ]; then
+      ((conflict++))
+      conflict_list+="    $name (non-symlink at $target)\n"
+    fi
+  done < <(all_skill_dirs)
+
+  if [ "$dangling" -gt 0 ]; then
+    echo -e "  ${RED}$dangling dangling symlink(s) found${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$dangling_list"
+    echo -e "  ${YELLOW}Clean up with:${NC} find $DEPLOY_TARGET -maxdepth 1 -xtype l -delete"
+  fi
+  if [ "$missing" -gt 0 ]; then
+    echo -e "  ${YELLOW}$missing skill(s) not deployed${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$missing_list"
+  fi
+  if [ "$conflict" -gt 0 ]; then
+    echo -e "  ${RED}$conflict non-symlink conflict(s)${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$conflict_list"
+  fi
+  if [ "$collision" -gt 0 ]; then
+    echo -e "  ${RED}$collision name collision(s) across categories${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$collision_list"
+  fi
+  if [ "$dangling" -eq 0 ] && [ "$missing" -eq 0 ] && [ "$conflict" -eq 0 ] && [ "$collision" -eq 0 ]; then
+    echo -e "  ${GREEN}All symlinks OK${NC}"
+  fi
+
+  # --- Reviews ---
+  echo ""
+  echo -e "${CYAN}[Reviews]${NC}"
+  local stale=0 no_review=0
+  local stale_list="" no_review_list=""
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local reviewed
+    reviewed="$(get_frontmatter_field "$skill_dir" "last_reviewed")"
+    if [ -z "$reviewed" ]; then
+      ((no_review++))
+      no_review_list+="    $name\n"
+    else
+      local age
+      age="$(days_since "$reviewed")"
+      if [ "$age" -ge 0 ] && [ "$age" -gt "$stale_days" ]; then
+        ((stale++))
+        stale_list+="    $name (${age}d ago)\n"
+      fi
+    fi
+  done < <(all_skill_dirs)
+  if [ "$stale" -gt 0 ]; then
+    echo -e "  ${YELLOW}$stale skill(s) stale (>${stale_days} days)${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$stale_list"
+  fi
+  if [ "$no_review" -gt 0 ]; then
+    echo -e "  ${YELLOW}$no_review skill(s) have no last_reviewed date${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$no_review_list"
+  fi
+  if [ "$stale" -eq 0 ] && [ "$no_review" -eq 0 ]; then
+    echo -e "  ${GREEN}All reviews OK${NC}"
+  fi
+
+  # --- GDrive ---
+  echo ""
+  echo -e "${CYAN}[Google Drive]${NC}"
+  local gdrive_stale=0
+  local gdrive_list=""
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local source
+    source="$(get_frontmatter_field "$skill_dir" "source")"
+    if [[ "$source" == gdrive:* ]]; then
+      local imported_at
+      imported_at="$(get_frontmatter_field "$skill_dir" "imported_at")"
+      local age
+      age="$(days_since "$imported_at")"
+      if [ "$age" -ge 0 ] && [ "$age" -gt "$stale_days" ]; then
+        ((gdrive_stale++))
+        gdrive_list+="    $name (imported ${age}d ago)\n"
+      elif [ "$age" -lt 0 ]; then
+        ((gdrive_stale++))
+        gdrive_list+="    $name (no imported_at date)\n"
+      fi
+    fi
+  done < <(all_skill_dirs)
+  if [ "$gdrive_stale" -gt 0 ]; then
+    echo -e "  ${YELLOW}$gdrive_stale gdrive skill(s) may need re-import${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$gdrive_list"
+  else
+    echo -e "  ${GREEN}No stale gdrive imports${NC}"
+  fi
+
+  # --- Frontmatter ---
+  echo ""
+  echo -e "${CYAN}[Frontmatter]${NC}"
+  local missing_tags=0 missing_version=0
+  local missing_tags_list="" missing_version_list=""
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local tags
+    tags="$(get_frontmatter_field "$skill_dir" "tags")"
+    if [ -z "$tags" ]; then
+      ((missing_tags++))
+      missing_tags_list+="    $name\n"
+    fi
+    local version
+    version="$(get_frontmatter_field "$skill_dir" "version")"
+    if [ -z "$version" ]; then
+      ((missing_version++))
+      missing_version_list+="    $name\n"
+    fi
+  done < <(all_skill_dirs)
+  if [ "$missing_tags" -gt 0 ]; then
+    echo -e "  ${YELLOW}$missing_tags skill(s) missing 'tags'${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$missing_tags_list"
+  fi
+  if [ "$missing_version" -gt 0 ]; then
+    echo -e "  ${YELLOW}$missing_version skill(s) missing 'version'${NC}"
+    [ "$verbose" -eq 1 ] && echo -e "$missing_version_list"
+  fi
+  if [ "$missing_tags" -eq 0 ] && [ "$missing_version" -eq 0 ]; then
+    echo -e "  ${GREEN}All frontmatter OK${NC}"
+  fi
+
+  echo ""
+}
+
+cmd_sync() {
+  echo -e "${CYAN}=== Google Drive Skill Sync Status ===${NC}\n"
+  local found=0
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local source
+    source="$(get_frontmatter_field "$skill_dir" "source")"
+    if [[ "$source" == gdrive:* ]]; then
+      found=1
+      local imported_at source_modified
+      imported_at="$(get_frontmatter_field "$skill_dir" "imported_at")"
+      source_modified="$(get_frontmatter_field "$skill_dir" "source_modified")"
+      echo -e "  ${CYAN}$name${NC}"
+      echo "    source:          $source"
+      echo "    imported_at:     ${imported_at:-(not set)}"
+      echo "    source_modified: ${source_modified:-(not set)}"
+      echo ""
+    fi
+  done < <(all_skill_dirs)
+  if [ "$found" -eq 0 ]; then
+    echo "  No Google Drive imported skills found."
+  else
+    echo -e "  ${YELLOW}To re-import, run /gdrive-to-skills in Claude Code${NC}"
+  fi
+}
+
 cmd_list() {
   echo -e "${CYAN}Skills:${NC}\n"
+  local current_cat=""
   local found=0
   while IFS= read -r skill_dir; do
     [ -z "$skill_dir" ] && continue
     found=1
     local name
     name="$(basename "$skill_dir")"
-    local source
-    if [[ "$skill_dir" == "$SKILLS_DIR"/* ]]; then
-      source="custom"
-    else
-      source="imported"
+    local category
+    category="$(get_category "$skill_dir")"
+
+    # Print category header
+    if [ "$category" != "$current_cat" ]; then
+      [ -n "$current_cat" ] && echo ""
+      echo -e "  ${CYAN}[$category]${NC}"
+      current_cat="$category"
     fi
+
     local status
     local target="$DEPLOY_TARGET/$name"
     if [ -L "$target" ]; then
@@ -176,12 +441,13 @@ cmd_list() {
     else
       status="${YELLOW}[not deployed]${NC}"
     fi
+
     local tags
     tags="$(get_tags "$skill_dir")"
     if [ -n "$tags" ]; then
-      printf "  %-20s %-10s %b  ${CYAN}#%s${NC}\n" "$name" "($source)" "$status" "$tags"
+      printf "    %-35s %b  ${CYAN}#%s${NC}\n" "$name" "$status" "$tags"
     else
-      printf "  %-20s %-10s %b\n" "$name" "($source)" "$status"
+      printf "    %-35s %b\n" "$name" "$status"
     fi
   done < <(all_skill_dirs)
   if [ "$found" -eq 0 ]; then
@@ -197,6 +463,8 @@ case "${1:-help}" in
   import)     cmd_import "${2:-}" ;;
   import-gh)  cmd_import_gh "${2:-}" ;;
   list)       cmd_list ;;
+  check)      cmd_check "${2:-}" ;;
+  sync)       cmd_sync ;;
   help|--help|-h) usage ;;
   *)
     echo -e "${RED}Unknown command:${NC} $1"
