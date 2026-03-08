@@ -25,6 +25,8 @@ Commands:
   list                Show all skills + deployment status
   check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
   audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
+  permissions [dir]   Scan project tooling and update .claude/settings.local.json
+  maintain            Nightly maintenance: permissions sync, deploy check, audit
   sync                Show Google Drive import status for re-import
   help                Show this help message
 
@@ -458,6 +460,397 @@ cmd_list() {
 
 PROJECTS_DIR="$HOME/Documents/Projects"
 
+# --- Permissions ---
+
+cmd_permissions() {
+  local proj_dir="${1:-.}"
+  proj_dir="$(cd "$proj_dir" && pwd)"
+  local proj_name
+  proj_name="$(basename "$proj_dir")"
+
+  echo -e "${CYAN}=== Permission Scan: $proj_name ===${NC}\n"
+
+  # Read global baseline to avoid duplicates
+  local global_settings="$HOME/.claude/settings.json"
+  local global_perms=""
+  if [ -f "$global_settings" ]; then
+    global_perms="$(cat "$global_settings")"
+  fi
+
+  # Collect permissions to add
+  local perms=()
+
+  # Helper: add permission if not in global baseline
+  add_perm() {
+    local p="$1"
+    if ! echo "$global_perms" | grep -qF "\"$p\""; then
+      # Check if not already in perms array
+      local already=0
+      for existing in "${perms[@]+"${perms[@]}"}"; do
+        [ "$existing" = "$p" ] && already=1 && break
+      done
+      [ "$already" -eq 0 ] && perms+=("$p")
+    fi
+  }
+
+  # --- Detect tooling ---
+
+  # Node.js
+  if [ -f "$proj_dir/package.json" ]; then
+    add_perm "Bash(npm *)"
+    add_perm "Bash(npx *)"
+    add_perm "Bash(node *)"
+
+    # Package manager variants
+    if [ -f "$proj_dir/bun.lock" ] || [ -f "$proj_dir/bun.lockb" ]; then
+      add_perm "Bash(bun *)"
+      add_perm "Bash(bunx *)"
+      echo -e "  ${GREEN}+${NC} bun"
+    fi
+    if [ -f "$proj_dir/yarn.lock" ]; then
+      add_perm "Bash(yarn *)"
+      echo -e "  ${GREEN}+${NC} yarn"
+    fi
+    if [ -f "$proj_dir/pnpm-lock.yaml" ]; then
+      add_perm "Bash(pnpm *)"
+      add_perm "Bash(pnpx *)"
+      echo -e "  ${GREEN}+${NC} pnpm"
+    fi
+
+    # JS/TS tools from package.json
+    local pkg_content
+    pkg_content="$(cat "$proj_dir/package.json" 2>/dev/null)"
+    if echo "$pkg_content" | grep -q '"vitest"'; then
+      add_perm "Bash(vitest *)" && add_perm "Bash(npx vitest *)"
+      echo -e "  ${GREEN}+${NC} vitest"
+    fi
+    if echo "$pkg_content" | grep -q '"jest"'; then
+      add_perm "Bash(jest *)" && add_perm "Bash(npx jest *)"
+      echo -e "  ${GREEN}+${NC} jest"
+    fi
+    if echo "$pkg_content" | grep -q '"eslint"'; then
+      add_perm "Bash(eslint *)" && add_perm "Bash(npx eslint *)"
+      echo -e "  ${GREEN}+${NC} eslint"
+    fi
+    if echo "$pkg_content" | grep -q '"prettier"'; then
+      add_perm "Bash(prettier *)" && add_perm "Bash(npx prettier *)"
+      echo -e "  ${GREEN}+${NC} prettier"
+    fi
+    if echo "$pkg_content" | grep -q '"next"'; then
+      add_perm "Bash(next *)" && add_perm "Bash(npx next *)"
+      echo -e "  ${GREEN}+${NC} next.js"
+    fi
+    if echo "$pkg_content" | grep -q '"nuxt\|"nuxi"'; then
+      add_perm "Bash(nuxt *)" && add_perm "Bash(npx nuxi *)" && add_perm "Bash(npx nuxt *)"
+      echo -e "  ${GREEN}+${NC} nuxt"
+    fi
+    if echo "$pkg_content" | grep -q '"turbo"'; then
+      add_perm "Bash(turbo *)" && add_perm "Bash(npx turbo *)"
+      echo -e "  ${GREEN}+${NC} turbo"
+    fi
+    if echo "$pkg_content" | grep -q '"wrangler"'; then
+      add_perm "Bash(wrangler *)" && add_perm "Bash(npx wrangler *)"
+      echo -e "  ${GREEN}+${NC} wrangler"
+    fi
+    if echo "$pkg_content" | grep -q '"tsx"'; then
+      add_perm "Bash(npx tsx *)"
+      echo -e "  ${GREEN}+${NC} tsx"
+    fi
+    if echo "$pkg_content" | grep -q '"playwright"'; then
+      add_perm "Bash(playwright *)" && add_perm "Bash(npx playwright *)"
+      echo -e "  ${GREEN}+${NC} playwright (js)"
+    fi
+    if echo "$pkg_content" | grep -q '"prisma"'; then
+      add_perm "Bash(npx prisma *)"
+      echo -e "  ${GREEN}+${NC} prisma"
+    fi
+    if echo "$pkg_content" | grep -q '"drizzle"'; then
+      add_perm "Bash(npx drizzle-kit *)"
+      echo -e "  ${GREEN}+${NC} drizzle"
+    fi
+    echo -e "  ${GREEN}+${NC} node.js (npm/npx)"
+  fi
+
+  # Python
+  if [ -f "$proj_dir/pyproject.toml" ] || [ -f "$proj_dir/requirements.txt" ]; then
+    add_perm "Bash(python *)"
+    add_perm "Bash(python3 *)"
+    add_perm "Bash(pip *)"
+    add_perm "Bash(pip3 *)"
+    echo -e "  ${GREEN}+${NC} python"
+
+    local py_content=""
+    [ -f "$proj_dir/pyproject.toml" ] && py_content="$(cat "$proj_dir/pyproject.toml" 2>/dev/null)"
+    [ -f "$proj_dir/requirements.txt" ] && py_content+="$(cat "$proj_dir/requirements.txt" 2>/dev/null)"
+
+    if echo "$py_content" | grep -qi "poetry"; then
+      add_perm "Bash(poetry *)"
+      echo -e "  ${GREEN}+${NC} poetry"
+    fi
+    if echo "$py_content" | grep -qi "\[tool.uv\]\|uv.lock"; then
+      add_perm "Bash(uv *)"
+      echo -e "  ${GREEN}+${NC} uv"
+    fi
+    [ -f "$proj_dir/uv.lock" ] && add_perm "Bash(uv *)"
+    if echo "$py_content" | grep -qi "pytest"; then
+      add_perm "Bash(pytest *)" && add_perm "Bash(python -m pytest *)"
+      echo -e "  ${GREEN}+${NC} pytest"
+    fi
+    if echo "$py_content" | grep -qi "ruff"; then
+      add_perm "Bash(ruff *)"
+      echo -e "  ${GREEN}+${NC} ruff"
+    fi
+    if echo "$py_content" | grep -qi "black"; then
+      add_perm "Bash(black *)"
+      echo -e "  ${GREEN}+${NC} black"
+    fi
+    if echo "$py_content" | grep -qi "mypy"; then
+      add_perm "Bash(mypy *)"
+      echo -e "  ${GREEN}+${NC} mypy"
+    fi
+    if echo "$py_content" | grep -qi "streamlit"; then
+      add_perm "Bash(streamlit *)"
+      echo -e "  ${GREEN}+${NC} streamlit"
+    fi
+    if echo "$py_content" | grep -qi "uvicorn"; then
+      add_perm "Bash(uvicorn *)"
+      echo -e "  ${GREEN}+${NC} uvicorn"
+    fi
+    if echo "$py_content" | grep -qi "fastapi"; then
+      add_perm "Bash(uvicorn *)" && add_perm "Bash(fastapi *)"
+      echo -e "  ${GREEN}+${NC} fastapi"
+    fi
+    if echo "$py_content" | grep -qi "playwright"; then
+      add_perm "Bash(playwright *)" && add_perm "Bash(python -m playwright *)"
+      echo -e "  ${GREEN}+${NC} playwright (py)"
+    fi
+  fi
+  [ -f "$proj_dir/.pre-commit-config.yaml" ] && add_perm "Bash(pre-commit *)" && echo -e "  ${GREEN}+${NC} pre-commit"
+
+  # Apple / Xcode
+  if [ -f "$proj_dir/Package.swift" ] || [ -f "$proj_dir/project.yml" ] || ls "$proj_dir"/*.xcodeproj 2>/dev/null | head -1 | grep -q .; then
+    add_perm "Bash(swift *)"
+    add_perm "Bash(swiftc *)"
+    add_perm "Bash(xcodebuild *)"
+    add_perm "Bash(xcode-select *)"
+    add_perm "Bash(xcrun *)"
+    add_perm "Bash(xcrun simctl *)"
+    add_perm "Bash(plutil *)"
+    add_perm "Bash(defaults *)"
+    echo -e "  ${GREEN}+${NC} swift/xcode"
+    if [ -f "$proj_dir/project.yml" ]; then
+      add_perm "Bash(xcodegen *)"
+      echo -e "  ${GREEN}+${NC} xcodegen"
+    fi
+  fi
+  if [ -f "$proj_dir/Podfile" ]; then
+    add_perm "Bash(pod *)"
+    echo -e "  ${GREEN}+${NC} cocoapods"
+  fi
+
+  # Firebase
+  if [ -f "$proj_dir/firebase.json" ] || [ -f "$proj_dir/.firebaserc" ]; then
+    add_perm "Bash(firebase *)"
+    echo -e "  ${GREEN}+${NC} firebase"
+  fi
+
+  # Build tools
+  [ -f "$proj_dir/Cargo.toml" ] && add_perm "Bash(cargo *)" && add_perm "Bash(rustc *)" && echo -e "  ${GREEN}+${NC} rust"
+  [ -f "$proj_dir/go.mod" ] && add_perm "Bash(go *)" && echo -e "  ${GREEN}+${NC} go"
+  [ -f "$proj_dir/Gemfile" ] && add_perm "Bash(bundle *)" && add_perm "Bash(ruby *)" && add_perm "Bash(rake *)" && echo -e "  ${GREEN}+${NC} ruby"
+  [ -f "$proj_dir/Makefile" ] && add_perm "Bash(make *)" && echo -e "  ${GREEN}+${NC} make"
+  [ -f "$proj_dir/CMakeLists.txt" ] && add_perm "Bash(cmake *)" && add_perm "Bash(make *)" && echo -e "  ${GREEN}+${NC} cmake"
+  if [ -f "$proj_dir/Dockerfile" ] || [ -f "$proj_dir/docker-compose.yml" ]; then
+    add_perm "Bash(docker *)" && add_perm "Bash(docker-compose *)"
+    echo -e "  ${GREEN}+${NC} docker"
+  fi
+
+  # SQLite
+  if ls "$proj_dir"/*.db 2>/dev/null | head -1 | grep -q . || echo "${py_content:-}${pkg_content:-}" 2>/dev/null | grep -qi "sqlite"; then
+    add_perm "Bash(sqlite3 *)"
+    echo -e "  ${GREEN}+${NC} sqlite"
+  fi
+
+  # Project-local scripts
+  if [ -d "$proj_dir/bin" ]; then
+    add_perm "Bash(./bin/*)"
+    echo -e "  ${GREEN}+${NC} ./bin/*"
+  fi
+  if [ -d "$proj_dir/scripts" ]; then
+    add_perm "Bash(./scripts/*)"
+    echo -e "  ${GREEN}+${NC} ./scripts/*"
+  fi
+
+  # --- Write settings.local.json ---
+  if [ ${#perms[@]} -eq 0 ]; then
+    echo -e "\n  ${YELLOW}No project-specific tools detected.${NC}"
+    return
+  fi
+
+  local settings_dir="$proj_dir/.claude"
+  local settings_file="$settings_dir/settings.local.json"
+  mkdir -p "$settings_dir"
+
+  # Build JSON allow array
+  local json_perms=""
+  for p in "${perms[@]}"; do
+    [ -n "$json_perms" ] && json_perms+=","
+    json_perms+=$'\n'"    \"$p\""
+  done
+
+  # If file exists, merge new permissions
+  if [ -f "$settings_file" ]; then
+    local existing_perms
+    existing_perms="$(cat "$settings_file")"
+    local added=0 kept=0
+    local new_perms=()
+
+    for p in "${perms[@]}"; do
+      if echo "$existing_perms" | grep -qF "\"$p\""; then
+        ((kept++))
+      else
+        new_perms+=("$p")
+        ((added++))
+      fi
+    done
+
+    if [ "$added" -eq 0 ]; then
+      echo -e "\n  ${GREEN}Already up to date.${NC} ($kept existing permissions)"
+      return
+    fi
+
+    # Rebuild: read existing allow array and append new ones
+    # Simple approach: rewrite the whole file with merged permissions
+    local all_existing
+    all_existing="$(python3 -c "
+import json, sys
+with open('$settings_file') as f:
+    data = json.load(f)
+perms = data.get('permissions', {}).get('allow', [])
+for p in perms:
+    print(p)
+" 2>/dev/null || true)"
+
+    # Combine existing + new, deduplicate
+    local all_perms=()
+    while IFS= read -r line; do
+      [ -n "$line" ] && all_perms+=("$line")
+    done <<< "$all_existing"
+    for p in "${new_perms[@]}"; do
+      all_perms+=("$p")
+    done
+
+    # Rebuild JSON
+    json_perms=""
+    for p in "${all_perms[@]}"; do
+      [ -n "$json_perms" ] && json_perms+=","
+      json_perms+=$'\n'"    \"$p\""
+    done
+
+    cat > "$settings_file" <<EOJSON
+{
+  "permissions": {
+    "allow": [$json_perms
+    ],
+    "deny": []
+  }
+}
+EOJSON
+    echo -e "\n  ${GREEN}Updated${NC} $settings_file"
+    echo -e "  Added: $added | Kept: $kept"
+  else
+    cat > "$settings_file" <<EOJSON
+{
+  "permissions": {
+    "allow": [$json_perms
+    ],
+    "deny": []
+  }
+}
+EOJSON
+    echo -e "\n  ${GREEN}Created${NC} $settings_file"
+    echo -e "  Added: ${#perms[@]} permissions"
+  fi
+}
+
+# --- Maintain (nightly) ---
+
+cmd_maintain() {
+  local today
+  today="$(date '+%Y-%m-%d')"
+  echo -e "${CYAN}=== Nightly Maintenance — $today ===${NC}\n"
+
+  # 1. Deploy check: auto-deploy new skills, clean dangling symlinks
+  echo -e "${CYAN}[1/3] Deploy Check${NC}"
+  mkdir -p "$DEPLOY_TARGET"
+
+  # Auto-deploy undeployed skills
+  local deployed=0
+  while IFS= read -r skill_dir; do
+    [ -z "$skill_dir" ] && continue
+    local name
+    name="$(basename "$skill_dir")"
+    local target="$DEPLOY_TARGET/$name"
+    if [ ! -L "$target" ] && [ ! -e "$target" ]; then
+      ln -s "$skill_dir" "$target"
+      echo -e "  ${GREEN}deployed${NC} $name"
+      ((deployed++))
+    fi
+  done < <(all_skill_dirs)
+
+  # Clean dangling symlinks
+  local cleaned=0
+  for link in "$DEPLOY_TARGET"/*; do
+    if [ -L "$link" ] && [ ! -e "$link" ]; then
+      rm "$link"
+      echo -e "  ${YELLOW}cleaned${NC} $(basename "$link") (dangling)"
+      ((cleaned++))
+    fi
+  done
+
+  if [ "$deployed" -eq 0 ] && [ "$cleaned" -eq 0 ]; then
+    echo -e "  ${GREEN}All symlinks OK${NC}"
+  else
+    echo -e "  Deployed: $deployed | Cleaned: $cleaned"
+  fi
+  echo ""
+
+  # 2. Permissions sync across all projects
+  echo -e "${CYAN}[2/3] Permissions Sync${NC}"
+  if [ -d "$PROJECTS_DIR" ]; then
+    local proj_count=0
+    for proj_dir in "$PROJECTS_DIR"/*/; do
+      [ ! -d "$proj_dir" ] && continue
+      local proj_name
+      proj_name="$(basename "$proj_dir")"
+
+      # Skip if no tooling indicators at all
+      local has_tooling=0
+      for indicator in package.json pyproject.toml requirements.txt Cargo.toml go.mod Gemfile Makefile Package.swift project.yml Podfile firebase.json .firebaserc Dockerfile; do
+        if [ -f "$proj_dir/$indicator" ]; then
+          has_tooling=1
+          break
+        fi
+      done
+      ls "$proj_dir"/*.xcodeproj 2>/dev/null | head -1 | grep -q . && has_tooling=1
+
+      if [ "$has_tooling" -eq 1 ]; then
+        echo -e "  ${CYAN}$proj_name${NC}"
+        cmd_permissions "$proj_dir" 2>/dev/null | sed 's/^/    /'
+        ((proj_count++))
+      fi
+    done
+    echo -e "  Scanned: $proj_count projects"
+  else
+    echo -e "  ${YELLOW}Projects directory not found${NC}"
+  fi
+  echo ""
+
+  # 3. Audit report
+  echo -e "${CYAN}[3/3] Audit Report${NC}"
+  cmd_audit
+}
+
 cmd_audit() {
   local today
   today="$(date '+%Y-%m-%d')"
@@ -746,6 +1139,8 @@ case "${1:-help}" in
   list)       cmd_list ;;
   check)      cmd_check "${2:-}" ;;
   audit)      cmd_audit ;;
+  permissions) cmd_permissions "${2:-.}" ;;
+  maintain)   cmd_maintain ;;
   sync)       cmd_sync ;;
   help|--help|-h) usage ;;
   *)

@@ -39,6 +39,8 @@ cd ~/any-project && claude
 | `./bin/sk list` | Show all skills grouped by category |
 | `./bin/sk check [--verbose]` | Health check: symlinks, reviews, gdrive, frontmatter |
 | `./bin/sk audit` | Generate audit report → `reports/skill-audit-YYYY-MM-DD.md` |
+| `./bin/sk permissions [dir]` | Scan project tooling → update `.claude/settings.local.json` |
+| `./bin/sk maintain` | Nightly: deploy check + permissions sync + audit report |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
 ## Skills Catalog (28 skills)
