@@ -24,6 +24,7 @@ Commands:
   import-gh <url>     Clone skill from GitHub URL
   list                Show all skills + deployment status
   check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
+  audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
   sync                Show Google Drive import status for re-import
   help                Show this help message
 
@@ -455,6 +456,286 @@ cmd_list() {
   fi
 }
 
+PROJECTS_DIR="$HOME/Documents/Projects"
+
+cmd_audit() {
+  local today
+  today="$(date '+%Y-%m-%d')"
+  local report_dir="$REPO_DIR/reports"
+  local report="$report_dir/skill-audit-${today}.md"
+  mkdir -p "$report_dir"
+
+  local total=0 healthy=0 needs_attention=0
+  local stale_days="${SK_STALE_DAYS:-90}"
+
+  # Collect all skill dirs
+  local skill_dirs=()
+  while IFS= read -r d; do
+    [ -z "$d" ] && continue
+    skill_dirs+=("$d")
+    ((total++))
+  done < <(all_skill_dirs)
+
+  # --- Begin report ---
+  {
+    echo "# Skill Audit Report — $today"
+    echo ""
+    echo "## Summary"
+    echo ""
+
+    # --- 1. Structural Health ---
+    local dangling=0 missing_deploy=0 missing_tags=0 missing_version=0
+
+    # Dangling symlinks
+    if [ -d "$DEPLOY_TARGET" ]; then
+      for link in "$DEPLOY_TARGET"/*; do
+        if [ -L "$link" ] && [ ! -e "$link" ]; then
+          ((dangling++))
+        fi
+      done
+    fi
+
+    # Per-skill checks
+    local no_trigger=0
+    local no_trigger_list=""
+    local missing_tags_list="" missing_version_list="" missing_deploy_list=""
+
+    for skill_dir in "${skill_dirs[@]}"; do
+      local name
+      name="$(basename "$skill_dir")"
+      local target="$DEPLOY_TARGET/$name"
+
+      # Deploy check
+      if [ ! -L "$target" ]; then
+        ((missing_deploy++))
+        missing_deploy_list+="- $name\n"
+      fi
+
+      # Tags check
+      local tags
+      tags="$(get_frontmatter_field "$skill_dir" "tags")"
+      if [ -z "$tags" ]; then
+        ((missing_tags++))
+        missing_tags_list+="- $name\n"
+      fi
+
+      # Version check
+      local ver
+      ver="$(get_frontmatter_field "$skill_dir" "version")"
+      if [ -z "$ver" ]; then
+        ((missing_version++))
+        missing_version_list+="- $name\n"
+      fi
+
+      # Description quality: check for TRIGGER
+      if ! grep -qi "TRIGGER" "$skill_dir/SKILL.md" 2>/dev/null; then
+        ((no_trigger++))
+        no_trigger_list+="- $name\n"
+      fi
+    done
+
+    # Count issues
+    local structural_issues=$((dangling + missing_deploy + missing_tags + missing_version))
+
+    echo "## Structural Health"
+    echo ""
+    if [ "$dangling" -eq 0 ]; then
+      echo "- Symlinks: OK"
+    else
+      echo "- Symlinks: **$dangling dangling**"
+      ((needs_attention += dangling))
+    fi
+    if [ "$missing_deploy" -eq 0 ]; then
+      echo "- Deploy: OK (all $total deployed)"
+    else
+      echo "- Deploy: **$missing_deploy not deployed**"
+      echo -e "$missing_deploy_list"
+      ((needs_attention += missing_deploy))
+    fi
+    if [ "$missing_tags" -eq 0 ] && [ "$missing_version" -eq 0 ]; then
+      echo "- Frontmatter: OK"
+    else
+      [ "$missing_tags" -gt 0 ] && echo "- Frontmatter: **$missing_tags missing tags**"
+      [ "$missing_version" -gt 0 ] && echo "- Frontmatter: **$missing_version missing version**"
+      ((needs_attention += missing_tags + missing_version))
+    fi
+    echo ""
+
+    # --- 2. Git Freshness ---
+    echo "## Freshness (last git commit to SKILL.md)"
+    echo ""
+    local stale_skills="" aging_skills="" active_skills=""
+    local stale_count=0 aging_count=0 active_count=0
+
+    for skill_dir in "${skill_dirs[@]}"; do
+      local name
+      name="$(basename "$skill_dir")"
+      local skill_file="$skill_dir/SKILL.md"
+      local last_commit_date
+      last_commit_date="$(git -C "$REPO_DIR" log -1 --format='%ai' -- "$skill_file" 2>/dev/null | cut -d' ' -f1)"
+
+      if [ -z "$last_commit_date" ]; then
+        stale_skills+="- $name (never committed)\n"
+        ((stale_count++))
+        continue
+      fi
+
+      local age
+      age="$(days_since "$last_commit_date")"
+      if [ "$age" -gt 90 ]; then
+        stale_skills+="- $name (${age}d — $last_commit_date)\n"
+        ((stale_count++))
+      elif [ "$age" -gt 30 ]; then
+        aging_skills+="- $name (${age}d — $last_commit_date)\n"
+        ((aging_count++))
+      else
+        active_skills+="- $name (${age}d — $last_commit_date)\n"
+        ((active_count++))
+      fi
+    done
+
+    echo "| Status | Count |"
+    echo "|--------|-------|"
+    echo "| Active (<30d) | $active_count |"
+    echo "| Aging (30-90d) | $aging_count |"
+    echo "| Stale (>90d) | $stale_count |"
+    echo ""
+
+    if [ "$stale_count" -gt 0 ]; then
+      echo "### Stale (>90 days)"
+      echo ""
+      echo -e "$stale_skills"
+      ((needs_attention += stale_count))
+    fi
+    if [ "$aging_count" -gt 0 ]; then
+      echo "### Aging (30-90 days)"
+      echo ""
+      echo -e "$aging_skills"
+    fi
+    if [ "$active_count" -gt 0 ]; then
+      echo "### Active (<30 days)"
+      echo ""
+      echo -e "$active_skills"
+    fi
+
+    # --- 3. Description Quality ---
+    echo "## Description Quality"
+    echo ""
+    if [ "$no_trigger" -eq 0 ]; then
+      echo "All descriptions OK."
+    else
+      echo "### Missing TRIGGER / DO NOT TRIGGER ($no_trigger)"
+      echo ""
+      echo -e "$no_trigger_list"
+      ((needs_attention += no_trigger))
+    fi
+
+    # --- 4. Tag Overlap ---
+    echo "## Tag Overlap Analysis"
+    echo ""
+    # Build tag-combo → skills mapping using temp file (bash 3 compat)
+    local tmp_tags
+    tmp_tags="$(mktemp)"
+    for skill_dir in "${skill_dirs[@]}"; do
+      local name
+      name="$(basename "$skill_dir")"
+      local tags
+      tags="$(get_tags "$skill_dir")"
+      if [ -n "$tags" ]; then
+        local sorted_tags
+        sorted_tags="$(echo "$tags" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sort | tr '\n' ',' | sed 's/,$//')"
+        echo "$sorted_tags|$name" >> "$tmp_tags"
+      fi
+    done
+
+    local overlap_found=0
+    while IFS= read -r combo; do
+      [ -z "$combo" ] && continue
+      local skills_in_group
+      skills_in_group="$(grep "^${combo}|" "$tmp_tags" | cut -d'|' -f2 | tr '\n' ' ' | sed 's/ $//')"
+      local word_count
+      word_count=$(echo "$skills_in_group" | wc -w | tr -d ' ')
+      if [ "$word_count" -gt 1 ]; then
+        echo "- **[$combo]**: $skills_in_group — review if boundaries are clear"
+        ((overlap_found++))
+      fi
+    done < <(cut -d'|' -f1 "$tmp_tags" | sort -u)
+    rm -f "$tmp_tags"
+
+    if [ "$overlap_found" -eq 0 ]; then
+      echo "No tag overlaps found."
+    fi
+    echo ""
+
+    # --- 5. Project Coverage ---
+    echo "## Project Coverage"
+    echo ""
+    if [ -d "$PROJECTS_DIR" ]; then
+      local covered="" uncovered=""
+      for proj_dir in "$PROJECTS_DIR"/*/; do
+        [ ! -d "$proj_dir" ] && continue
+        local proj_name
+        proj_name="$(basename "$proj_dir")"
+        [ "$proj_name" = "skills-test" ] && continue
+
+        local techs=""
+        # Detect tech stack (check root and one level deep)
+        { [ -f "$proj_dir/package.json" ] || find "$proj_dir" -maxdepth 2 -name "package.json" -print -quit 2>/dev/null | grep -q .; } && techs+="Node.js "
+        { [ -f "$proj_dir/pyproject.toml" ] || [ -f "$proj_dir/requirements.txt" ]; } && techs+="Python "
+        [ -f "$proj_dir/Cargo.toml" ] && techs+="Rust "
+        [ -f "$proj_dir/go.mod" ] && techs+="Go "
+        [ -f "$proj_dir/Package.swift" ] && techs+="Swift "
+        { [ -f "$proj_dir/project.yml" ] || ls "$proj_dir"/*.xcodeproj 2>/dev/null | head -1 | grep -q .; } && techs+="Xcode "
+        { [ -f "$proj_dir/firebase.json" ] || [ -f "$proj_dir/.firebaserc" ] || find "$proj_dir" -maxdepth 2 -name "firebase.json" -print -quit 2>/dev/null | grep -q .; } && techs+="Firebase "
+        [ -f "$proj_dir/Dockerfile" ] && techs+="Docker "
+        [ -f "$proj_dir/Makefile" ] && techs+="Make "
+        [ -f "$proj_dir/Gemfile" ] && techs+="Ruby "
+        ls "$proj_dir"/*.tf 2>/dev/null | head -1 | grep -q . && techs+="Terraform "
+
+        # Deduplicate
+        techs="$(echo "$techs" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+
+        if [ -n "$techs" ]; then
+          covered+="| $proj_name | $techs |\n"
+        fi
+      done
+
+      if [ -n "$covered" ]; then
+        echo "| Project | Tech Stack |"
+        echo "|---------|-----------|"
+        echo -e "$covered"
+      fi
+    else
+      echo "Projects directory not found at $PROJECTS_DIR"
+    fi
+
+    # --- Summary line ---
+    healthy=$((total - needs_attention))
+    [ "$healthy" -lt 0 ] && healthy=0
+
+    echo ""
+    echo "---"
+    echo ""
+    echo "*Generated by \`./bin/sk audit\` on $today — $total skills, $needs_attention issue(s) found.*"
+
+  } > "$report"
+
+  # Insert summary at top (after ## Summary)
+  sed -i '' "/^## Summary$/a\\
+\\
+- **Total:** $total skills\\
+- **Needs Attention:** $needs_attention issue(s)\\
+" "$report"
+
+  echo -e "${GREEN}Report generated:${NC} $report"
+  echo ""
+  # Print summary to terminal
+  echo -e "${CYAN}=== Skill Audit Summary ===${NC}"
+  echo -e "  Total:           $total skills"
+  echo -e "  Needs Attention: ${needs_attention} issue(s)"
+  echo -e "  Report:          $report"
+}
+
 # Main dispatch
 case "${1:-help}" in
   deploy)     cmd_deploy ;;
@@ -464,6 +745,7 @@ case "${1:-help}" in
   import-gh)  cmd_import_gh "${2:-}" ;;
   list)       cmd_list ;;
   check)      cmd_check "${2:-}" ;;
+  audit)      cmd_audit ;;
   sync)       cmd_sync ;;
   help|--help|-h) usage ;;
   *)

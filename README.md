@@ -38,6 +38,7 @@ cd ~/any-project && claude
 | `./bin/sk import-gh <url>` | Clone skill from GitHub URL |
 | `./bin/sk list` | Show all skills grouped by category |
 | `./bin/sk check [--verbose]` | Health check: symlinks, reviews, gdrive, frontmatter |
+| `./bin/sk audit` | Generate audit report → `reports/skill-audit-YYYY-MM-DD.md` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
 ## Skills Catalog (28 skills)
