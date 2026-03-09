@@ -1,6 +1,11 @@
 ---
 name: security-review
-description: Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, or implementing payment/sensitive features. Provides comprehensive security checklist and patterns.
+description: >
+  Comprehensive security checklist and patterns for code security.
+  TRIGGER when: adding authentication, handling user input, working with secrets,
+  creating API endpoints, or implementing payment/sensitive features.
+  DO NOT TRIGGER when: general code review without security focus (use code-reviewer),
+  writing tests (use qa-testing), or debugging (use systematic-debugging).
 tags: [quality, security]
 version: 1
 origin: ECC

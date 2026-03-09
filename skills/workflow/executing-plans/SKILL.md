@@ -1,7 +1,11 @@
 ---
 name: Executing Plans
-description: Execute detailed plans in batches with review checkpoints
-when_to_use: when partner provides a complete implementation plan to execute in controlled batches with review checkpoints
+description: >
+  Execute detailed plans in batches with review checkpoints.
+  TRIGGER when: a complete implementation plan exists and needs to be executed
+  in controlled batches with review checkpoints.
+  DO NOT TRIGGER when: no plan exists yet (use writing-plans first), or task is
+  small enough to execute directly without batching.
 tags: [workflow]
 version: 2.2.0
 ---

@@ -1,6 +1,11 @@
 ---
 name: planning-with-files
-description: Implements Manus-style file-based planning to organize and track progress on complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when asked to plan out, break down, or organize a multi-step project, research task, or any work requiring >5 tool calls. Supports automatic session recovery after /clear.
+description: >
+  Manus-style file-based planning with task_plan.md, findings.md, and progress.md.
+  TRIGGER when: user says /planning-with-files, asks to plan or break down a complex
+  multi-step project, or work requires >5 tool calls with progress tracking.
+  DO NOT TRIGGER when: task is simple enough to execute directly, or user wants
+  implementation plans for engineers (use writing-plans).
 tags: [workflow]
 version: 1
 user-invocable: true

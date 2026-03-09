@@ -1,6 +1,10 @@
 ---
 name: office-pptx
-description: "PowerPoint (.pptx) creation, editing, and analysis. Layouts, speaker notes, comments, media. Use when working with presentations."
+description: >
+  PowerPoint (.pptx) creation, editing, and analysis. Layouts, speaker notes,
+  comments, media.
+  TRIGGER when: user asks to create, edit, or analyze .pptx files or presentations.
+  DO NOT TRIGGER when: working with .docx, .pdf, .xlsx, or non-presentation files.
 tags: [docs]
 version: 1
 ---

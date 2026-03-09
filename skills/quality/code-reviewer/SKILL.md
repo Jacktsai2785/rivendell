@@ -2,8 +2,9 @@
 name: code-reviewer
 description: >
   Code review focusing on performance, correctness, and maintainability.
-  Use when: reviewing code, checking code quality, or when user mentions code review.
-  For security-focused audits, use security-review skill instead.
+  TRIGGER when: user says /code-reviewer, asks to review code quality, or mentions code review.
+  DO NOT TRIGGER when: reviewing a GitHub PR (use review-pr), doing security audits
+  (use security-review), or writing tests (use qa-testing).
 tags: [quality]
 version: 1
 user_invocable: true

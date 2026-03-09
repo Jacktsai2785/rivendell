@@ -1,9 +1,10 @@
 ---
 name: review-pr
 description: >
-  Use when asked to review a pull request. Analyzes PR changes for correctness,
-  security, performance, and best practices. Provides structured feedback with
-  approve/request-changes/comment recommendations.
+  Analyzes PR changes for correctness, security, performance, and best practices.
+  TRIGGER when: user says /review-pr, asks to review a pull request, or provides a PR URL/number.
+  DO NOT TRIGGER when: reviewing local code without a PR (use code-reviewer),
+  or creating a PR (use git commands directly).
 tags: [git]
 version: 1
 user_invocable: true

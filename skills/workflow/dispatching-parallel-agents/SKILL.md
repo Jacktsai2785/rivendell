@@ -1,7 +1,11 @@
 ---
 name: Dispatching Parallel Agents
-description: Use multiple Claude agents to investigate and fix independent problems concurrently
-when_to_use: when facing 3+ independent failures that can be investigated without shared state or dependencies
+description: >
+  Use multiple Claude agents to investigate and fix independent problems concurrently.
+  TRIGGER when: facing 3+ independent failures, tasks, or investigations that can
+  be parallelized without shared state or dependencies.
+  DO NOT TRIGGER when: tasks are sequential/dependent, fewer than 3 independent problems,
+  or a single focused investigation suffices.
 tags: [workflow]
 version: 1.1.0
 languages: all

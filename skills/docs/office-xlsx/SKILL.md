@@ -1,6 +1,11 @@
 ---
 name: office-xlsx
-description: "Spreadsheet (.xlsx/.csv) creation, editing, and analysis. Formulas, formatting, data analysis, visualization. Use when working with spreadsheets or tabular data."
+description: >
+  Spreadsheet (.xlsx/.csv) creation, editing, and analysis. Formulas, formatting,
+  data analysis, visualization.
+  TRIGGER when: user asks to create, edit, or analyze .xlsx/.csv files,
+  or work with tabular data and spreadsheet formulas.
+  DO NOT TRIGGER when: working with .docx, .pdf, .pptx, or non-tabular files.
 tags: [docs]
 version: 1
 ---

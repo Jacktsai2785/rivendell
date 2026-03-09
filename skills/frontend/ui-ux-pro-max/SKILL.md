@@ -1,6 +1,11 @@
 ---
 name: ui-ux-pro-max
-description: "UI/UX design intelligence with searchable database. 50+ styles, 97 color palettes, 57 font pairings, 25 chart types, 9 stacks. Use when designing UI components, choosing palettes/typography, building landing pages/dashboards, or reviewing UX. Covers: glassmorphism, minimalism, brutalism, neumorphism, bento grid, dark mode, accessibility, animation, responsive design."
+description: >
+  UI/UX design intelligence with searchable database. 50+ styles, 97 color palettes,
+  57 font pairings, 25 chart types, 9 stacks.
+  TRIGGER when: designing UI components, choosing color palettes or typography,
+  building landing pages/dashboards, reviewing UX, or user says /ui-ux-pro-max.
+  DO NOT TRIGGER when: backend-only work, CLI tools, or pure logic with no UI.
 tags: [frontend]
 version: 1
 user_invocable: true

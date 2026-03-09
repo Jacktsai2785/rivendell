@@ -1,6 +1,9 @@
 ---
 name: office-pdf
-description: "PDF manipulation: extract text/tables, create PDFs, merge/split, fill forms. Use when working with .pdf files."
+description: >
+  PDF manipulation: extract text/tables, create PDFs, merge/split, fill forms.
+  TRIGGER when: user asks to create, read, edit, merge, split, or fill .pdf files.
+  DO NOT TRIGGER when: working with .docx, .pptx, .xlsx, or other non-PDF files.
 tags: [docs]
 version: 1
 ---

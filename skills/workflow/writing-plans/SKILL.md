@@ -1,7 +1,12 @@
 ---
 name: Writing Plans
-description: Create detailed implementation plans with bite-sized tasks for engineers with zero codebase context
-when_to_use: when design is complete and you need detailed implementation tasks for engineers with zero codebase context
+description: >
+  Create detailed implementation plans with bite-sized tasks for engineers
+  with zero codebase context.
+  TRIGGER when: design is complete and user needs detailed implementation tasks,
+  or user asks to write a plan for development work.
+  DO NOT TRIGGER when: plan already exists and needs execution (use executing-plans),
+  or task is research/exploration (use planning-with-files).
 tags: [workflow]
 version: 2.1.0
 ---

@@ -1,6 +1,11 @@
 ---
 name: office-docx
-description: "Word document (.docx) creation, editing, and analysis. Tracked changes, comments, formatting preservation, text extraction. Use when working with .docx files."
+description: >
+  Word document (.docx) creation, editing, and analysis. Tracked changes,
+  comments, formatting preservation, text extraction.
+  TRIGGER when: user asks to create, read, edit, or analyze .docx files,
+  or mentions Word documents.
+  DO NOT TRIGGER when: working with .pdf, .pptx, .xlsx, or plain text files.
 tags: [docs]
 version: 1
 ---
