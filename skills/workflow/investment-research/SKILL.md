@@ -1,10 +1,13 @@
 ---
 name: investment-research
 description: >
-  Structured investment research workflow: alpha discovery, risk management,
-  backtesting, and financial statement analysis using news_stock data.
-  TRIGGER when: user asks to research stocks, find alpha, analyze investment
-  opportunities, run backtests, or says "投資研究" / "研究報告".
+  Continuous portfolio management agent: alpha discovery, risk management,
+  backtesting, and financial statement analysis. Uses news_stock local data
+  AND autonomous web search to find opportunities beyond the local database.
+  Runs in continuous mode — monitors holdings, scans for new alpha weekly,
+  proposes rebalancing, and tracks performance across sessions.
+  TRIGGER when: user asks to research stocks, find alpha, manage portfolio,
+  analyze investments, run backtests, or says "投資研究" / "開始研究" / "持續追蹤".
   DO NOT TRIGGER when: debugging code (use systematic-debugging), reviewing
   code quality (use code-reviewer), or building UI features.
 tags: [workflow, finance]
@@ -108,9 +111,9 @@ Use WebSearch for breaking news not yet in the database.
 
 ## Step 2: Stock Pool Selection
 
-Define the universe to research. Use existing stock pools from `finance.db`.
+Use two sources to build the research universe: **local DB pools** (existing data) and **web discovery** (new opportunities).
 
-### Available Pools
+### Source A: Local Pools (news_stock finance.db)
 
 ```python
 FIN_DB = os.path.expanduser("~/Documents/Projects/news_stock/finance.db")
@@ -133,21 +136,67 @@ pools = fconn.execute("""
 - TW Stocks: ~117 stocks
 - ETFs: ~67 stocks
 
+### Source B: Web Discovery (autonomous search)
+
+When the research thesis goes beyond local pools, **actively search for stocks** using WebSearch. This is critical for discovering opportunities not already in the database.
+
+#### Discovery Strategies
+
+| Strategy | Search Queries | Use Case |
+|----------|---------------|----------|
+| Thematic | `"top [theme] stocks 2026"`, `"[industry] market leaders"` | New sectors or trends not in local pools |
+| Screener | `"finviz screener [criteria]"`, `"stock screener PE < 15 ROE > 20"` | Quantitative filtering across all markets |
+| Analyst picks | `"Goldman Sachs top picks"`, `"Morningstar 5-star stocks"` | Institutional consensus |
+| Insider activity | `"insider buying [sector] SEC filings"` | Smart money signals |
+| IPO/emerging | `"recent IPO high growth"`, `"small cap breakout stocks"` | Early-stage opportunities |
+| Regional | `"best Japan stocks"`, `"emerging market value stocks"` | Non-US/TW markets |
+| ETF holdings | `"[ETF ticker] top holdings"`, `"ARK Invest latest trades"` | Discover via thematic ETF composition |
+
+#### Web Discovery Workflow
+
+```
+1. Define thesis → pick 2-3 search strategies above
+2. WebSearch → collect candidate tickers + brief rationale
+3. For each candidate:
+   a. Check if already in local DB → if yes, use local data
+   b. If NOT in local DB:
+      - WebSearch "[ticker] financials revenue earnings"
+      - WebSearch "[ticker] stock analysis bull bear case"
+      - Collect: price, PE, revenue growth, margin, recent catalysts
+4. Build unified candidate list (local + web-discovered)
+5. Clearly label each stock's data source in the report
+```
+
+#### Example: Discovering a Robotics Pool
+
+```
+WebSearch: "top robotics automation stocks 2026"
+WebSearch: "ROBO ETF top 10 holdings"
+WebSearch: "industrial automation market leaders revenue growth"
+
+→ Discovers: ISRG, ROK, ABB, FANUY, IRBT, PATH, TER, CGNX
+→ Cross-check: TER already in local AI Supply Chain pool
+→ New candidates: ISRG, ROK, ABB, FANUY, CGNX (not in local DB)
+→ WebSearch each for financials
+```
+
 ### Pool Selection Logic
 
 ```
 What is the research thesis?
-  → AI/semiconductor → AI Supply Chain pool
-  → Macro cycle play → US Sectors + ETFs
-  → Taiwan market → TW Stocks pool
-  → Geopolitical hedge → Geopolitical pool
-  → Broad scan → US Stocks pool (apply filters below)
+  → Matches existing pool? → Use local pool (Source A)
+  → New theme/sector?     → Web discovery (Source B)
+  → Broad exploration?    → Combine both sources
+  → Specific region?      → Web discovery for that market
+  → "Find me alpha"       → Screen locally first, then expand via web
 ```
+
+**Always ask**: "Are there opportunities my local DB is missing?" If the thesis is about a trend, sector, or region not well-covered by the 7 local pools, web discovery is mandatory.
 
 ### Fundamental Filters (narrow the pool)
 
+For **local** stocks:
 ```python
-# Filter by fundamentals from finance.db
 candidates = fconn.execute("""
     SELECT w.symbol, w.name, f.*
     FROM fundamentals f
@@ -158,6 +207,13 @@ candidates = fconn.execute("""
       AND f.profit_margin > 0.10
     ORDER BY f.roe DESC
 """).fetchall()
+```
+
+For **web-discovered** stocks, apply the same filters using data from WebSearch:
+```
+WebSearch: "[ticker] PE ratio ROE profit margin"
+→ Parse key metrics → apply same thresholds
+→ Flag "data confidence: web" vs "data confidence: local DB" in output
 ```
 
 Adjust filters based on cycle phase:
@@ -226,10 +282,10 @@ from config.ai_stocks import AI_LAYERS, AI_LAYER_STOCKS, AI_STOCK_DESCRIPTIONS
 # Find lagging layers that may catch up (mean reversion alpha)
 ```
 
-### 3d. Cross-reference with News
+### 3d. Cross-reference with News & Web Intelligence
 
+**Local news DB first:**
 ```python
-# Search news for candidate symbols
 for symbol in top_candidates:
     news = nconn.execute("""
         SELECT title, source, published_at
@@ -241,7 +297,25 @@ for symbol in top_candidates:
     """, (f'%{symbol}%', f'%{symbol}%')).fetchall()
 ```
 
-Use WebSearch for real-time news and analyst reports not in the database.
+**Then actively search the web for each candidate:**
+```
+For each top candidate:
+  WebSearch: "[ticker] earnings report latest"
+  WebSearch: "[ticker] analyst price target upgrade downgrade"
+  WebSearch: "[ticker] competitive advantage moat analysis"
+  WebSearch: "[ticker] risk factors SEC 10-K"
+
+For web-discovered stocks (no local data):
+  WebSearch: "[ticker] stock chart technical analysis"
+  WebSearch: "[ticker] financial statements revenue profit"
+  WebSearch: "[ticker] insider buying institutional ownership"
+```
+
+**Synthesize** local DB news + web results into a catalyst summary per stock:
+- Recent earnings beat/miss
+- Analyst consensus shift
+- Upcoming catalysts (product launch, FDA approval, contract win)
+- Red flags (insider selling, downgrade, litigation)
 
 ---
 
@@ -259,11 +333,11 @@ Quantify risk before defining entry/exit rules.
 | Correlation | Between positions | > 0.8 (concentration risk) |
 | VaR (95%) | 5th percentile daily loss | Context-dependent |
 
+**Local stocks** (have price history in DB):
 ```python
 import pandas as pd
 import numpy as np
 
-# Calculate from daily_prices
 prices = pd.read_sql("""
     SELECT date, close FROM daily_prices
     WHERE symbol = ? AND date >= date('now', '-1 year')
@@ -274,6 +348,19 @@ returns = prices['close'].pct_change().dropna()
 sharpe = returns.mean() / returns.std() * np.sqrt(252)
 max_dd = (prices['close'] / prices['close'].cummax() - 1).min()
 var_95 = returns.quantile(0.05)
+```
+
+**Web-discovered stocks** (no local price history):
+```
+WebSearch: "[ticker] stock performance 1 year return max drawdown"
+WebSearch: "[ticker] beta sharpe ratio volatility"
+WebSearch: "[ticker] yfinance" → use yfinance to pull price data on the fly:
+```
+```python
+import yfinance as yf
+ticker = yf.Ticker("SYMBOL")
+hist = ticker.history(period="1y")
+# Calculate same metrics as above
 ```
 
 ### Portfolio Correlation Check
@@ -501,6 +588,202 @@ _Data source: news_stock platform (finance.db, news.db, macro.db)_
 
 ---
 
+## Continuous Mode — Portfolio Management Agent
+
+This skill is designed to run **continuously**, not just once. When the user says "開始研究" or "持續追蹤", enter continuous mode.
+
+### Operating Loop
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  CONTINUOUS LOOP                     │
+│                                                      │
+│  1. MONITOR  → Check portfolio health daily          │
+│       ↓                                              │
+│  2. SCAN     → Search for new opportunities (web)    │
+│       ↓                                              │
+│  3. EVALUATE → Score new candidates vs current hold  │
+│       ↓                                              │
+│  4. REBALANCE → Propose swaps if better alpha found  │
+│       ↓                                              │
+│  5. REPORT   → Update portfolio dashboard            │
+│       ↓                                              │
+│  (loop back to 1)                                    │
+└─────────────────────────────────────────────────────┘
+```
+
+### 1. MONITOR — Portfolio Health Check
+
+Every session, start by assessing current holdings:
+
+```
+For each position in portfolio:
+  - Current price vs entry → unrealized P&L
+  - Hit stop loss? → FLAG for exit
+  - Hit take profit? → FLAG for partial exit
+  - Technical signal reversal? → FLAG for review
+  - Earnings coming up? → WebSearch "[ticker] next earnings date"
+  - Breaking news? → WebSearch "[ticker] news today"
+```
+
+Output a **Portfolio Health Dashboard**:
+```markdown
+## Portfolio Health — [Date]
+
+| Symbol | Entry | Current | P&L | Status | Alert |
+|--------|-------|---------|-----|--------|-------|
+| NVDA | $120 | $135 | +12.5% | ✅ Hold | Earnings in 5 days |
+| TSM | $180 | $165 | -8.3% | 🚨 Stop loss hit | EXIT |
+| ... | | | | | |
+
+Total P&L: +X%  |  Benchmark (SPY): +Y%  |  Alpha: +Z%
+```
+
+### 2. SCAN — Continuous Opportunity Discovery
+
+**Don't wait to be asked.** Proactively search for new alpha:
+
+```
+Weekly rotation of discovery themes:
+  Week 1: Sector rotation signals
+    WebSearch: "sector rotation [month] [year] outperforming"
+    WebSearch: "money flow sectors ETF relative strength"
+
+  Week 2: Emerging trends
+    WebSearch: "emerging investment themes [year]"
+    WebSearch: "new technology stocks breakout"
+    WebSearch: "venture capital trending sectors"
+
+  Week 3: Contrarian / Value
+    WebSearch: "most undervalued stocks [market]"
+    WebSearch: "stocks 52 week low strong fundamentals"
+    WebSearch: "insider buying significant [month]"
+
+  Week 4: Global opportunities
+    WebSearch: "best performing global markets [year]"
+    WebSearch: "Japan stocks momentum"
+    WebSearch: "India market top picks"
+    WebSearch: "emerging market value opportunities"
+```
+
+Also monitor for macro regime changes:
+```
+WebSearch: "Fed rate decision latest"
+WebSearch: "yield curve inversion update"
+WebSearch: "VIX spike market fear"
+→ If cycle phase changes → trigger full portfolio reassessment
+```
+
+### 3. EVALUATE — Compare New vs Current
+
+Score new candidates against current holdings using the same framework:
+
+```
+New candidate score > Weakest holding score + 10% margin?
+  → YES → Propose swap
+  → NO  → Add to watchlist for future review
+
+Also check:
+  - Does adding this reduce portfolio correlation? (diversification benefit)
+  - Does it align with current cycle phase?
+  - Is there a clear catalyst within 90 days?
+```
+
+### 4. REBALANCE — Propose Portfolio Changes
+
+Never auto-execute. Always present proposals for user decision:
+
+```markdown
+## Rebalance Proposal — [Date]
+
+### Exits (triggered by rules)
+| Symbol | Reason | Current P&L |
+|--------|--------|-------------|
+| TSM | Stop loss -8% | -$1,200 |
+
+### Swaps (better alpha found)
+| OUT | IN | Rationale |
+|-----|-----|-----------|
+| XYZ (score: 62) | ABC (score: 78) | Higher momentum, lower correlation |
+
+### New Additions (from web discovery)
+| Symbol | Score | Thesis | Suggested Weight |
+|--------|-------|--------|-----------------|
+| ISRG | 81 | Robotics surgery leader, 22% rev growth | 8% |
+
+### Do Nothing (current portfolio is optimal)
+If no exits triggered and no candidates score significantly higher,
+explicitly state: "Portfolio unchanged. No action needed."
+```
+
+### 5. REPORT — Cumulative Portfolio Tracking
+
+Maintain a running portfolio state file:
+
+```markdown
+# Portfolio State — [Date]
+
+## Current Holdings
+| Symbol | Entry Date | Entry Price | Weight | Thesis |
+|--------|-----------|-------------|--------|--------|
+| ... | | | | |
+
+## Historical Trades
+| Date | Action | Symbol | Price | P&L | Reason |
+|------|--------|--------|-------|-----|--------|
+| ... | | | | | |
+
+## Performance
+| Period | Portfolio | Benchmark | Alpha |
+|--------|----------|-----------|-------|
+| MTD | +X% | +Y% | +Z% |
+| YTD | +X% | +Y% | +Z% |
+
+## Asset Allocation (四大報表 summary)
+| Category | Current | Target |
+|----------|---------|--------|
+| Stocks | X% | Y% |
+| Bonds/ETF | X% | Y% |
+| Cash | X% | Y% |
+
+## Watchlist (from continuous scanning)
+| Symbol | Score | Source | Why Watching |
+|--------|-------|--------|-------------|
+| ... | | Web/Local | |
+```
+
+Store this file at: `~/Documents/Projects/news_stock/reports/portfolio-state.md`
+
+### Persistence Across Sessions
+
+After each session, save state so the next session picks up where it left off:
+
+```python
+import json, os
+from datetime import date
+
+STATE_FILE = os.path.expanduser(
+    "~/Documents/Projects/news_stock/reports/portfolio-state.json"
+)
+
+state = {
+    "last_updated": str(date.today()),
+    "holdings": [...],        # Current positions
+    "watchlist": [...],       # Candidates being tracked
+    "alerts": [...],          # Pending alerts
+    "scan_rotation": 1,       # Which weekly scan theme is next (1-4)
+    "last_scan_date": "...",  # When the last web scan happened
+    "trade_history": [...]    # All completed trades
+}
+
+with open(STATE_FILE, 'w') as f:
+    json.dump(state, f, indent=2, ensure_ascii=False)
+```
+
+On session start, **always read this file first** to resume.
+
+---
+
 ## Integration with Other Skills
 
 | Skill | How it Integrates |
@@ -509,6 +792,7 @@ _Data source: news_stock platform (finance.db, news.db, macro.db)_
 | **office-xlsx** | Export backtest results and portfolio to spreadsheet |
 | **office-pdf** | Generate formatted research report PDF |
 | **webapp-testing** | Verify news_stock web dashboard displays correctly |
+| **dispatching-parallel-agents** | Run multiple stock analyses in parallel |
 
 ## Data Freshness
 
@@ -532,3 +816,5 @@ When database data is insufficient, use WebSearch for:
 - SEC filings (10-K, 10-Q)
 - Industry reports and competitive landscape
 - Geopolitical developments affecting positions
+- **New stock discovery** (not limited to local database)
+- **Global markets** beyond US/TW coverage
