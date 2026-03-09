@@ -6,8 +6,8 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 
 ```
 skills/
-├── meta/       # Claude Code 自身管理工具 (5)
-├── workflow/   # 工作流程與規劃 (8)
+├── meta/       # Claude Code 自身管理工具 (6)
+├── workflow/   # 工作流程與規劃 (9)
 ├── quality/    # 程式品質、審查、除錯、測試 (4)
 ├── git/        # Git/GitHub 操作 (1)
 ├── frontend/   # 前端設計、iOS、測試 (5)
@@ -43,7 +43,7 @@ cd ~/any-project && claude
 | `./bin/sk maintain` | Nightly: deploy check + permissions sync + audit report |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (29 skills)
+## Skills Catalog (31 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -53,6 +53,7 @@ cd ~/any-project && claude
 | **setup-permissions** | 自動 | 偵測專案工具鏈，自動設定 permission allowlists，減少手動核准 |
 | **plan-check-style** | 自動 | 進入 plan mode 做前端任務時，自動掃描並套用 style skills |
 | **skill-creator** | 自動 | 建立、修改、評測 skills，含 eval 和 benchmark 工具 |
+| **audit-fix** | 自動 | 分析 `sk audit` 報告，自動清理各專案 permission 白名單（刪 one-off、統一格式、移除全域重複） |
 | **dev-process-gate** | 自動 | 開發守門：確保 requirement → flow → wireframe → mockup → dev → QA testing 流程不跳步 |
 
 ### workflow/ — 工作流程與規劃
@@ -67,6 +68,7 @@ cd ~/any-project && claude
 | **user-flow** | `/user-flow` 或自動 | 用 Mermaid 繪製使用者流程圖，含 happy path 與 error branch |
 | **mockup** | `/mockup` 或自動 | 三階段 UI mockup（ASCII → 靜態 HTML → 互動 HTML），讀取 design system，支援 Figma 匯出 |
 | **gdrive-to-skills** | `/gdrive-to-skills` | 讀取 Google Drive 文件，分類並自動建立 knowledge skills |
+| **investment-research** | `/investment-research` 或自動 | 投資研究流程：總經掃描 → 選股池 → Alpha 發現 → 風險評估 → 回測 → 四大報表 → 報告 |
 
 ### quality/ — 程式品質
 
