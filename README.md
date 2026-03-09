@@ -8,7 +8,7 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 skills/
 ├── meta/       # Claude Code 自身管理工具 (5)
 ├── workflow/   # 工作流程與規劃 (8)
-├── quality/    # 程式品質、審查、除錯 (3)
+├── quality/    # 程式品質、審查、除錯、測試 (4)
 ├── git/        # Git/GitHub 操作 (1)
 ├── frontend/   # 前端設計、iOS、測試 (5)
 ├── backend/    # 後端服務 (1)
@@ -43,7 +43,7 @@ cd ~/any-project && claude
 | `./bin/sk maintain` | Nightly: deploy check + permissions sync + audit report |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (28 skills)
+## Skills Catalog (29 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -53,7 +53,7 @@ cd ~/any-project && claude
 | **setup-permissions** | 自動 | 偵測專案工具鏈，自動設定 permission allowlists，減少手動核准 |
 | **plan-check-style** | 自動 | 進入 plan mode 做前端任務時，自動掃描並套用 style skills |
 | **skill-creator** | 自動 | 建立、修改、評測 skills，含 eval 和 benchmark 工具 |
-| **dev-process-gate** | 自動 | 開發守門：確保 requirement → flow → wireframe → mockup → dev 流程不跳步 |
+| **dev-process-gate** | 自動 | 開發守門：確保 requirement → flow → wireframe → mockup → dev → QA testing 流程不跳步 |
 
 ### workflow/ — 工作流程與規劃
 
@@ -75,6 +75,7 @@ cd ~/any-project && claude
 | **systematic-debugging** | 自動 | 四階段除錯框架：根因調查 → 模式分析 → 假設測試 → 實作修復 |
 | **code-reviewer** | `/code-reviewer` | Code review 專注 performance、correctness、maintainability |
 | **security-review** | 自動 | 深度安全審查：OWASP Top 10、input validation、auth、CSRF、XSS |
+| **qa-testing** | 自動 | 跨框架測試指導：pytest / Vitest / Swift Testing 的策略、mock 模式、模板 |
 
 ### git/ — Git/GitHub
 
