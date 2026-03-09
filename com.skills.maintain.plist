@@ -6,8 +6,7 @@
     <string>com.skills.maintain</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/manibari/Documents/Projects/skills-test/bin/sk</string>
-        <string>maintain</string>
+        <string>/Users/manibari/Documents/Projects/skills-test/bin/sk-maintain-cron</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -16,10 +15,6 @@
         <key>Minute</key>
         <integer>0</integer>
     </dict>
-    <key>StandardOutPath</key>
-    <string>/Users/manibari/Documents/Projects/skills-test/reports/maintain.log</string>
-    <key>StandardErrorPath</key>
-    <string>/Users/manibari/Documents/Projects/skills-test/reports/maintain-error.log</string>
     <key>WorkingDirectory</key>
     <string>/Users/manibari/Documents/Projects/skills-test</string>
 </dict>
