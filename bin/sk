@@ -1060,19 +1060,22 @@ cmd_audit() {
     fi
     echo ""
 
-    # --- 5. Project Coverage ---
-    echo "## Project Coverage"
+    # --- 5. Project Audit ---
+    echo "## Project Audit"
     echo ""
     if [ -d "$PROJECTS_DIR" ]; then
-      local covered="" uncovered=""
+      echo "| Project | Tech Stack | Config | Permissions | Git |"
+      echo "|---------|-----------|--------|-------------|-----|"
+      local proj_issues=0
+
       for proj_dir in "$PROJECTS_DIR"/*/; do
         [ ! -d "$proj_dir" ] && continue
         local proj_name
         proj_name="$(basename "$proj_dir")"
         [ "$proj_name" = "skills-test" ] && continue
 
+        # --- Tech stack detection ---
         local techs=""
-        # Detect tech stack (check root and one level deep)
         { [ -f "$proj_dir/package.json" ] || find "$proj_dir" -maxdepth 2 -name "package.json" -print -quit 2>/dev/null | grep -q .; } && techs+="Node.js "
         { [ -f "$proj_dir/pyproject.toml" ] || [ -f "$proj_dir/requirements.txt" ]; } && techs+="Python "
         [ -f "$proj_dir/Cargo.toml" ] && techs+="Rust "
@@ -1084,23 +1087,146 @@ cmd_audit() {
         [ -f "$proj_dir/Makefile" ] && techs+="Make "
         [ -f "$proj_dir/Gemfile" ] && techs+="Ruby "
         ls "$proj_dir"/*.tf 2>/dev/null | head -1 | grep -q . && techs+="Terraform "
-
-        # Deduplicate
         techs="$(echo "$techs" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 
-        if [ -n "$techs" ]; then
-          covered+="| $proj_name | $techs |\n"
+        # Skip projects with no detectable tooling
+        [ -z "$techs" ] && continue
+
+        # --- Config check ---
+        local config_status=""
+        local has_claude_md=0 has_agents_md=0
+        [ -f "$proj_dir/.claude/CLAUDE.md" ] && has_claude_md=1
+        [ -f "$proj_dir/AGENTS.md" ] && has_agents_md=1
+        if [ "$has_claude_md" -eq 1 ] && [ "$has_agents_md" -eq 1 ]; then
+          config_status="OK"
+        elif [ "$has_claude_md" -eq 1 ]; then
+          config_status="no AGENTS.md"
+        elif [ "$has_agents_md" -eq 1 ]; then
+          config_status="no CLAUDE.md"
+        else
+          config_status="**missing**"
+          ((proj_issues++))
         fi
+
+        # --- Permissions check ---
+        local perm_status=""
+        local settings_file="$proj_dir/.claude/settings.local.json"
+        if [ -f "$settings_file" ]; then
+          # Count one-off commands (hardcoded paths, full commit messages)
+          local oneoff_count=0
+          oneoff_count="$(grep -cE '(git -C /|git commit -m "|find /Users|Bash\([A-Z])' "$settings_file" 2>/dev/null || true)"
+          oneoff_count="${oneoff_count:-0}"; oneoff_count="${oneoff_count// /}"
+          # Count colon-style patterns
+          local colon_count=0
+          colon_count="$(grep -cE 'Bash\([a-z]+:' "$settings_file" 2>/dev/null || true)"
+          colon_count="${colon_count:-0}"; colon_count="${colon_count// /}"
+          local total_perms=0
+          total_perms="$(grep -cE '"Bash|"mcp_|"Read|"WebFetch|"WebSearch' "$settings_file" 2>/dev/null || true)"
+          total_perms="${total_perms:-0}"; total_perms="${total_perms// /}"
+
+          if [ "$oneoff_count" -gt 0 ] || [ "$colon_count" -gt 0 ]; then
+            perm_status="**cleanup** (${oneoff_count} one-off, ${colon_count} colon-style)"
+            ((proj_issues++))
+          else
+            perm_status="OK ($total_perms rules)"
+          fi
+        else
+          # Check if project has tooling that needs permissions
+          perm_status="**missing**"
+          ((proj_issues++))
+        fi
+
+        # --- Git check ---
+        local git_status=""
+        if [ -d "$proj_dir/.git" ]; then
+          local dirty=0 unpushed=0
+          dirty="$(git -C "$proj_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+          unpushed="$(git -C "$proj_dir" log --oneline '@{upstream}..HEAD' 2>/dev/null | wc -l | tr -d ' ')"
+
+          if [ "$dirty" -gt 0 ] && [ "$unpushed" -gt 0 ]; then
+            git_status="${dirty} dirty, ${unpushed} unpushed"
+          elif [ "$dirty" -gt 0 ]; then
+            git_status="${dirty} dirty"
+          elif [ "$unpushed" -gt 0 ]; then
+            git_status="${unpushed} unpushed"
+          else
+            git_status="clean"
+          fi
+        else
+          git_status="no git"
+        fi
+
+        echo "| $proj_name | $techs | $config_status | $perm_status | $git_status |"
       done
 
-      if [ -n "$covered" ]; then
-        echo "| Project | Tech Stack |"
-        echo "|---------|-----------|"
-        echo -e "$covered"
+      echo ""
+      if [ "$proj_issues" -gt 0 ]; then
+        echo "**$proj_issues project issue(s)** need attention."
+        ((needs_attention += proj_issues))
+      else
+        echo "All projects OK."
       fi
     else
       echo "Projects directory not found at $PROJECTS_DIR"
     fi
+
+    # --- 6. Token Usage ---
+    echo "## Token Usage ($today)"
+    echo ""
+    local token_output
+    token_output="$(python3 -c "
+import json, os, glob
+from collections import defaultdict
+
+target = '$today'
+base = os.path.expanduser('~/.claude/projects/')
+totals = defaultdict(int)
+sessions = 0
+api_calls = 0
+
+for pdir in glob.glob(os.path.join(base, '*/')):
+    for f in glob.glob(os.path.join(pdir, '*.jsonl')):
+        found = False
+        for line in open(f):
+            obj = json.loads(line)
+            ts = obj.get('timestamp', '')
+            if target not in ts:
+                continue
+            found = True
+            if obj.get('type') == 'assistant':
+                msg = obj.get('message', {})
+                if isinstance(msg, dict) and 'usage' in msg:
+                    u = msg['usage']
+                    totals['input'] += u.get('input_tokens', 0)
+                    totals['output'] += u.get('output_tokens', 0)
+                    totals['cache_create'] += u.get('cache_creation_input_tokens', 0)
+                    totals['cache_read'] += u.get('cache_read_input_tokens', 0)
+                    api_calls += 1
+        if found:
+            sessions += 1
+
+total = totals['input'] + totals['output'] + totals['cache_create'] + totals['cache_read']
+cost = (totals['input'] * 15 + totals['output'] * 75 + totals['cache_create'] * 18.75 + totals['cache_read'] * 1.50) / 1_000_000
+
+print(f'| Metric | Value |')
+print(f'|--------|-------|')
+print(f'| Sessions | {sessions} |')
+print(f'| API calls | {api_calls:,} |')
+print(f'| Input tokens | {totals[\"input\"]:,} |')
+print(f'| Output tokens | {totals[\"output\"]:,} |')
+print(f'| Cache creation | {totals[\"cache_create\"]:,} |')
+print(f'| Cache read | {totals[\"cache_read\"]:,} |')
+print(f'| **Total tokens** | **{total:,}** |')
+print(f'| **Est. cost** | **\${cost:.2f}** |')
+print()
+print(f'_Pricing: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cache read \$1.50/M_')
+" 2>/dev/null)"
+    if [ -n "$token_output" ]; then
+      echo "$token_output"
+    else
+      echo "No token data available (current session not yet saved)."
+    fi
+    echo ""
 
     # --- Summary line ---
     healthy=$((total - needs_attention))
