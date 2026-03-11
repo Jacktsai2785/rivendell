@@ -6,12 +6,12 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 
 ```
 skills/
-├── meta/       # Claude Code 自身管理工具 (6)
+├── meta/       # Claude Code 自身管理工具 (8)
 ├── workflow/   # 工作流程與規劃 (9)
-├── quality/    # 程式品質、審查、除錯、測試 (4)
+├── quality/    # 程式品質、審查、除錯、測試 (5)
 ├── git/        # Git/GitHub 操作 (1)
 ├── frontend/   # 前端設計、iOS、測試 (5)
-├── backend/    # 後端服務 (1)
+├── backend/    # 後端服務 (2)
 └── docs/       # 文件處理與 MCP 建置 (5)
 ```
 
@@ -40,10 +40,11 @@ cd ~/any-project && claude
 | `./bin/sk check [--verbose]` | Health check: symlinks, reviews, gdrive, frontmatter |
 | `./bin/sk audit` | Generate audit report → `reports/skill-audit-YYYY-MM-DD.md` |
 | `./bin/sk permissions [dir]` | Scan project tooling → update `.claude/settings.local.json` |
-| `./bin/sk maintain` | Nightly: deploy check + permissions sync + audit report |
+| `./bin/sk maintain` | Nightly: deploy check + permissions sync + agent health + audit |
+| `./bin/sk agent <cmd>` | Manage automated agents: `list`, `start`, `stop`, `status`, `log`, `create` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (31 skills)
+## Skills Catalog (35 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -54,6 +55,8 @@ cd ~/any-project && claude
 | **plan-check-style** | 自動 | 進入 plan mode 做前端任務時，自動掃描並套用 style skills |
 | **skill-creator** | 自動 | 建立、修改、評測 skills，含 eval 和 benchmark 工具 |
 | **audit-fix** | 自動 | 分析 `sk audit` 報告，自動清理各專案 permission 白名單（刪 one-off、統一格式、移除全域重複） |
+| **ci-pipeline** | 自動 | 偵測專案 stack，自動產生 GitHub Actions CI workflow（lint、test、build）+ pre-commit config |
+| **deploy** | 自動 | 推薦部署平台，產生部署配置（Dockerfile、fly.toml、vercel.json）+ CD workflow |
 | **dev-process-gate** | 自動 | 開發守門：確保 requirement → flow → wireframe → mockup → dev → QA testing 流程不跳步 |
 
 ### workflow/ — 工作流程與規劃
@@ -78,6 +81,7 @@ cd ~/any-project && claude
 | **code-reviewer** | `/code-reviewer` | Code review 專注 performance、correctness、maintainability |
 | **security-review** | 自動 | 深度安全審查：OWASP Top 10、input validation、auth、CSRF、XSS |
 | **qa-testing** | 自動 | 跨框架測試指導：pytest / Vitest / Swift Testing 的策略、mock 模式、模板 |
+| **post-change-qa** | 自動 | 程式碼修改後自動重啟前後端、跑測試、Playwright 截圖驗證 |
 
 ### git/ — Git/GitHub
 
@@ -100,6 +104,7 @@ cd ~/any-project && claude
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
 | **firebase-backend** | 自動 | Firebase 後端設計：Firestore schema、Security Rules、Cloud Functions v2、FCM 推播 |
+| **db-migration** | 自動 | 偵測 DB stack，設定 migration 工具（Alembic/Prisma/Drizzle），指導安全 schema 變更 |
 
 ### docs/ — 文件處理與 MCP 建置
 

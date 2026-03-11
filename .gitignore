@@ -3,3 +3,4 @@
 *~
 reports/*.log
 reports/maintain-*
+scripts/__pycache__/

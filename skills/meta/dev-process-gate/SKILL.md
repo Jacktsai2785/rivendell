@@ -20,8 +20,8 @@ Ensure the team follows the design-first workflow before writing code.
 ## Workflow Stages
 
 ```
-1. Requirement  →  2. User Flow  →  3. Wireframe  →  4. Mockup  →  5. Development  →  6. QA Testing
-   /requirement      /user-flow     ui-ux-pro-max   frontend-design  writing-plans     qa-testing
+1. Requirement  →  2. User Flow  →  3. Wireframe  →  4. Mockup  →  5. Development  →  6. QA Testing  →  7. CI/CD Setup
+   /requirement      /user-flow     ui-ux-pro-max   frontend-design  writing-plans     qa-testing       ci-pipeline
 ```
 
 ## Instructions
@@ -74,6 +74,12 @@ Specifically check:
 1. **Acceptance criteria coverage** — each criterion in the requirement should have at least one test
 2. **UI behavior tests** — key user interactions from the user-flow should be tested (use webapp-testing for web, XCUITest for iOS)
 3. **Unit tests** — core logic added during development should have unit tests
+
+**If all stages complete including tests but no CI:**
+> Tests look good. I notice this project has no CI config (`.github/workflows/`).
+> Consider running the **ci-pipeline** skill to generate a GitHub Actions workflow.
+
+This is a suggestion, not a hard gate — skip if the user is not interested.
 
 **If all stages complete including tests:**
 > Feature is complete with tests. Ready for code review.

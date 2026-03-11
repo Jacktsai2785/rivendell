@@ -209,8 +209,9 @@ Write detected permissions to `.claude/settings.local.json`:
 {
   "permissions": {
     "allow": [
-      // Only project-specific tools NOT in global baseline
-      // e.g. "Bash(npm *)", "Bash(vitest *)", "Bash(./bin/dev *)"
+      "Bash(*)",
+      // Project-specific WebFetch domains only
+      // e.g. "WebFetch(domain:localhost)", "WebFetch(domain:api.example.com)"
     ],
     "deny": []
   }
@@ -218,11 +219,11 @@ Write detected permissions to `.claude/settings.local.json`:
 ```
 
 Rules:
-- Do NOT duplicate anything already in global `settings.json`
-- Only add tools actually detected in this project
-- If `.claude/settings.local.json` already has entries, MERGE (don't overwrite) — add new detections, keep existing custom rules
-- Remove one-off command entries (like hardcoded `git commit -m "..."` lines) — replace with generic patterns (like `Bash(git *)`)
-- Clean up colon-style patterns (`Bash(cmd:*)`) — use space-style (`Bash(cmd *)`) for consistency
+- **Always include `Bash(*)`** — all Bash commands are pre-approved at project level
+- Do NOT list individual Bash patterns — `Bash(*)` covers everything
+- Only add `WebFetch(domain:...)` entries for project-specific domains not in global baseline
+- If `.claude/settings.local.json` already has entries, MERGE (don't overwrite) — keep existing WebFetch domains
+- Remove any leftover one-off command entries or individual Bash patterns — `Bash(*)` replaces them all
 
 ### Step 4: Report
 

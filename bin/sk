@@ -26,8 +26,9 @@ Commands:
   check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
   audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
   permissions [dir]   Scan project tooling and update .claude/settings.local.json
-  maintain            Nightly maintenance: permissions sync, deploy check, audit
+  maintain            Nightly maintenance: permissions sync, deploy check, agent health, audit
   sync                Show Google Drive import status for re-import
+  agent               Manage automated agents (list/start/stop/status/log/create)
   help                Show this help message
 
 Categories: meta, workflow, quality, git, frontend, backend, docs
@@ -775,13 +776,836 @@ EOJSON
 
 # --- Maintain (nightly) ---
 
+# =============================================================================
+# Agent Management
+# =============================================================================
+
+LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+
+# Scan all projects for .claude/agents.json, output: project_dir|project_name|agent_name
+agent_scan_all() {
+  for proj_dir in "$PROJECTS_DIR"/*/; do
+    [ ! -d "$proj_dir" ] && continue
+    local agents_file="$proj_dir/.claude/agents.json"
+    [ ! -f "$agents_file" ] && continue
+    local proj_name
+    proj_name="$(basename "$proj_dir")"
+    # Parse agent names from JSON
+    local agent_names
+    agent_names="$(python3 -c "
+import json, sys
+with open('$agents_file') as f:
+    data = json.load(f)
+for name in data.get('agents', {}):
+    print(name)
+" 2>/dev/null)"
+    while IFS= read -r aname; do
+      [ -z "$aname" ] && continue
+      echo "${proj_dir%/}|${proj_name}|${aname}"
+    done <<< "$agent_names"
+  done
+}
+
+# Resolve agent: returns project_dir|project_name|agent_name or exits
+agent_resolve() {
+  local name="$1"
+  local project="${2:-}"
+  local matches=()
+
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    local aname="${line##*|}"
+    local pname
+    pname="$(echo "$line" | cut -d'|' -f2)"
+    if [ "$aname" = "$name" ]; then
+      if [ -z "$project" ] || [ "$pname" = "$project" ]; then
+        matches+=("$line")
+      fi
+    fi
+  done < <(agent_scan_all)
+
+  if [ "${#matches[@]}" -eq 0 ]; then
+    echo -e "${RED}Agent not found:${NC} $name" >&2
+    return 1
+  elif [ "${#matches[@]}" -gt 1 ] && [ -z "$project" ]; then
+    echo -e "${RED}Multiple agents named '$name' found. Use --project to disambiguate:${NC}" >&2
+    for m in "${matches[@]}"; do
+      local pn
+      pn="$(echo "$m" | cut -d'|' -f2)"
+      echo "  --project $pn" >&2
+    done
+    return 1
+  fi
+
+  echo "${matches[0]}"
+}
+
+# Get plist label for an agent
+agent_plist_label() {
+  local project="$1"
+  local name="$2"
+  echo "com.sk.agent.${project}.${name}"
+}
+
+# Check if agent is loaded in launchd
+agent_is_loaded() {
+  local label="$1"
+  launchctl list "$label" &>/dev/null
+}
+
+# Get agent config field via python
+agent_get_config() {
+  local agents_file="$1"
+  local agent_name="$2"
+  local field="$3"
+  python3 -c "
+import json
+with open('$agents_file') as f:
+    data = json.load(f)
+agent = data['agents']['$agent_name']
+val = agent
+for key in '$field'.split('.'):
+    if isinstance(val, dict):
+        val = val.get(key, '')
+    else:
+        val = ''
+        break
+if isinstance(val, list):
+    print(' '.join(str(x) for x in val))
+elif isinstance(val, bool):
+    print(str(val).lower())
+else:
+    print(val if val != '' else '')
+" 2>/dev/null
+}
+
+# Generate plist XML from agent config
+generate_agent_plist() {
+  local proj_dir="$1"
+  local proj_name="$2"
+  local agent_name="$3"
+  local agents_file="$proj_dir/.claude/agents.json"
+
+  local label
+  label="$(agent_plist_label "$proj_name" "$agent_name")"
+
+  local script
+  script="$(agent_get_config "$agents_file" "$agent_name" "script")"
+  local args_raw
+  args_raw="$(agent_get_config "$agents_file" "$agent_name" "args")"
+  local sched_type
+  sched_type="$(agent_get_config "$agents_file" "$agent_name" "schedule.type")"
+  local sched_hour
+  sched_hour="$(agent_get_config "$agents_file" "$agent_name" "schedule.hour")"
+  local sched_minute
+  sched_minute="$(agent_get_config "$agents_file" "$agent_name" "schedule.minute")"
+  local sched_weekday
+  sched_weekday="$(agent_get_config "$agents_file" "$agent_name" "schedule.weekday")"
+  local sched_interval
+  sched_interval="$(agent_get_config "$agents_file" "$agent_name" "schedule.interval")"
+  local logs_dir
+  logs_dir="$(agent_get_config "$agents_file" "$agent_name" "logs")"
+  [ -z "$logs_dir" ] && logs_dir="reports/"
+
+  local full_script="$proj_dir/$script"
+  local full_logs="$proj_dir/$logs_dir"
+  mkdir -p "$full_logs"
+
+  # Build ProgramArguments — use wrapper to avoid macOS TCC restrictions
+  local wrapper="$HOME/.local/bin/sk-agent-run"
+  local prog_args=""
+  prog_args+="        <string>$wrapper</string>
+        <string>$proj_dir</string>
+        <string>$script</string>"
+  if [ -n "$args_raw" ]; then
+    for arg in $args_raw; do
+      prog_args+="
+        <string>$arg</string>"
+    done
+  fi
+
+  # Build schedule section
+  local schedule_xml=""
+  case "$sched_type" in
+    daily)
+      schedule_xml="    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>$sched_hour</integer>
+        <key>Minute</key><integer>$sched_minute</integer>
+    </dict>"
+      ;;
+    weekdays)
+      schedule_xml="    <key>StartCalendarInterval</key>
+    <array>"
+      for wd in 1 2 3 4 5; do
+        schedule_xml+="
+        <dict>
+            <key>Weekday</key><integer>$wd</integer>
+            <key>Hour</key><integer>$sched_hour</integer>
+            <key>Minute</key><integer>$sched_minute</integer>
+        </dict>"
+      done
+      schedule_xml+="
+    </array>"
+      ;;
+    weekly)
+      schedule_xml="    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>$sched_weekday</integer>
+        <key>Hour</key><integer>$sched_hour</integer>
+        <key>Minute</key><integer>$sched_minute</integer>
+    </dict>"
+      ;;
+    interval)
+      schedule_xml="    <key>StartInterval</key>
+    <integer>$sched_interval</integer>"
+      ;;
+  esac
+
+  cat <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>$label</string>
+
+    <key>ProgramArguments</key>
+    <array>
+$prog_args
+    </array>
+
+$schedule_xml
+
+    <key>StandardOutPath</key>
+    <string>${full_logs}${agent_name}-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>${full_logs}${agent_name}-stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.npm-global/bin:$HOME/.local/bin</string>
+    </dict>
+</dict>
+</plist>
+PLIST
+}
+
+# --- Agent subcommands ---
+
+cmd_agent() {
+  local subcmd="${1:-help}"
+  shift || true
+  case "$subcmd" in
+    list)    cmd_agent_list "$@" ;;
+    start)   cmd_agent_start "$@" ;;
+    stop)    cmd_agent_stop "$@" ;;
+    status)  cmd_agent_status "$@" ;;
+    log)     cmd_agent_log "$@" ;;
+    create)  cmd_agent_create "$@" ;;
+    help|--help|-h) cmd_agent_help ;;
+    *)
+      echo -e "${RED}Unknown agent command:${NC} $subcmd"
+      cmd_agent_help
+      exit 1
+      ;;
+  esac
+}
+
+cmd_agent_help() {
+  cat <<EOF
+Usage: sk agent <command> [args]
+
+Commands:
+  list                        List all agents across projects
+  start <name> [--project P]  Generate plist and load agent
+  stop <name> [--project P]   Unload and remove agent plist
+  status <name> [--project P] Show agent config, launchd status, last log
+  log <name> [--project P] [--lines N]  Show agent log (default 50 lines)
+      [--structured]  Show structured JSONL (thinking, tools, cost)
+      [--thinking]    Show only thinking blocks
+  create                      Scaffold new agent (interactive)
+  help                        Show this help
+EOF
+}
+
+cmd_agent_list() {
+  echo -e "${CYAN}=== Agents ===${NC}"
+  echo ""
+  printf "  %-14s %-22s %-8s %-18s %s\n" "PROJECT" "AGENT" "TYPE" "SCHEDULE" "STATUS"
+  printf "  %-14s %-22s %-8s %-18s %s\n" "-------" "-----" "----" "--------" "------"
+
+  local count=0
+  while IFS='|' read -r proj_dir proj_name agent_name; do
+    [ -z "$agent_name" ] && continue
+    local agents_file="$proj_dir/.claude/agents.json"
+    local atype
+    atype="$(agent_get_config "$agents_file" "$agent_name" "type")"
+    local sched_type
+    sched_type="$(agent_get_config "$agents_file" "$agent_name" "schedule.type")"
+    local sched_hour
+    sched_hour="$(agent_get_config "$agents_file" "$agent_name" "schedule.hour")"
+    local sched_minute
+    sched_minute="$(agent_get_config "$agents_file" "$agent_name" "schedule.minute")"
+    local disabled
+    disabled="$(agent_get_config "$agents_file" "$agent_name" "disabled")"
+
+    local sched_display
+    sched_minute="$(printf '%02d' "$sched_minute")"
+    case "$sched_type" in
+      daily)    sched_display="daily ${sched_hour}:${sched_minute}" ;;
+      weekdays) sched_display="weekdays ${sched_hour}:${sched_minute}" ;;
+      weekly)
+        local wd
+        wd="$(agent_get_config "$agents_file" "$agent_name" "schedule.weekday")"
+        local wd_names=("Sun" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat")
+        sched_display="${wd_names[$wd]:-?} ${sched_hour}:${sched_minute}"
+        ;;
+      interval)
+        local iv
+        iv="$(agent_get_config "$agents_file" "$agent_name" "schedule.interval")"
+        sched_display="every ${iv}s"
+        ;;
+      *) sched_display="$sched_type" ;;
+    esac
+
+    local label
+    label="$(agent_plist_label "$proj_name" "$agent_name")"
+    local status_str
+    if [ "$disabled" = "true" ]; then
+      status_str="${YELLOW}disabled${NC}"
+    elif agent_is_loaded "$label"; then
+      status_str="${GREEN}● loaded${NC}"
+    else
+      status_str="${RED}○ unloaded${NC}"
+    fi
+
+    printf "  %-14s %-22s %-8s %-18s " "$proj_name" "$agent_name" "$atype" "$sched_display"
+    echo -e "$status_str"
+    ((count++))
+  done < <(agent_scan_all)
+
+  echo ""
+  echo -e "  ${CYAN}Total:${NC} $count agent(s)"
+}
+
+cmd_agent_start() {
+  local name="" project=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) project="$2"; shift 2 ;;
+      --project=*) project="${1#--project=}"; shift ;;
+      *) name="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}Usage:${NC} sk agent start <name> [--project <proj>]"
+    return 1
+  fi
+
+  local resolved
+  resolved="$(agent_resolve "$name" "$project")" || return 1
+  local proj_dir proj_name agent_name
+  proj_dir="$(echo "$resolved" | cut -d'|' -f1)"
+  proj_name="$(echo "$resolved" | cut -d'|' -f2)"
+  agent_name="$(echo "$resolved" | cut -d'|' -f3)"
+
+  local disabled
+  disabled="$(agent_get_config "$proj_dir/.claude/agents.json" "$agent_name" "disabled")"
+  if [ "$disabled" = "true" ]; then
+    echo -e "${YELLOW}Agent '$agent_name' is disabled. Set disabled: false in agents.json first.${NC}"
+    return 1
+  fi
+
+  # Auto-provision compiled wrapper binary if missing
+  local wrapper="$HOME/.local/bin/sk-agent-run"
+  if [ ! -x "$wrapper" ] || file "$wrapper" 2>/dev/null | grep -q "shell script"; then
+    mkdir -p "$HOME/.local/bin"
+    local swift_src="$wrapper.swift"
+    cat > "$swift_src" <<'SWIFT'
+import Foundation
+let args = CommandLine.arguments
+guard args.count >= 3 else { fputs("Usage: sk-agent-run <project_dir> <script> [args...]\n", stderr); exit(1) }
+let projectDir = args[1]
+let script = args[2]
+let extraArgs = Array(args.dropFirst(3))
+FileManager.default.changeCurrentDirectoryPath(projectDir)
+let process = Process()
+process.executableURL = URL(fileURLWithPath: "/bin/bash")
+process.arguments = [script] + extraArgs
+var env = ProcessInfo.processInfo.environment
+env["PATH"] = (env["PATH"].map { $0 + ":" } ?? "") + "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
+process.environment = env
+do { try process.run(); process.waitUntilExit(); exit(process.terminationStatus) }
+catch { fputs("Failed to run \(script): \(error)\n", stderr); exit(1) }
+SWIFT
+    if swiftc -O -o "$wrapper" "$swift_src" 2>/dev/null; then
+      rm -f "$swift_src"
+      echo -e "${GREEN}Compiled wrapper:${NC} $wrapper"
+    else
+      echo -e "${RED}Failed to compile wrapper. Install Xcode CLI tools: xcode-select --install${NC}"
+      return 1
+    fi
+    echo ""
+    echo -e "${YELLOW}┌─────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${YELLOW}│  One-time setup: grant Full Disk Access to the wrapper binary   │${NC}"
+    echo -e "${YELLOW}│  System Settings → Privacy & Security → Full Disk Access        │${NC}"
+    echo -e "${YELLOW}│  Click + → press Cmd+Shift+G → paste:                           │${NC}"
+    echo -e "${YELLOW}│  ~/.local/bin/sk-agent-run                                      │${NC}"
+    echo -e "${YELLOW}└─────────────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+  fi
+
+  local label
+  label="$(agent_plist_label "$proj_name" "$agent_name")"
+  local plist_path="$LAUNCH_AGENTS_DIR/${label}.plist"
+
+  # Generate plist
+  generate_agent_plist "$proj_dir" "$proj_name" "$agent_name" > "$plist_path"
+  echo -e "${GREEN}Generated:${NC} $plist_path"
+
+  # Load
+  launchctl load "$plist_path" 2>/dev/null
+  if agent_is_loaded "$label"; then
+    echo -e "${GREEN}Loaded:${NC} $label"
+  else
+    echo -e "${RED}Failed to load:${NC} $label"
+    return 1
+  fi
+}
+
+cmd_agent_stop() {
+  local name="" project=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) project="$2"; shift 2 ;;
+      --project=*) project="${1#--project=}"; shift ;;
+      *) name="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}Usage:${NC} sk agent stop <name> [--project <proj>]"
+    return 1
+  fi
+
+  local resolved
+  resolved="$(agent_resolve "$name" "$project")" || return 1
+  local proj_name agent_name
+  proj_name="$(echo "$resolved" | cut -d'|' -f2)"
+  agent_name="$(echo "$resolved" | cut -d'|' -f3)"
+
+  local label
+  label="$(agent_plist_label "$proj_name" "$agent_name")"
+  local plist_path="$LAUNCH_AGENTS_DIR/${label}.plist"
+
+  if [ -f "$plist_path" ]; then
+    launchctl unload "$plist_path" 2>/dev/null
+    rm "$plist_path"
+    echo -e "${GREEN}Stopped and removed:${NC} $label"
+  else
+    echo -e "${YELLOW}Plist not found:${NC} $plist_path"
+    echo -e "Agent may not be started via sk. Checking launchd..."
+    if agent_is_loaded "$label"; then
+      launchctl remove "$label" 2>/dev/null
+      echo -e "${GREEN}Removed from launchd:${NC} $label"
+    else
+      echo -e "${YELLOW}Not loaded in launchd either.${NC}"
+    fi
+  fi
+}
+
+cmd_agent_status() {
+  local name="" project=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) project="$2"; shift 2 ;;
+      --project=*) project="${1#--project=}"; shift ;;
+      *) name="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}Usage:${NC} sk agent status <name> [--project <proj>]"
+    return 1
+  fi
+
+  local resolved
+  resolved="$(agent_resolve "$name" "$project")" || return 1
+  local proj_dir proj_name agent_name
+  proj_dir="$(echo "$resolved" | cut -d'|' -f1)"
+  proj_name="$(echo "$resolved" | cut -d'|' -f2)"
+  agent_name="$(echo "$resolved" | cut -d'|' -f3)"
+
+  local agents_file="$proj_dir/.claude/agents.json"
+  local label
+  label="$(agent_plist_label "$proj_name" "$agent_name")"
+
+  echo -e "${CYAN}=== Agent: $agent_name ===${NC}"
+  echo ""
+
+  # Config details
+  local atype desc script sched_type sched_hour sched_minute logs_dir disabled
+  atype="$(agent_get_config "$agents_file" "$agent_name" "type")"
+  desc="$(agent_get_config "$agents_file" "$agent_name" "description")"
+  script="$(agent_get_config "$agents_file" "$agent_name" "script")"
+  sched_type="$(agent_get_config "$agents_file" "$agent_name" "schedule.type")"
+  sched_hour="$(agent_get_config "$agents_file" "$agent_name" "schedule.hour")"
+  sched_minute="$(agent_get_config "$agents_file" "$agent_name" "schedule.minute")"
+  logs_dir="$(agent_get_config "$agents_file" "$agent_name" "logs")"
+  disabled="$(agent_get_config "$agents_file" "$agent_name" "disabled")"
+  [ -z "$logs_dir" ] && logs_dir="reports/"
+
+  echo -e "  ${CYAN}Project:${NC}     $proj_name"
+  echo -e "  ${CYAN}Type:${NC}        $atype"
+  echo -e "  ${CYAN}Description:${NC} $desc"
+  echo -e "  ${CYAN}Script:${NC}      $proj_dir/$script"
+  echo -e "  ${CYAN}Schedule:${NC}    $sched_type ${sched_hour}:$(printf '%02d' "$sched_minute")"
+  echo -e "  ${CYAN}Logs:${NC}        $proj_dir/$logs_dir"
+  echo -e "  ${CYAN}Label:${NC}       $label"
+  echo -e "  ${CYAN}Disabled:${NC}    ${disabled:-false}"
+  echo ""
+
+  # Launchd status
+  if agent_is_loaded "$label"; then
+    echo -e "  ${CYAN}launchd:${NC}     ${GREEN}● loaded${NC}"
+    local exit_status
+    exit_status="$(launchctl list "$label" 2>/dev/null | grep '"LastExitStatus"' | grep -oE '[0-9]+' || echo "?")"
+    # Try parsing from launchctl list output
+    if [ "$exit_status" = "?" ]; then
+      exit_status="$(launchctl list 2>/dev/null | awk -v lbl="$label" '$3 == lbl {print $2}')"
+    fi
+    echo -e "  ${CYAN}Last Exit:${NC}   $exit_status"
+  else
+    echo -e "  ${CYAN}launchd:${NC}     ${RED}○ not loaded${NC}"
+  fi
+  echo ""
+
+  # Token usage from structured log
+  local structured_log
+  structured_log="$(ls -t "$proj_dir/${logs_dir}"*structured.jsonl 2>/dev/null | head -1)"
+  if [ -n "$structured_log" ] && [ -f "$structured_log" ]; then
+    local usage_line
+    usage_line="$(grep '"result"' "$structured_log" | tail -1)"
+    if [ -n "$usage_line" ]; then
+      echo -e "  ${CYAN}Last Run Usage:${NC}"
+      python3 -c "
+import json, sys
+ev = json.loads(sys.argv[1])
+inp = ev.get('input_tokens', 0)
+out = ev.get('output_tokens', 0)
+cost = ev.get('cost_usd', 0)
+model = ev.get('model', '?')
+print(f'    Model: {model}')
+print(f'    Tokens: {inp/1000:.1f}K in + {out/1000:.1f}K out')
+print(f'    Cost: \${cost:.2f}')
+" "$usage_line" 2>/dev/null || true
+      echo ""
+    fi
+  fi
+
+  # Show last few log lines
+  local stdout_log="$proj_dir/${logs_dir}${agent_name}-stdout.log"
+  if [ -f "$stdout_log" ]; then
+    echo -e "  ${CYAN}Recent log (last 10 lines):${NC}"
+    tail -10 "$stdout_log" | sed 's/^/    /'
+  else
+    echo -e "  ${YELLOW}No log file found at $stdout_log${NC}"
+  fi
+}
+
+cmd_agent_log() {
+  local name="" project="" lines=50 structured=false thinking=false
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) project="$2"; shift 2 ;;
+      --project=*) project="${1#--project=}"; shift ;;
+      --lines) lines="$2"; shift 2 ;;
+      --lines=*) lines="${1#--lines=}"; shift ;;
+      -n) lines="$2"; shift 2 ;;
+      --structured) structured=true; shift ;;
+      --thinking) thinking=true; shift ;;
+      *) name="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}Usage:${NC} sk agent log <name> [--project <proj>] [--lines N] [--structured] [--thinking]"
+    return 1
+  fi
+
+  local resolved
+  resolved="$(agent_resolve "$name" "$project")" || return 1
+  local proj_dir proj_name agent_name
+  proj_dir="$(echo "$resolved" | cut -d'|' -f1)"
+  proj_name="$(echo "$resolved" | cut -d'|' -f2)"
+  agent_name="$(echo "$resolved" | cut -d'|' -f3)"
+
+  local agents_file="$proj_dir/.claude/agents.json"
+  local logs_dir
+  logs_dir="$(agent_get_config "$agents_file" "$agent_name" "logs")"
+  [ -z "$logs_dir" ] && logs_dir="reports/"
+
+  # Structured log view
+  if [ "$structured" = true ] || [ "$thinking" = true ]; then
+    # Find most recent structured JSONL log
+    local structured_log
+    structured_log="$(ls -t "$proj_dir/${logs_dir}"*structured.jsonl 2>/dev/null | head -1)"
+    if [ -z "$structured_log" ]; then
+      echo -e "${YELLOW}No structured log found in $proj_dir/${logs_dir}${NC}"
+      echo -e "Run agent with stream-json to generate structured logs."
+      return 1
+    fi
+
+    echo -e "${CYAN}=== Structured Log: $agent_name ($proj_name) ===${NC}"
+    echo -e "${CYAN}    File: $structured_log${NC}"
+    echo ""
+
+    local filter_type=""
+    [ "$thinking" = true ] && filter_type="thinking"
+
+    python3 -c "
+import json, sys
+
+filter_type = '$filter_type'
+lines_limit = $lines
+events = []
+
+with open('$structured_log', 'r') as f:
+    for line in f:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if filter_type and ev.get('type') != filter_type:
+            continue
+        events.append(ev)
+
+# Show last N events
+for ev in events[-lines_limit:]:
+    ts = ev.get('ts', '?')
+    time_part = ts.split('T')[1] if 'T' in ts else ts
+    etype = ev.get('type', '?')
+
+    if etype == 'thinking':
+        preview = ev.get('preview', '')[:80]
+        print(f'[{time_part}] 🧠 Thinking ({ev.get(\"len\", 0)} chars): {preview}')
+    elif etype == 'tool':
+        name = ev.get('name', '?')
+        inp = ev.get('input', '')
+        # Try to extract key info from input JSON
+        try:
+            inp_obj = json.loads(inp)
+            if 'file_path' in inp_obj:
+                detail = inp_obj['file_path']
+            elif 'query' in inp_obj:
+                detail = '\"' + inp_obj['query'] + '\"'
+            elif 'pattern' in inp_obj:
+                detail = inp_obj['pattern']
+            elif 'command' in inp_obj:
+                detail = inp_obj['command'][:60]
+            else:
+                detail = inp[:60]
+        except (json.JSONDecodeError, TypeError):
+            detail = inp[:60]
+        print(f'[{time_part}] 🔧 {name} → {detail}')
+    elif etype == 'text':
+        text = ev.get('text', '')[:80].replace(chr(10), ' ')
+        print(f'[{time_part}] 💬 Text ({ev.get(\"len\", 0)} chars): {text}')
+    elif etype == 'result':
+        inp_t = ev.get('input_tokens', 0)
+        out_t = ev.get('output_tokens', 0)
+        cost = ev.get('cost_usd', 0)
+        inp_k = f'{inp_t/1000:.1f}K'
+        out_k = f'{out_t/1000:.1f}K'
+        print(f'[{time_part}] 📊 Result: {inp_k} in + {out_k} out = \${cost:.2f}')
+    else:
+        print(f'[{time_part}] {etype}: {json.dumps(ev)[:80]}')
+"
+    return 0
+  fi
+
+  local stdout_log="$proj_dir/${logs_dir}${agent_name}-stdout.log"
+  local stderr_log="$proj_dir/${logs_dir}${agent_name}-stderr.log"
+
+  echo -e "${CYAN}=== Log: $agent_name ($proj_name) ===${NC}"
+  echo ""
+
+  if [ -f "$stdout_log" ]; then
+    echo -e "${CYAN}--- stdout (last $lines lines) ---${NC}"
+    tail -"$lines" "$stdout_log"
+  else
+    echo -e "${YELLOW}No stdout log: $stdout_log${NC}"
+  fi
+
+  if [ -f "$stderr_log" ] && [ -s "$stderr_log" ]; then
+    echo ""
+    echo -e "${CYAN}--- stderr (last 20 lines) ---${NC}"
+    tail -20 "$stderr_log"
+  fi
+}
+
+cmd_agent_create() {
+  local name="" project="" atype="claude" description="" schedule_type="daily"
+  local schedule_hour="8" schedule_minute="0"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name) name="$2"; shift 2 ;;
+      --project) project="$2"; shift 2 ;;
+      --type) atype="$2"; shift 2 ;;
+      --description) description="$2"; shift 2 ;;
+      --schedule) schedule_type="$2"; shift 2 ;;
+      --hour) schedule_hour="$2"; shift 2 ;;
+      --minute) schedule_minute="$2"; shift 2 ;;
+      *) [ -z "$name" ] && name="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ] || [ -z "$project" ]; then
+    echo -e "${RED}Usage:${NC} sk agent create <name> --project <proj> [--type claude|script] [--description '...'] [--schedule daily|weekdays|weekly] [--hour H] [--minute M]"
+    return 1
+  fi
+
+  local proj_dir="$PROJECTS_DIR/$project"
+  if [ ! -d "$proj_dir" ]; then
+    echo -e "${RED}Project not found:${NC} $proj_dir"
+    return 1
+  fi
+
+  [ -z "$description" ] && description="$name agent"
+
+  # Scaffold script
+  local scripts_dir="$proj_dir/scripts"
+  local script_path="$scripts_dir/${name}.sh"
+  mkdir -p "$scripts_dir"
+
+  if [ ! -f "$script_path" ]; then
+    cat > "$script_path" <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Agent script — customize this for your use case
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+TODAY="$(date '+%Y-%m-%d')"
+MODE="${1:-daily}"
+
+echo "[$TODAY] Running $MODE mode..."
+
+# TODO: Add your agent logic here
+# For Claude agents, use:
+#   claude -p "your prompt" --output-format stream-json 2>&1
+
+echo "[$TODAY] Done."
+SCRIPT
+    chmod +x "$script_path"
+    echo -e "${GREEN}Created script:${NC} $script_path"
+  else
+    echo -e "${YELLOW}Script exists:${NC} $script_path"
+  fi
+
+  # Update or create agents.json
+  local agents_file="$proj_dir/.claude/agents.json"
+  mkdir -p "$proj_dir/.claude"
+
+  python3 -c "
+import json, os
+
+agents_file = '$agents_file'
+name = '$name'
+data = {'agents': {}}
+
+if os.path.exists(agents_file):
+    with open(agents_file) as f:
+        data = json.load(f)
+
+if name in data.get('agents', {}):
+    print(f'Agent \"{name}\" already exists in agents.json')
+else:
+    data.setdefault('agents', {})[name] = {
+        'type': '$atype',
+        'description': '$description',
+        'script': 'scripts/${name}.sh',
+        'schedule': {
+            'type': '$schedule_type',
+            'hour': int('$schedule_hour'),
+            'minute': int('$schedule_minute')
+        },
+        'logs': 'reports/'
+    }
+    with open(agents_file, 'w') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+    print(f'Added \"{name}\" to agents.json')
+"
+
+  echo ""
+  echo -e "${GREEN}Agent scaffolded.${NC} Next steps:"
+  echo "  1. Edit $script_path"
+  echo "  2. sk agent start $name --project $project"
+}
+
+# Agent health check — used by audit and maintain
+agent_health_report() {
+  local format="${1:-text}"  # text or markdown
+  local issues=0
+
+  while IFS='|' read -r proj_dir proj_name agent_name; do
+    [ -z "$agent_name" ] && continue
+    local agents_file="$proj_dir/.claude/agents.json"
+    local sched_type sched_hour sched_minute disabled
+    sched_type="$(agent_get_config "$agents_file" "$agent_name" "schedule.type")"
+    sched_hour="$(agent_get_config "$agents_file" "$agent_name" "schedule.hour")"
+    sched_minute="$(agent_get_config "$agents_file" "$agent_name" "schedule.minute")"
+    disabled="$(agent_get_config "$agents_file" "$agent_name" "disabled")"
+    sched_minute="$(printf '%02d' "$sched_minute")"
+
+    local label
+    label="$(agent_plist_label "$proj_name" "$agent_name")"
+
+    local sched_display="${sched_type} ${sched_hour}:${sched_minute}"
+
+    local status_str last_exit=""
+    if [ "$disabled" = "true" ]; then
+      status_str="disabled"
+    elif agent_is_loaded "$label"; then
+      status_str="● loaded"
+      last_exit="$(launchctl list 2>/dev/null | awk -v lbl="$label" '$3 == lbl {print $2}')"
+      [ -z "$last_exit" ] && last_exit="?"
+    else
+      status_str="○ unloaded"
+      if [ "$disabled" != "true" ]; then
+        issues=$((issues + 1))
+      fi
+    fi
+
+    # Check last exit code
+    if [ -n "$last_exit" ] && [ "$last_exit" != "0" ] && [ "$last_exit" != "?" ]; then
+      issues=$((issues + 1))
+    fi
+
+    if [ "$format" = "markdown" ]; then
+      echo "| $proj_name | $agent_name | $sched_display | $status_str | ${last_exit:-—} |"
+    else
+      printf "  %-14s %-22s %-18s %-12s %s\n" "$proj_name" "$agent_name" "$sched_display" "$status_str" "${last_exit:-—}"
+    fi
+  done < <(agent_scan_all)
+
+  return "$issues"
+}
+
 cmd_maintain() {
   local today
   today="$(date '+%Y-%m-%d')"
   echo -e "${CYAN}=== Nightly Maintenance — $today ===${NC}\n"
 
   # 1. Deploy check: auto-deploy new skills, clean dangling symlinks
-  echo -e "${CYAN}[1/3] Deploy Check${NC}"
+  echo -e "${CYAN}[1/4] Deploy Check${NC}"
   mkdir -p "$DEPLOY_TARGET"
 
   # Auto-deploy undeployed skills
@@ -816,7 +1640,7 @@ cmd_maintain() {
   echo ""
 
   # 2. Permissions sync across all projects
-  echo -e "${CYAN}[2/3] Permissions Sync${NC}"
+  echo -e "${CYAN}[2/4] Permissions Sync${NC}"
   if [ -d "$PROJECTS_DIR" ]; then
     local proj_count=0
     for proj_dir in "$PROJECTS_DIR"/*/; do
@@ -846,12 +1670,40 @@ cmd_maintain() {
   fi
   echo ""
 
-  # 3. Audit report
-  echo -e "${CYAN}[3/3] Audit Report${NC}"
+  # 3. Agent health check
+  echo -e "${CYAN}[3/4] Agent Health${NC}"
+  local agent_count=0
+  agent_count="$(agent_scan_all | wc -l | tr -d ' ')"
+  if [ "$agent_count" -gt 0 ]; then
+    local agent_issues=0
+    agent_health_report "text" || agent_issues=$?
+    if [ "$agent_issues" -gt 0 ]; then
+      echo -e "  ${YELLOW}$agent_issues agent issue(s) found${NC}"
+    else
+      echo -e "  ${GREEN}All agents healthy${NC}"
+    fi
+  else
+    echo -e "  ${YELLOW}No agents configured${NC}"
+  fi
+  echo ""
+
+  # 4. Audit report
+  echo -e "${CYAN}[4/4] Audit Report${NC}"
   cmd_audit
 }
 
 cmd_audit() {
+  # Parse flags
+  local lang="${SK_LANG:-zh}"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --lang) lang="$2"; shift 2 ;;
+      --lang=*) lang="${1#--lang=}"; shift ;;
+      *) shift ;;
+    esac
+  done
+  [ "$lang" != "en" ] && lang="zh"
+
   local today
   today="$(date '+%Y-%m-%d')"
   local report_dir="$REPO_DIR/reports"
@@ -860,6 +1712,121 @@ cmd_audit() {
 
   local total=0 healthy=0 needs_attention=0
   local stale_days="${SK_STALE_DAYS:-90}"
+
+  # --- i18n strings ---
+  local L_TITLE L_SUMMARY L_TOTAL L_ATTENTION L_STRUCT L_SYMLINKS L_DEPLOY L_DEPLOYED_ALL
+  local L_NOT_DEPLOYED L_FRONTMATTER L_LIFECYCLE L_PHASE L_COUNT L_MEANING
+  local L_NEW L_NEW_MEANING L_DEVELOPING L_DEV_MEANING L_STABLE L_STABLE_MEANING
+  local L_ABANDONED L_ABANDON_MEANING L_NOT_COMMITTED L_REVISIONS L_REV L_DAYS_AGO
+  local L_DESC_QUALITY L_ALL_DESC_OK L_MISSING_TRIGGER L_TAG_OVERLAP L_REVIEW_BOUNDARY
+  local L_NO_OVERLAP L_DASHBOARD L_STATUS L_STACK L_BRANCH L_GIT L_CONFIG L_PERMS
+  local L_COMMITS_WEEK L_COMMITS_MONTH L_RECENT L_ACTIVE L_QUIET L_PAUSED
+  local L_OPEN_PR L_RECENT_COMMITS L_ALL_HEALTHY L_PROJ_ISSUES
+  local L_TOKEN L_TREND L_DATE L_SESSIONS L_API_CALLS L_TOKENS L_COST
+  local L_COST_TITLE L_COST_BY_PROJECT L_PROJECT L_PRICING L_GENERATED
+  local L_AGENT_HEALTH L_AGENT_PROJECT L_AGENT_NAME L_AGENT_SCHED
+  local L_AGENT_STATUS L_AGENT_EXIT L_AGENT_ALL_OK L_AGENT_ISSUES L_NO_AGENTS
+  local L_CICD L_CI L_DEPLOY_CFG L_HOOKS
+
+  if [ "$lang" = "en" ]; then
+    L_TITLE="Skill Audit Report"
+    L_SUMMARY="Summary"
+    L_TOTAL="Total"
+    L_ATTENTION="Needs Attention"
+    L_STRUCT="Structural Health"
+    L_SYMLINKS="Symlinks"
+    L_DEPLOY="Deploy"
+    L_DEPLOYED_ALL="all %d deployed"
+    L_NOT_DEPLOYED="%d not deployed"
+    L_FRONTMATTER="Frontmatter"
+    L_LIFECYCLE="Skill Lifecycle"
+    L_PHASE="Phase"; L_COUNT="Count"; L_MEANING="Meaning"
+    L_NEW="New"; L_NEW_MEANING="Created but not committed"
+    L_DEVELOPING="Developing"; L_DEV_MEANING="Multiple revisions in last 14 days"
+    L_STABLE="Stable"; L_STABLE_MEANING="Working, no recent changes needed"
+    L_ABANDONED="Possibly abandoned"; L_ABANDON_MEANING="No changes in 90+ days"
+    L_NOT_COMMITTED="not yet committed"
+    L_REVISIONS="revisions"; L_REV="rev"; L_DAYS_AGO="d ago"
+    L_DESC_QUALITY="Description Quality"
+    L_ALL_DESC_OK="All descriptions OK."
+    L_MISSING_TRIGGER="Missing TRIGGER / DO NOT TRIGGER"
+    L_TAG_OVERLAP="Tag Overlap Analysis"
+    L_REVIEW_BOUNDARY="review if boundaries are clear"
+    L_NO_OVERLAP="No tag overlaps found."
+    L_DASHBOARD="Project Dashboard"
+    L_STATUS="Status"; L_STACK="Stack"; L_BRANCH="Branch"; L_GIT="Git"
+    L_CONFIG="Config"; L_PERMS="Permissions"
+    L_COMMITS_WEEK="commits this week"; L_COMMITS_MONTH="this month"
+    L_ACTIVE="Active"; L_RECENT="Recent"; L_QUIET="Quiet"; L_PAUSED="Paused"
+    L_OPEN_PR="open PR(s)"
+    L_RECENT_COMMITS="Recent commits"
+    L_ALL_HEALTHY="All projects healthy."
+    L_PROJ_ISSUES="project issue(s) need attention."
+    L_TOKEN="Token Usage"
+    L_TREND="7-Day Trend"
+    L_COST_TITLE="Daily Cost (USD)"
+    L_DATE="Date"; L_SESSIONS="Sessions"; L_API_CALLS="API Calls"; L_TOKENS="Tokens"; L_COST="Est. Cost"
+    L_COST_BY_PROJECT="Cost by Project (7 days)"
+    L_PROJECT="Project"
+    L_PRICING="Pricing: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cache read \$1.50/M"
+    L_GENERATED="Generated by"
+    L_AGENT_HEALTH="Agent Health"
+    L_AGENT_PROJECT="Project"; L_AGENT_NAME="Agent"; L_AGENT_SCHED="Schedule"
+    L_AGENT_STATUS="Status"; L_AGENT_EXIT="Last Exit"
+    L_AGENT_ALL_OK="All agents healthy."
+    L_AGENT_ISSUES="agent issue(s) need attention."
+    L_NO_AGENTS="No agents configured."
+    L_CICD="CI/CD"; L_CI="CI"; L_DEPLOY_CFG="Deploy"; L_HOOKS="Hooks"
+  else
+    L_TITLE="Skills 稽核報告"
+    L_SUMMARY="摘要"
+    L_TOTAL="總計"
+    L_ATTENTION="待處理"
+    L_STRUCT="結構健康度"
+    L_SYMLINKS="Symlinks"
+    L_DEPLOY="部署"
+    L_DEPLOYED_ALL="全部 %d 個已部署"
+    L_NOT_DEPLOYED="%d 個未部署"
+    L_FRONTMATTER="Frontmatter"
+    L_LIFECYCLE="Skill 生命週期"
+    L_PHASE="階段"; L_COUNT="數量"; L_MEANING="說明"
+    L_NEW="新建"; L_NEW_MEANING="已建立但尚未 commit"
+    L_DEVELOPING="開發中"; L_DEV_MEANING="14 天內有多次修訂"
+    L_STABLE="穩定"; L_STABLE_MEANING="正常運作，近期無需修改"
+    L_ABANDONED="可能棄用"; L_ABANDON_MEANING="超過 90 天未更動"
+    L_NOT_COMMITTED="尚未 commit"
+    L_REVISIONS="次修訂"; L_REV="次"; L_DAYS_AGO="天前"
+    L_DESC_QUALITY="描述品質"
+    L_ALL_DESC_OK="所有描述皆正常。"
+    L_MISSING_TRIGGER="缺少 TRIGGER / DO NOT TRIGGER"
+    L_TAG_OVERLAP="標籤重疊分析"
+    L_REVIEW_BOUNDARY="建議檢查邊界是否清楚"
+    L_NO_OVERLAP="無標籤重疊。"
+    L_DASHBOARD="專案儀表板"
+    L_STATUS="狀態"; L_STACK="技術棧"; L_BRANCH="分支"; L_GIT="Git"
+    L_CONFIG="Config"; L_PERMS="權限"
+    L_COMMITS_WEEK="個 commit（本週）"; L_COMMITS_MONTH="個（本月）"
+    L_ACTIVE="活躍"; L_RECENT="近期有動"; L_QUIET="沉寂"; L_PAUSED="暫停"
+    L_OPEN_PR="個 open PR"
+    L_RECENT_COMMITS="近期 commits"
+    L_ALL_HEALTHY="所有專案健康。"
+    L_PROJ_ISSUES="個專案問題待處理。"
+    L_TOKEN="Token 用量"
+    L_TREND="7 日趨勢"
+    L_COST_TITLE="每日花費（USD）"
+    L_DATE="日期"; L_SESSIONS="Sessions"; L_API_CALLS="API 呼叫"; L_TOKENS="Tokens"; L_COST="預估花費"
+    L_COST_BY_PROJECT="各專案花費（7 日）"
+    L_PROJECT="專案"
+    L_PRICING="計價: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cache read \$1.50/M"
+    L_GENERATED="由以下工具產生"
+    L_AGENT_HEALTH="Agent 健康狀態"
+    L_AGENT_PROJECT="專案"; L_AGENT_NAME="Agent"; L_AGENT_SCHED="排程"
+    L_AGENT_STATUS="狀態"; L_AGENT_EXIT="最近 Exit"
+    L_AGENT_ALL_OK="所有 agent 健康。"
+    L_AGENT_ISSUES="個 agent 問題待處理。"
+    L_NO_AGENTS="無已設定的 agent。"
+    L_CICD="CI/CD"; L_CI="CI"; L_DEPLOY_CFG="部署"; L_HOOKS="Hooks"
+  fi
 
   # Collect all skill dirs
   local skill_dirs=()
@@ -871,9 +1838,9 @@ cmd_audit() {
 
   # --- Begin report ---
   {
-    echo "# Skill Audit Report — $today"
+    echo "# $L_TITLE — $today"
     echo ""
-    echo "## Summary"
+    echo "## $L_SUMMARY"
     echo ""
 
     # --- 1. Structural Health ---
@@ -930,101 +1897,137 @@ cmd_audit() {
     # Count issues
     local structural_issues=$((dangling + missing_deploy + missing_tags + missing_version))
 
-    echo "## Structural Health"
+    echo "## $L_STRUCT"
     echo ""
     if [ "$dangling" -eq 0 ]; then
-      echo "- Symlinks: OK"
+      echo "- $L_SYMLINKS: OK"
     else
-      echo "- Symlinks: **$dangling dangling**"
+      echo "- $L_SYMLINKS: **$dangling dangling**"
       ((needs_attention += dangling))
     fi
     if [ "$missing_deploy" -eq 0 ]; then
-      echo "- Deploy: OK (all $total deployed)"
+      # shellcheck disable=SC2059
+      printf -- "- $L_DEPLOY: OK ($(printf "$L_DEPLOYED_ALL" "$total"))\n"
     else
-      echo "- Deploy: **$missing_deploy not deployed**"
+      # shellcheck disable=SC2059
+      printf -- "- $L_DEPLOY: **$(printf "$L_NOT_DEPLOYED" "$missing_deploy")**\n"
       echo -e "$missing_deploy_list"
       ((needs_attention += missing_deploy))
     fi
     if [ "$missing_tags" -eq 0 ] && [ "$missing_version" -eq 0 ]; then
-      echo "- Frontmatter: OK"
+      echo "- $L_FRONTMATTER: OK"
     else
-      [ "$missing_tags" -gt 0 ] && echo "- Frontmatter: **$missing_tags missing tags**"
-      [ "$missing_version" -gt 0 ] && echo "- Frontmatter: **$missing_version missing version**"
+      [ "$missing_tags" -gt 0 ] && echo "- $L_FRONTMATTER: **$missing_tags missing tags**"
+      [ "$missing_version" -gt 0 ] && echo "- $L_FRONTMATTER: **$missing_version missing version**"
       ((needs_attention += missing_tags + missing_version))
     fi
     echo ""
 
-    # --- 2. Git Freshness ---
-    echo "## Freshness (last git commit to SKILL.md)"
+    # --- 2. Skill Lifecycle ---
+    echo "## $L_LIFECYCLE"
     echo ""
-    local stale_skills="" aging_skills="" active_skills=""
-    local stale_count=0 aging_count=0 active_count=0
+    local developing_count=0 stable_count=0 abandoned_count=0 new_count=0
+
+    # Collect lifecycle data into temp files: category|name|detail
+    local tmp_new tmp_dev tmp_stable tmp_abandoned
+    tmp_new="$(mktemp)"; tmp_dev="$(mktemp)"; tmp_stable="$(mktemp)"; tmp_abandoned="$(mktemp)"
 
     for skill_dir in "${skill_dirs[@]}"; do
-      local name
+      local name category
       name="$(basename "$skill_dir")"
+      category="$(basename "$(dirname "$skill_dir")")"
       local skill_file="$skill_dir/SKILL.md"
       local last_commit_date
       last_commit_date="$(git -C "$REPO_DIR" log -1 --format='%ai' -- "$skill_file" 2>/dev/null | cut -d' ' -f1)"
 
       if [ -z "$last_commit_date" ]; then
-        stale_skills+="- $name (never committed)\n"
-        ((stale_count++))
+        echo "$category|$name|$L_NOT_COMMITTED" >> "$tmp_new"
+        ((new_count++))
         continue
       fi
 
+      local commit_count
+      commit_count="$(git -C "$REPO_DIR" rev-list --count HEAD -- "$skill_file" 2>/dev/null || echo 0)"
+
       local age
       age="$(days_since "$last_commit_date")"
-      if [ "$age" -gt 90 ]; then
-        stale_skills+="- $name (${age}d — $last_commit_date)\n"
-        ((stale_count++))
-      elif [ "$age" -gt 30 ]; then
-        aging_skills+="- $name (${age}d — $last_commit_date)\n"
-        ((aging_count++))
+
+      if [ "$age" -le 14 ] && [ "$commit_count" -gt 1 ]; then
+        echo "$category|$name|${commit_count} $L_REVISIONS, ${age}${L_DAYS_AGO}" >> "$tmp_dev"
+        ((developing_count++))
+      elif [ "$age" -le 90 ]; then
+        echo "$category|$name|${commit_count} $L_REV, ${age}${L_DAYS_AGO}" >> "$tmp_stable"
+        ((stable_count++))
       else
-        active_skills+="- $name (${age}d — $last_commit_date)\n"
-        ((active_count++))
+        echo "$category|$name|${commit_count} $L_REV, ${age}${L_DAYS_AGO} ($last_commit_date)" >> "$tmp_abandoned"
+        ((abandoned_count++))
       fi
     done
 
-    echo "| Status | Count |"
-    echo "|--------|-------|"
-    echo "| Active (<30d) | $active_count |"
-    echo "| Aging (30-90d) | $aging_count |"
-    echo "| Stale (>90d) | $stale_count |"
+    echo "| $L_PHASE | $L_COUNT | $L_MEANING |"
+    echo "|-------|-------|---------|"
+    echo "| 🆕 $L_NEW | $new_count | $L_NEW_MEANING |"
+    echo "| 🔧 $L_DEVELOPING | $developing_count | $L_DEV_MEANING |"
+    echo "| ✅ $L_STABLE | $stable_count | $L_STABLE_MEANING |"
+    echo "| ❓ $L_ABANDONED | $abandoned_count | $L_ABANDON_MEANING |"
     echo ""
 
-    if [ "$stale_count" -gt 0 ]; then
-      echo "### Stale (>90 days)"
+    # Helper: print skills grouped by category from a tmp file
+    _print_grouped() {
+      local file="$1"
+      [ ! -s "$file" ] && return
+      local prev_cat=""
+      sort "$file" | while IFS='|' read -r cat sname detail; do
+        if [ "$cat" != "$prev_cat" ]; then
+          [ -n "$prev_cat" ] && echo ""
+          echo "**$cat/**"
+          prev_cat="$cat"
+        fi
+        echo "- $sname — $detail"
+      done
       echo ""
-      echo -e "$stale_skills"
-      ((needs_attention += stale_count))
-    fi
-    if [ "$aging_count" -gt 0 ]; then
-      echo "### Aging (30-90 days)"
+    }
+
+    if [ "$new_count" -gt 0 ]; then
+      echo "### 🆕 $L_NEW"
       echo ""
-      echo -e "$aging_skills"
+      _print_grouped "$tmp_new"
     fi
-    if [ "$active_count" -gt 0 ]; then
-      echo "### Active (<30 days)"
+    if [ "$developing_count" -gt 0 ]; then
+      echo "### 🔧 $L_DEVELOPING"
       echo ""
-      echo -e "$active_skills"
+      _print_grouped "$tmp_dev"
     fi
+    if [ "$abandoned_count" -gt 0 ]; then
+      echo "### ❓ $L_ABANDONED"
+      echo ""
+      _print_grouped "$tmp_abandoned"
+      ((needs_attention += abandoned_count))
+    fi
+    if [ "$stable_count" -gt 0 ]; then
+      echo "<details><summary>✅ $L_STABLE ($stable_count)</summary>"
+      echo ""
+      _print_grouped "$tmp_stable"
+      echo "</details>"
+      echo ""
+    fi
+
+    rm -f "$tmp_new" "$tmp_dev" "$tmp_stable" "$tmp_abandoned"
 
     # --- 3. Description Quality ---
-    echo "## Description Quality"
+    echo "## $L_DESC_QUALITY"
     echo ""
     if [ "$no_trigger" -eq 0 ]; then
-      echo "All descriptions OK."
+      echo "$L_ALL_DESC_OK"
     else
-      echo "### Missing TRIGGER / DO NOT TRIGGER ($no_trigger)"
+      echo "### $L_MISSING_TRIGGER ($no_trigger)"
       echo ""
       echo -e "$no_trigger_list"
       ((needs_attention += no_trigger))
     fi
 
     # --- 4. Tag Overlap ---
-    echo "## Tag Overlap Analysis"
+    echo "## $L_TAG_OVERLAP"
     echo ""
     # Build tag-combo → skills mapping using temp file (bash 3 compat)
     local tmp_tags
@@ -1049,23 +2052,21 @@ cmd_audit() {
       local word_count
       word_count=$(echo "$skills_in_group" | wc -w | tr -d ' ')
       if [ "$word_count" -gt 1 ]; then
-        echo "- **[$combo]**: $skills_in_group — review if boundaries are clear"
+        echo "- **[$combo]**: $skills_in_group — $L_REVIEW_BOUNDARY"
         ((overlap_found++))
       fi
     done < <(cut -d'|' -f1 "$tmp_tags" | sort -u)
     rm -f "$tmp_tags"
 
     if [ "$overlap_found" -eq 0 ]; then
-      echo "No tag overlaps found."
+      echo "$L_NO_OVERLAP"
     fi
     echo ""
 
-    # --- 5. Project Audit ---
-    echo "## Project Audit"
+    # --- 5. Project Dashboard ---
+    echo "## $L_DASHBOARD"
     echo ""
     if [ -d "$PROJECTS_DIR" ]; then
-      echo "| Project | Tech Stack | Config | Permissions | Git |"
-      echo "|---------|-----------|--------|-------------|-----|"
       local proj_issues=0
 
       for proj_dir in "$PROJECTS_DIR"/*/; do
@@ -1112,11 +2113,9 @@ cmd_audit() {
         local perm_status=""
         local settings_file="$proj_dir/.claude/settings.local.json"
         if [ -f "$settings_file" ]; then
-          # Count one-off commands (hardcoded paths, full commit messages)
           local oneoff_count=0
           oneoff_count="$(grep -cE '(git -C /|git commit -m "|find /Users|Bash\([A-Z])' "$settings_file" 2>/dev/null || true)"
           oneoff_count="${oneoff_count:-0}"; oneoff_count="${oneoff_count// /}"
-          # Count colon-style patterns
           local colon_count=0
           colon_count="$(grep -cE 'Bash\([a-z]+:' "$settings_file" 2>/dev/null || true)"
           colon_count="${colon_count:-0}"; colon_count="${colon_count// /}"
@@ -1131,18 +2130,34 @@ cmd_audit() {
             perm_status="OK ($total_perms rules)"
           fi
         else
-          # Check if project has tooling that needs permissions
           perm_status="**missing**"
           ((proj_issues++))
         fi
 
-        # --- Git check ---
-        local git_status=""
+        # --- CI/CD status ---
+        local ci_status="" deploy_status="" hooks_status=""
+        if [ -d "$proj_dir/.github/workflows" ] && ls "$proj_dir"/.github/workflows/*.yml "$proj_dir"/.github/workflows/*.yaml 2>/dev/null | head -1 | grep -q .; then
+          ci_status="✅"
+        else
+          ci_status="❌"
+        fi
+        # Deploy config: fly.toml, vercel.json, wrangler.toml, docker-compose.prod.yml, Fastfile, firebase deploy in CI
+        if [ -f "$proj_dir/fly.toml" ] || [ -f "$proj_dir/vercel.json" ] || [ -f "$proj_dir/wrangler.toml" ] || [ -f "$proj_dir/docker-compose.prod.yml" ] || [ -f "$proj_dir/fastlane/Fastfile" ] || grep -rql "firebase deploy" "$proj_dir/.github/workflows/" 2>/dev/null; then
+          deploy_status="✅"
+        else
+          deploy_status="❌"
+        fi
+        if [ -f "$proj_dir/.pre-commit-config.yaml" ] || [ -d "$proj_dir/.husky" ] || grep -q '"pre-commit"' "$proj_dir/package.json" 2>/dev/null; then
+          hooks_status="✅"
+        else
+          hooks_status="❌"
+        fi
+
+        # --- Git status ---
+        local git_status="" dirty=0 unpushed=0
         if [ -d "$proj_dir/.git" ]; then
-          local dirty=0 unpushed=0
           dirty="$(git -C "$proj_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
           unpushed="$(git -C "$proj_dir" log --oneline '@{upstream}..HEAD' 2>/dev/null | wc -l | tr -d ' ')"
-
           if [ "$dirty" -gt 0 ] && [ "$unpushed" -gt 0 ]; then
             git_status="${dirty} dirty, ${unpushed} unpushed"
           elif [ "$dirty" -gt 0 ]; then
@@ -1156,70 +2171,248 @@ cmd_audit() {
           git_status="no git"
         fi
 
-        echo "| $proj_name | $techs | $config_status | $perm_status | $git_status |"
+        # --- Activity: commits in last 7 / 30 days ---
+        local commits_7d=0 commits_30d=0 last_commit_date="" last_commit_msg=""
+        if [ -d "$proj_dir/.git" ]; then
+          commits_7d="$(git -C "$proj_dir" rev-list --count --since='7 days ago' HEAD 2>/dev/null || echo 0)"
+          commits_30d="$(git -C "$proj_dir" rev-list --count --since='30 days ago' HEAD 2>/dev/null || echo 0)"
+          last_commit_date="$(git -C "$proj_dir" log -1 --format='%Y-%m-%d' 2>/dev/null || echo '')"
+          last_commit_msg="$(git -C "$proj_dir" log -1 --format='%s' 2>/dev/null | head -c 60)"
+        fi
+
+        # --- Activity level ---
+        local activity_level=""
+        if [ "$commits_7d" -gt 5 ]; then
+          activity_level="🔥 $L_ACTIVE"
+        elif [ "$commits_7d" -gt 0 ]; then
+          activity_level="✅ $L_RECENT"
+        elif [ "$commits_30d" -gt 0 ]; then
+          activity_level="💤 $L_QUIET"
+        else
+          activity_level="⏸️ $L_PAUSED"
+        fi
+
+        # --- Branches ---
+        local branch_count=0 current_branch=""
+        if [ -d "$proj_dir/.git" ]; then
+          branch_count="$(git -C "$proj_dir" branch --no-color 2>/dev/null | wc -l | tr -d ' ')"
+          current_branch="$(git -C "$proj_dir" branch --show-current 2>/dev/null)"
+        fi
+
+        # --- Open PRs ---
+        local open_prs=""
+        if [ -d "$proj_dir/.git" ]; then
+          local remote_url
+          remote_url="$(git -C "$proj_dir" remote get-url origin 2>/dev/null || echo '')"
+          if [ -n "$remote_url" ]; then
+            local pr_count
+            pr_count="$(gh pr list --repo "$remote_url" --state open --limit 10 --json number 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo '0')"
+            if [ "$pr_count" -gt 0 ]; then
+              open_prs=" | ${pr_count} $L_OPEN_PR"
+            fi
+          fi
+        fi
+
+        # --- Print project block ---
+        echo "### $proj_name"
+        echo ""
+        echo "| | |"
+        echo "|---|---|"
+        echo "| **$L_STATUS** | $activity_level — $commits_7d $L_COMMITS_WEEK, $commits_30d $L_COMMITS_MONTH |"
+        echo "| **$L_STACK** | $techs |"
+        echo "| **$L_BRANCH** | \`$current_branch\` ($branch_count total)$open_prs |"
+        echo "| **$L_GIT** | $git_status |"
+        echo "| **$L_CICD** | $L_CI $ci_status · $L_DEPLOY_CFG $deploy_status · $L_HOOKS $hooks_status |"
+        echo "| **$L_CONFIG** | $config_status | **$L_PERMS** | $perm_status |"
+        echo ""
+
+        # Recent commits
+        if [ -d "$proj_dir/.git" ]; then
+          local recent_commits
+          recent_commits="$(git -C "$proj_dir" log --oneline --no-decorate -5 2>/dev/null)"
+          if [ -n "$recent_commits" ]; then
+            echo "<details><summary>$L_RECENT_COMMITS</summary>"
+            echo ""
+            echo '```'
+            echo "$recent_commits"
+            echo '```'
+            echo "</details>"
+            echo ""
+          fi
+        fi
       done
 
-      echo ""
       if [ "$proj_issues" -gt 0 ]; then
-        echo "**$proj_issues project issue(s)** need attention."
+        echo "**$proj_issues $L_PROJ_ISSUES**"
         ((needs_attention += proj_issues))
       else
-        echo "All projects OK."
+        echo "$L_ALL_HEALTHY"
       fi
     else
       echo "Projects directory not found at $PROJECTS_DIR"
     fi
 
-    # --- 6. Token Usage ---
-    echo "## Token Usage ($today)"
+    # --- 6. Agent Health ---
+    echo "## $L_AGENT_HEALTH"
+    echo ""
+    local agent_count=0
+    agent_count="$(agent_scan_all | wc -l | tr -d ' ')"
+    if [ "$agent_count" -gt 0 ]; then
+      echo "| $L_AGENT_PROJECT | $L_AGENT_NAME | $L_AGENT_SCHED | $L_AGENT_STATUS | $L_AGENT_EXIT |"
+      echo "|---------|-------|----------|--------|-----------|"
+      local agent_issues=0
+      agent_health_report "markdown" || agent_issues=$?
+      echo ""
+      if [ "$agent_issues" -gt 0 ]; then
+        echo "**${agent_issues} ${L_AGENT_ISSUES}**"
+        ((needs_attention += agent_issues))
+      else
+        echo "$L_AGENT_ALL_OK"
+      fi
+    else
+      echo "$L_NO_AGENTS"
+    fi
+    echo ""
+
+    # --- 7. Token Usage (7-day trend) ---
+    echo "## $L_TOKEN"
     echo ""
     local token_output
     token_output="$(python3 -c "
 import json, os, glob
 from collections import defaultdict
+from datetime import datetime, timedelta
 
-target = '$today'
+lang = '$lang'
 base = os.path.expanduser('~/.claude/projects/')
-totals = defaultdict(int)
-sessions = 0
-api_calls = 0
+dates = [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
+
+# Per-day and per-project aggregation
+daily = {d: defaultdict(int) for d in dates}
+daily_sessions = {d: 0 for d in dates}
+daily_calls = {d: 0 for d in dates}
+proj_totals = defaultdict(lambda: defaultdict(int))
 
 for pdir in glob.glob(os.path.join(base, '*/')):
+    dir_name = os.path.basename(pdir.rstrip('/'))
+    proj = dir_name.split('-Users-manibari-Documents-Projects-')[-1] if '-Users-manibari-Documents-Projects-' in dir_name else dir_name
+    proj = proj.rstrip('-')
+
     for f in glob.glob(os.path.join(pdir, '*.jsonl')):
-        found = False
-        for line in open(f):
-            obj = json.loads(line)
-            ts = obj.get('timestamp', '')
-            if target not in ts:
-                continue
-            found = True
-            if obj.get('type') == 'assistant':
-                msg = obj.get('message', {})
-                if isinstance(msg, dict) and 'usage' in msg:
-                    u = msg['usage']
-                    totals['input'] += u.get('input_tokens', 0)
-                    totals['output'] += u.get('output_tokens', 0)
-                    totals['cache_create'] += u.get('cache_creation_input_tokens', 0)
-                    totals['cache_read'] += u.get('cache_read_input_tokens', 0)
-                    api_calls += 1
-        if found:
-            sessions += 1
+        day_found = set()
+        try:
+            for line in open(f):
+                try:
+                    obj = json.loads(line)
+                except:
+                    continue
+                ts = obj.get('timestamp', '')
+                day = ts[:10]
+                if day not in daily:
+                    continue
+                day_found.add(day)
+                if obj.get('type') == 'assistant':
+                    msg = obj.get('message', {})
+                    if isinstance(msg, dict) and 'usage' in msg:
+                        u = msg['usage']
+                        inp = u.get('input_tokens', 0)
+                        out = u.get('output_tokens', 0)
+                        cc = u.get('cache_creation_input_tokens', 0)
+                        cr = u.get('cache_read_input_tokens', 0)
+                        daily[day]['input'] += inp
+                        daily[day]['output'] += out
+                        daily[day]['cache_create'] += cc
+                        daily[day]['cache_read'] += cr
+                        daily_calls[day] += 1
+                        proj_totals[proj]['input'] += inp
+                        proj_totals[proj]['output'] += out
+                        proj_totals[proj]['cache_create'] += cc
+                        proj_totals[proj]['cache_read'] += cr
+                        proj_totals[proj]['calls'] += 1
+        except:
+            continue
+        for d in day_found:
+            daily_sessions[d] += 1
 
-total = totals['input'] + totals['output'] + totals['cache_create'] + totals['cache_read']
-cost = (totals['input'] * 15 + totals['output'] * 75 + totals['cache_create'] * 18.75 + totals['cache_read'] * 1.50) / 1_000_000
+def fmt_tokens(n):
+    if n >= 1_000_000: return f'{n/1_000_000:.1f}M'
+    if n >= 1_000: return f'{n/1_000:.0f}K'
+    return str(n)
 
-print(f'| Metric | Value |')
-print(f'|--------|-------|')
-print(f'| Sessions | {sessions} |')
-print(f'| API calls | {api_calls:,} |')
-print(f'| Input tokens | {totals[\"input\"]:,} |')
-print(f'| Output tokens | {totals[\"output\"]:,} |')
-print(f'| Cache creation | {totals[\"cache_create\"]:,} |')
-print(f'| Cache read | {totals[\"cache_read\"]:,} |')
-print(f'| **Total tokens** | **{total:,}** |')
-print(f'| **Est. cost** | **\${cost:.2f}** |')
+def calc_cost(d):
+    return (d['input'] * 15 + d['output'] * 75 + d['cache_create'] * 18.75 + d['cache_read'] * 1.50) / 1_000_000
+
+# i18n
+L = {
+    'trend': '7-Day Trend' if lang == 'en' else '7 日趨勢',
+    'cost_title': 'Daily Cost (USD)' if lang == 'en' else '每日花費（USD）',
+    'date': 'Date' if lang == 'en' else '日期',
+    'sessions': 'Sessions',
+    'api_calls': 'API Calls' if lang == 'en' else 'API 呼叫',
+    'tokens': 'Tokens',
+    'cost': 'Est. Cost' if lang == 'en' else '預估花費',
+    'cost_by_proj': 'Cost by Project (7 days)' if lang == 'en' else '各專案花費（7 日）',
+    'project': 'Project' if lang == 'en' else '專案',
+    'pricing': 'Pricing: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cache read \$1.50/M' if lang == 'en' else '計價: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cache read \$1.50/M',
+}
+
+# Compute costs for chart
+costs = []
+labels = []
+for d in dates:
+    t = daily[d]
+    cost = calc_cost(t)
+    costs.append(cost)
+    labels.append(d[5:])  # MM-DD
+
+# Mermaid xychart trend
+print(f'### {L[\"trend\"]}')
 print()
-print(f'_Pricing: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cache read \$1.50/M_')
+print('~~~mermaid')
+print('xychart-beta')
+print(f'    title \"{L[\"cost_title\"]}\"')
+x_labels = ', '.join(f'\"{lb}\"' for lb in labels)
+print(f'    x-axis [{x_labels}]')
+max_y = max(costs) if any(c > 0 for c in costs) else 100
+max_y = int((max_y // 50 + 2) * 50)  # round up to nice number
+print(f'    y-axis \"USD\" 0 --> {max_y}')
+cost_vals = ', '.join(f'{c:.0f}' for c in costs)
+print(f'    bar [{cost_vals}]')
+print('~~~')
+print()
+
+# Detail table
+week_total_tokens = 0
+week_total_cost = 0.0
+print(f'| {L[\"date\"]} | {L[\"sessions\"]} | {L[\"api_calls\"]} | {L[\"tokens\"]} | {L[\"cost\"]} |')
+print('|------|----------|-----------|--------|-----------|')
+for i, d in enumerate(dates):
+    t = daily[d]
+    total = t['input'] + t['output'] + t['cache_create'] + t['cache_read']
+    cost = costs[i]
+    week_total_tokens += total
+    week_total_cost += cost
+    dow = datetime.strptime(d, '%Y-%m-%d').strftime('%a')
+    print(f'| {d} ({dow}) | {daily_sessions[d]} | {daily_calls[d]:,} | {fmt_tokens(total)} | \${cost:.2f} |')
+print(f'| **Total** | | | **{fmt_tokens(week_total_tokens)}** | **\${week_total_cost:.2f}** |')
+print()
+
+# Per-project breakdown
+if proj_totals:
+    print(f'### {L[\"cost_by_proj\"]}')
+    print()
+    print(f'| {L[\"project\"]} | {L[\"api_calls\"]} | {L[\"tokens\"]} | {L[\"cost\"]} |')
+    print('|---------|-----------|--------|-----------|')
+    sorted_projs = sorted(proj_totals.items(), key=lambda x: calc_cost(x[1]), reverse=True)
+    for proj, d in sorted_projs:
+        total = d['input'] + d['output'] + d['cache_create'] + d['cache_read']
+        cost = calc_cost(d)
+        if total == 0:
+            continue
+        print(f'| {proj} | {d[\"calls\"]:,} | {fmt_tokens(total)} | \${cost:.2f} |')
+    print()
+
+print(f'_{L[\"pricing\"]}_')
 " 2>/dev/null)"
     if [ -n "$token_output" ]; then
       echo "$token_output"
@@ -1235,15 +2428,15 @@ print(f'_Pricing: Opus input \$15/M, output \$75/M, cache create \$18.75/M, cach
     echo ""
     echo "---"
     echo ""
-    echo "*Generated by \`./bin/sk audit\` on $today — $total skills, $needs_attention issue(s) found.*"
+    echo "*$L_GENERATED \`./bin/sk audit\` — $today — $total skills, $needs_attention issue(s)*"
 
   } > "$report"
 
-  # Insert summary at top (after ## Summary)
-  sed -i '' "/^## Summary$/a\\
+  # Insert summary at top (after ## heading)
+  sed -i '' "/^## $L_SUMMARY$/a\\
 \\
-- **Total:** $total skills\\
-- **Needs Attention:** $needs_attention issue(s)\\
+- **$L_TOTAL:** $total skills\\
+- **$L_ATTENTION:** $needs_attention issue(s)\\
 " "$report"
 
   echo -e "${GREEN}Report generated:${NC} $report"
@@ -1264,9 +2457,10 @@ case "${1:-help}" in
   import-gh)  cmd_import_gh "${2:-}" ;;
   list)       cmd_list ;;
   check)      cmd_check "${2:-}" ;;
-  audit)      cmd_audit ;;
+  audit)      shift; cmd_audit "$@" ;;
   permissions) cmd_permissions "${2:-.}" ;;
   maintain)   cmd_maintain ;;
+  agent)      shift; cmd_agent "$@" ;;
   sync)       cmd_sync ;;
   help|--help|-h) usage ;;
   *)
