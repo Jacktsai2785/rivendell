@@ -92,6 +92,87 @@
 
 </details>
 
+## 全部 Skills 功能一覽
+
+### Meta / Infrastructure
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| audit-fix | 分析 `sk audit` 報告，自動修復專案權限問題 | audit 報告有 issue 時 |
+| ci-pipeline | 偵測專案技術棧，自動產生 GitHub Actions CI 工作流 | 專案無 `.github/workflows/` 時 |
+| deploy | 推薦部署平台，產生 Dockerfile / fly.toml / vercel.json 等配置 | 使用者問部署相關問題時 |
+| dev-process-gate | 攔截跳過設計直接寫 code 的行為，引導走完整流程 | 缺 requirement/wireframe 就要實作時 |
+| headless-agent | Headless agent 模式範本：排程、structured logging、output 管理 | `/headless-agent` 或設定自動化排程時 |
+| init-project | 初始化 AGENTS.md + .claude/CLAUDE.md 專案配置 | 新專案或缺配置檔時 |
+| plan-check-style | Plan mode 進入前端任務時，掃描並載入對應的設計風格 | Plan mode + UI 任務時 |
+| self-improving-agent | 記錄錯誤/修正/最佳實踐到 `.learnings/`，持續學習 | 每次 prompt（hook）+ 錯誤發生時（hook） |
+| setup-permissions | 偵測專案工具鏈，自動配置 `settings.local.json` 權限白名單 | 專案缺權限配置時 |
+| skill-creator | Skill 全生命週期：建立、測試、benchmark、優化觸發描述 | 建立或修改 skill 時 |
+| skill-scout | 從 Clawdbot/OpenClaw 生態系搜尋、評估、移植 skills | `/skill-scout` 或尋找外部 skill 時 |
+
+### Workflow / Planning
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| context-recovery | Session compaction 後自動恢復上下文（git/檔案/memory） | 出現 `<summary>` 標籤或接續對話時 |
+| dispatching-parallel-agents | 派遣多個 agent 平行處理 3+ 個獨立問題 | 3+ 獨立任務可平行化時 |
+| executing-plans | 分批執行實作計畫，每批完成後 review checkpoint | 已有完整計畫待執行時 |
+| planning-with-files | Manus 風格檔案式規劃（task_plan.md / findings.md / progress.md） | 複雜研究/規劃任務（>5 步驟）時 |
+| requirement | 定義結構化需求：user story + acceptance criteria + scope | 使用者描述功能但缺需求文件時 |
+| user-flow | 設計使用者流程 Mermaid 流程圖（happy path + error branch） | 設計流程或畫流程圖時 |
+| writing-plans | 撰寫詳細實作計畫（TDD、2-5 分鐘 task、零背景工程師可執行） | 設計完成需要實作計畫時 |
+
+### Quality / Safety
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| code-reviewer | 程式碼審查：效能、正確性、可維護性 | `/code-reviewer` 或要求 code review 時 |
+| de-slopify | 移除 AI 生成的「slop」痕跡，含繁中模式（值得注意的是…） | `/de-slopify` 或發布前文件清理時 |
+| destructive-command-guard | PreToolUse hook，攔截 `git reset --hard`、`rm -rf` 等危險指令 | 永遠啟用（hook 自動攔截） |
+| post-change-qa | 改完 code 後自動重啟 server、跑測試、Playwright 截圖驗證 | 程式碼修改完成時自動觸發 |
+| qa-testing | 跨框架測試撰寫指南（pytest / Vitest / Swift Testing） | 使用者要寫測試時 |
+| review-pr | 分析 PR 變更：正確性、安全性、效能、最佳實踐 | `/review-pr` 或提供 PR URL 時 |
+| security-review | 全面安全檢查清單：auth、input validation、secrets、API | 處理認證/用戶輸入/密鑰/API 時 |
+| systematic-debugging | 四階段除錯框架：觀察→假設→驗證→修復，禁止跳到答案 | 遇到 bug/測試失敗/非預期行為時 |
+
+### Frontend / Design
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| frontend-design | 產生高品質、有設計感的前端 UI（避免 AI 罐頭風） | 建立網頁元件/頁面/landing page 時 |
+| ios-integration | iOS 系統整合：Share Extension、Deep Link、App Groups、權限 | 實作 iOS 系統功能時 |
+| mockup | 三階段 UI mockup：ASCII → 靜態 HTML → 互動 HTML，可匯出 Figma | `/mockup` 或建立 wireframe/prototype 時 |
+| swiftui-patterns | SwiftUI 架構模式：@Observable、Navigation、iOS 17+ 最佳實踐 | 建立 SwiftUI views 或問 SwiftUI 模式時 |
+| ui-ux-pro-max | UI/UX 設計資料庫：50+ 風格、97 色盤、57 字型配對、25 圖表類型 | `/ui-ux-pro-max` 或設計 UI/選色/選字時 |
+| webapp-testing | Playwright 瀏覽器測試：截圖、console log、前端功能驗證 | 需要驗證前端功能或擷取瀏覽器截圖時 |
+
+### Backend / Data
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| db-migration | 設定資料庫 migration 工具，產生 schema 變更的 migration 檔 | 修改 DB schema 或新增 model 時 |
+| firebase-backend | Firebase 架構：Firestore schema、Security Rules、Cloud Functions v2、FCM | 設計 Firestore/寫 Security Rules/建 Cloud Functions 時 |
+
+### Documents / Office
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| office-docx | Word 文件處理：建立（docx-js）、編輯（redlining）、追蹤修訂、批註 | 處理 .docx 檔案時 |
+| office-pdf | PDF 處理：擷取文字/表格、合併拆分、建立、表單填寫、OCR | 處理 .pdf 檔案時 |
+| office-pptx | PowerPoint 處理：建立（html2pptx）、投影片設計、講者備註、縮圖 | 處理 .pptx 檔案時 |
+| office-xlsx | 試算表處理：公式計算（openpyxl）、財務模型、pandas 分析 | 處理 .xlsx/.csv 檔案時 |
+
+### Integration / Domain
+
+| Skill | 功能 | 觸發 |
+|-------|------|------|
+| claude-to-telegram | 設定 Telegram bridge 遠端控制 Claude Code（兩種方案比較） | 要從 Telegram 遠端操作 Claude Code 時 |
+| gdrive-to-skills | 讀取 Google Drive 文件（MCP），分類後建立 knowledge skills | `/gdrive-to-skills` 或匯入 Google Drive 時 |
+| investment-research | 持續投資組合管理：alpha 發掘、風險管理、回測、財報分析 | `/investment-research` 或投資研究相關時 |
+| knowledge-graph | 三層記憶系統：Entity JSONL + Auto Memory + MEMORY.md | 遇到人物/公司/專案的持久事實時 |
+| mcp-builder | MCP Server 開發指南：FastMCP、工具設計、外部 API 整合 | 建立 MCP server 或問 FastMCP 模式時 |
+| telegram-bot | Telegram bot 開發指南：grammY (TS) / python-telegram-bot (Python) | 開發 Telegram bot 時 |
+
 ## 描述品質
 
 所有描述皆正常。
