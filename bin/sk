@@ -202,6 +202,22 @@ get_frontmatter_field() {
   fi
 }
 
+get_skill_zh() {
+  # Look up Chinese summary and category from data/skill-summaries-zh.tsv
+  # Usage: get_skill_zh <skill_name> <field>  (field: summary or category)
+  local name="$1" field="$2"
+  local tsv="$REPO_DIR/data/skill-summaries-zh.tsv"
+  [ ! -f "$tsv" ] && return
+  local line
+  line="$(grep -m1 "^${name}	" "$tsv" 2>/dev/null || true)"
+  [ -z "$line" ] && return
+  if [ "$field" = "category" ]; then
+    echo "$line" | cut -f2
+  else
+    echo "$line" | cut -f3
+  fi
+}
+
 get_skill_summary() {
   # Extract one-line description from SKILL.md frontmatter
   # Handles both: "description: text" and "description: >\n  text"
@@ -2061,7 +2077,15 @@ cmd_audit() {
       local name category summary
       name="$(basename "$skill_dir")"
       category="$(basename "$(dirname "$skill_dir")")"
-      summary="$(get_skill_summary "$skill_dir")"
+      # zh: use Chinese category and summary from TSV
+      if [ "$lang" = "zh" ]; then
+        local zh_cat zh_sum
+        zh_cat="$(get_skill_zh "$name" category)"
+        zh_sum="$(get_skill_zh "$name" summary)"
+        [ -n "$zh_cat" ] && category="$zh_cat"
+        [ -n "$zh_sum" ] && summary="$zh_sum"
+      fi
+      [ -z "$summary" ] && summary="$(get_skill_summary "$skill_dir")"
       [ -z "$summary" ] && summary="—"
       echo "$category|$name|$summary" >> "$tmp_overview"
     done
@@ -2078,28 +2102,64 @@ cmd_audit() {
           [ "$(basename "$skill_dir")" = "$dname" ] && already=1 && break
         done
         [ "$already" -eq 1 ] && continue
-        # This is a local-only skill
-        local summary
-        summary="$(get_skill_summary "$deployed_dir")"
+        # This is a local-only skill — use zh lookup for category, not "local"
+        local summary="" category="local"
+        if [ "$lang" = "zh" ]; then
+          local zh_cat zh_sum
+          zh_cat="$(get_skill_zh "$dname" category)"
+          zh_sum="$(get_skill_zh "$dname" summary)"
+          [ -n "$zh_cat" ] && category="$zh_cat"
+          [ -n "$zh_sum" ] && summary="$zh_sum"
+        fi
+        [ -z "$summary" ] && summary="$(get_skill_summary "$deployed_dir")"
         [ -z "$summary" ] && summary="—"
-        echo "local|$dname|$summary" >> "$tmp_overview"
+        echo "$category|$dname|$summary" >> "$tmp_overview"
       done
     fi
 
-    # Print grouped by category
-    local prev_cat=""
-    sort "$tmp_overview" | while IFS='|' read -r cat sname summary; do
-      if [ "$cat" != "$prev_cat" ]; then
-        [ -n "$prev_cat" ] && echo ""
-        echo "### $cat"
-        echo ""
-        echo "| $L_SKILL | $L_FUNCTION |"
-        echo "|-------|------|"
-        prev_cat="$cat"
+    # Print grouped by category with defined order
+    # Define category display order
+    local cat_order
+    if [ "$lang" = "zh" ]; then
+      cat_order="基礎建設 工作流 品質 前端 後端 文件 Git 整合"
+    else
+      cat_order="meta workflow quality frontend backend docs git integration local"
+    fi
+
+    for display_cat in $cat_order; do
+      # Check if any skills exist in this category
+      if ! grep -q "^${display_cat}|" "$tmp_overview" 2>/dev/null; then
+        continue
       fi
-      echo "| $sname | $summary |"
+      echo "### $display_cat"
+      echo ""
+      echo "| $L_SKILL | $L_FUNCTION |"
+      echo "|-------|------|"
+      grep "^${display_cat}|" "$tmp_overview" | sort -t'|' -k2,2 | while IFS='|' read -r _ sname summary; do
+        echo "| $sname | $summary |"
+      done
+      echo ""
     done
-    echo ""
+
+    # Catch any categories not in the predefined order
+    local handled_cats
+    handled_cats="$(echo "$cat_order" | tr ' ' '\n')"
+    local remaining
+    remaining="$(cut -d'|' -f1 "$tmp_overview" | sort -u | while read -r c; do
+      echo "$handled_cats" | grep -qx "$c" || echo "$c"
+    done)"
+    for extra_cat in $remaining; do
+      [ -z "$extra_cat" ] && continue
+      echo "### $extra_cat"
+      echo ""
+      echo "| $L_SKILL | $L_FUNCTION |"
+      echo "|-------|------|"
+      grep "^${extra_cat}|" "$tmp_overview" | sort -t'|' -k2,2 | while IFS='|' read -r _ sname summary; do
+        echo "| $sname | $summary |"
+      done
+      echo ""
+    done
+
     rm -f "$tmp_overview"
 
     # --- 3. Description Quality ---

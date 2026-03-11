@@ -1,0 +1,64 @@
+# skill_name	category_zh	summary_zh
+# 每行格式：skill名稱<TAB>分類<TAB>中文功能說明
+# sk audit 會讀取此檔，lang=zh 時使用中文欄位
+# 新增 skill 後請同步更新此檔
+
+# === 後端 / 資料 ===
+db-migration	後端	設定資料庫 migration 工具，產生 schema 變更的 migration 檔
+firebase-backend	後端	Firebase 架構設計：Firestore schema、Security Rules、Cloud Functions v2、FCM 推播
+
+# === 文件 / Office ===
+mcp-builder	文件	MCP Server 開發指南：FastMCP、工具設計、外部 API 整合
+office-docx	文件	Word 文件處理：建立（docx-js）、編輯（redlining）、追蹤修訂、批註
+office-pdf	文件	PDF 處理：擷取文字/表格、合併拆分、建立、表單填寫、OCR
+office-pptx	文件	PowerPoint 處理：建立（html2pptx）、投影片設計、講者備註、縮圖
+office-xlsx	文件	試算表處理：公式計算（openpyxl）、財務模型色彩規範、pandas 分析
+
+# === 前端 / 設計 ===
+frontend-design	前端	產生高品質、有設計感的前端 UI，避免 AI 罐頭風格
+ios-integration	前端	iOS 系統整合：Share Extension、Deep Link、App Groups、權限、地圖
+mockup	前端	三階段 UI mockup：ASCII → 靜態 HTML → 互動 HTML，可匯出 Figma
+swiftui-patterns	前端	SwiftUI 架構模式：@Observable、Navigation、iOS 17+ 最佳實踐
+ui-ux-pro-max	前端	UI/UX 設計資料庫：50+ 風格、97 色盤、57 字型配對、25 圖表類型
+webapp-testing	前端	Playwright 瀏覽器測試：截圖、console log、前端功能驗證
+
+# === Git ===
+review-pr	Git	分析 PR 變更：正確性、安全性、效能、最佳實踐
+
+# === 基礎建設 / Meta ===
+audit-fix	基礎建設	分析 sk audit 報告，自動修復專案權限問題
+ci-pipeline	基礎建設	偵測專案技術棧，自動產生 GitHub Actions CI 工作流
+deploy	基礎建設	推薦部署平台，產生 Dockerfile / fly.toml / vercel.json 等配置
+dev-process-gate	基礎建設	攔截跳過設計直接寫 code 的行為，引導走完整開發流程
+headless-agent	基礎建設	Headless agent 模式範本：排程、structured logging、output 管理
+init-project	基礎建設	初始化 AGENTS.md + .claude/CLAUDE.md 專案配置
+plan-check-style	基礎建設	Plan mode 進入 UI 任務時，掃描並載入對應的設計風格
+self-improving-agent	基礎建設	記錄錯誤/修正/最佳實踐到 .learnings/，持續學習改進
+setup-permissions	基礎建設	偵測專案工具鏈，自動配置 settings.local.json 權限白名單
+skill-creator	基礎建設	Skill 全生命週期：建立、測試、benchmark、優化觸發描述
+skill-scout	基礎建設	從 Clawdbot/OpenClaw 生態系搜尋、評估、移植 skills
+
+# === 品質 / 安全 ===
+code-reviewer	品質	程式碼審查：效能、正確性、可維護性
+de-slopify	品質	移除 AI 生成的 slop 痕跡（含繁中模式：值得注意的是…）
+destructive-command-guard	品質	PreToolUse hook，攔截 git reset --hard、rm -rf 等危險指令
+post-change-qa	品質	改完 code 後自動重啟 server、跑測試、Playwright 截圖驗證
+qa-testing	品質	跨框架測試撰寫指南：pytest / Vitest / Swift Testing
+security-review	品質	全面安全檢查清單：auth、input validation、secrets、API
+systematic-debugging	品質	四階段除錯框架：觀察 → 假設 → 驗證 → 修復，禁止跳到答案
+
+# === 工作流 / 規劃 ===
+context-recovery	工作流	Session compaction 後自動恢復上下文（git/檔案/memory）
+dispatching-parallel-agents	工作流	派遣多個 agent 平行處理 3+ 個獨立問題
+executing-plans	工作流	分批執行實作計畫，每批完成後 review checkpoint
+planning-with-files	工作流	Manus 風格檔案式規劃（task_plan.md / findings.md / progress.md）
+requirement	工作流	定義結構化需求：user story + acceptance criteria + scope
+user-flow	工作流	設計使用者流程 Mermaid 流程圖（happy path + error branch）
+writing-plans	工作流	撰寫詳細實作計畫（TDD、2-5 分鐘 task、零背景工程師可執行）
+
+# === 整合 / 領域 ===
+claude-to-telegram	整合	設定 Telegram bridge 遠端控制 Claude Code（兩種方案比較）
+gdrive-to-skills	整合	讀取 Google Drive 文件（MCP），分類後建立 knowledge skills
+investment-research	整合	持續投資組合管理：alpha 發掘、風險管理、回測、財報分析
+knowledge-graph	整合	三層記憶系統：Entity JSONL + Auto Memory + MEMORY.md
+telegram-bot	整合	Telegram bot 開發指南：grammY (TS) / python-telegram-bot (Python)
