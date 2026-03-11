@@ -202,6 +202,40 @@ get_frontmatter_field() {
   fi
 }
 
+get_skill_summary() {
+  # Extract one-line description from SKILL.md frontmatter
+  # Handles both: "description: text" and "description: >\n  text"
+  local skill_dir="$1"
+  local skill_md="$skill_dir/SKILL.md"
+  [ ! -f "$skill_md" ] && return
+  local desc_line
+  desc_line="$(sed -n '/^---$/,/^---$/{/^---$/d;p;}' "$skill_md" | grep -m1 '^description:')"
+  local val="${desc_line#description:}"
+  val="$(echo "$val" | sed 's/^[[:space:]]*//' | tr -d '"'"'")"
+  if [ "$val" = ">" ] || [ -z "$val" ]; then
+    # Multiline: grab all indented lines, join them
+    val="$(sed -n '/^description:/,/^[^ ]/{/^description:/d;/^[^ ]/d;p;}' "$skill_md" | sed 's/^[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+    # Strip TRIGGER/DO NOT TRIGGER suffix
+    val="$(echo "$val" | sed 's/[[:space:]]*TRIGGER when:.*//' | sed 's/[[:space:]]*DO NOT TRIGGER.*//' | sed 's/[[:space:]]*$//')"
+  fi
+  # If val is empty (description was only TRIGGER text), try when_to_use or H1 subtitle
+  if [ -z "$val" ]; then
+    val="$(sed -n '/^---$/,/^---$/{/^---$/d;p;}' "$skill_md" | grep -m1 '^when_to_use:' | sed 's/^when_to_use:[[:space:]]*//')"
+  fi
+  if [ -z "$val" ]; then
+    # Fallback: first non-empty line after frontmatter that isn't a heading
+    val="$(sed -n '/^---$/,/^---$/!p' "$skill_md" | sed '1,/^---$/d' | grep -v '^#' | grep -v '^$' | head -1 | sed 's/^[[:space:]]*//')"
+  fi
+  # Strip TRIGGER text from single-line descriptions too
+  val="$(echo "$val" | sed 's/[[:space:]]*TRIGGER when:.*//' | sed 's/[[:space:]]*$//')"
+  # Truncate at first period-space if still long, cap at 120 chars
+  if [ "${#val}" -gt 120 ]; then
+    val="$(echo "$val" | sed 's/\. .*/\./')"
+  fi
+  [ "${#val}" -gt 120 ] && val="${val:0:117}..."
+  echo "$val"
+}
+
 days_since() {
   local date_str="$1"
   [ -z "$date_str" ] && echo -1 && return
@@ -1777,6 +1811,7 @@ cmd_audit() {
     L_AGENT_ISSUES="agent issue(s) need attention."
     L_NO_AGENTS="No agents configured."
     L_CICD="CI/CD"; L_CI="CI"; L_DEPLOY_CFG="Deploy"; L_HOOKS="Hooks"
+    L_OVERVIEW="Skill Overview"; L_SKILL="Skill"; L_FUNCTION="Function"
   else
     L_TITLE="Skills 稽核報告"
     L_SUMMARY="摘要"
@@ -1826,6 +1861,7 @@ cmd_audit() {
     L_AGENT_ISSUES="個 agent 問題待處理。"
     L_NO_AGENTS="無已設定的 agent。"
     L_CICD="CI/CD"; L_CI="CI"; L_DEPLOY_CFG="部署"; L_HOOKS="Hooks"
+    L_OVERVIEW="全部 Skills 功能一覽"; L_SKILL="Skill"; L_FUNCTION="功能"
   fi
 
   # Collect all skill dirs
@@ -2013,6 +2049,58 @@ cmd_audit() {
     fi
 
     rm -f "$tmp_new" "$tmp_dev" "$tmp_stable" "$tmp_abandoned"
+
+    # --- 2b. Skill Overview (function summary per category) ---
+    echo "## $L_OVERVIEW"
+    echo ""
+
+    # Collect category|name|summary into temp file
+    local tmp_overview
+    tmp_overview="$(mktemp)"
+    for skill_dir in "${skill_dirs[@]}"; do
+      local name category summary
+      name="$(basename "$skill_dir")"
+      category="$(basename "$(dirname "$skill_dir")")"
+      summary="$(get_skill_summary "$skill_dir")"
+      [ -z "$summary" ] && summary="—"
+      echo "$category|$name|$summary" >> "$tmp_overview"
+    done
+
+    # Also include local-only skills (not in repo but deployed)
+    if [ -d "$DEPLOY_TARGET" ]; then
+      for deployed_dir in "$DEPLOY_TARGET"/*/; do
+        [ ! -d "$deployed_dir" ] && continue
+        local dname
+        dname="$(basename "$deployed_dir")"
+        # Skip if already in repo skills
+        local already=0
+        for skill_dir in "${skill_dirs[@]}"; do
+          [ "$(basename "$skill_dir")" = "$dname" ] && already=1 && break
+        done
+        [ "$already" -eq 1 ] && continue
+        # This is a local-only skill
+        local summary
+        summary="$(get_skill_summary "$deployed_dir")"
+        [ -z "$summary" ] && summary="—"
+        echo "local|$dname|$summary" >> "$tmp_overview"
+      done
+    fi
+
+    # Print grouped by category
+    local prev_cat=""
+    sort "$tmp_overview" | while IFS='|' read -r cat sname summary; do
+      if [ "$cat" != "$prev_cat" ]; then
+        [ -n "$prev_cat" ] && echo ""
+        echo "### $cat"
+        echo ""
+        echo "| $L_SKILL | $L_FUNCTION |"
+        echo "|-------|------|"
+        prev_cat="$cat"
+      fi
+      echo "| $sname | $summary |"
+    done
+    echo ""
+    rm -f "$tmp_overview"
 
     # --- 3. Description Quality ---
     echo "## $L_DESC_QUALITY"
