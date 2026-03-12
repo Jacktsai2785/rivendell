@@ -43,6 +43,8 @@ code-reviewer	品質	程式碼審查：效能、正確性、可維護性
 de-slopify	品質	移除 AI 生成的 slop 痕跡（含繁中模式：值得注意的是…）
 destructive-command-guard	品質	PreToolUse hook，攔截 git reset --hard、rm -rf 等危險指令
 post-change-qa	品質	改完 code 後自動重啟 server、跑測試、Playwright 截圖驗證
+qa-planner	品質	分析 code diff 產出 QA 計畫：影響範圍、測試案例、風險評估
+qa-auto	品質	根據 QA 計畫自動產生測試程式碼、執行測試、回報覆蓋率缺口
 qa-testing	品質	跨框架測試撰寫指南：pytest / Vitest / Swift Testing
 security-review	品質	全面安全檢查清單：auth、input validation、secrets、API
 systematic-debugging	品質	四階段除錯框架：觀察 → 假設 → 驗證 → 修復，禁止跳到答案
