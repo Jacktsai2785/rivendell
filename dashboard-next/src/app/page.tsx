@@ -44,7 +44,7 @@ export default function OverviewPage() {
   if (err) return <p className="text-red-500">Error: {err}</p>;
   if (!data) return <p className="text-zinc-400">載入中...</p>;
 
-  const { metrics, agents, hooks } = data;
+  const { metrics, agents, hooks, projects_summary } = data;
 
   return (
     <div>
@@ -56,8 +56,46 @@ export default function OverviewPage() {
           { label: "執行中 Agent", value: metrics.running_agents },
           { label: "啟用 Hook", value: metrics.enabled_hooks },
           { label: "估算總花費", value: `$${metrics.total_cost_usd.toFixed(2)}` },
+          { label: "專案數", value: metrics.total_projects },
         ]}
       />
+
+      {/* Projects status table */}
+      {projects_summary && projects_summary.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-base font-semibold">專案狀態</h2>
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800/50">
+                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">專案</th>
+                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">Agent 數</th>
+                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">執行中</th>
+                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">描述</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects_summary.map((p) => (
+                  <tr key={p.name} className="border-b border-zinc-100 dark:border-zinc-800">
+                    <td className="py-2 px-4 font-medium">📁 {p.name}</td>
+                    <td className="py-2 px-4">{p.agent_count}</td>
+                    <td className="py-2 px-4">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                        p.agent_count_loaded > 0
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                      }`}>
+                        {p.agent_count_loaded} running
+                      </span>
+                    </td>
+                    <td className="py-2 px-4 text-zinc-500">{p.description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Agent status table */}
       <section className="mt-8">

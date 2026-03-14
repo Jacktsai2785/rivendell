@@ -20,7 +20,20 @@ export default function AgentsPage() {
   if (err) return <p className="text-red-500">Error: {err}</p>;
   if (!data) return <p className="text-zinc-400">載入中...</p>;
 
-  const { metrics, agents } = data;
+  const { metrics, agents, by_project } = data;
+
+  // Group agents by project name
+  const projectNames = Object.keys(by_project).sort();
+  const agentsByProject = new Map<string, typeof agents>();
+  for (const name of projectNames) {
+    agentsByProject.set(
+      name,
+      agents.filter((a) => a.project === name),
+    );
+  }
+  // Agents not in any project group
+  const grouped = new Set(projectNames);
+  const ungrouped = agents.filter((a) => !grouped.has(a.project));
 
   return (
     <div>
@@ -38,10 +51,41 @@ export default function AgentsPage() {
       {agents.length === 0 ? (
         <p className="mt-6 text-sm text-zinc-500">未找到 sk agent</p>
       ) : (
-        <div className="mt-6 flex flex-col gap-4">
-          {agents.map((agent) => (
-            <AgentCard key={agent.label} agent={agent} onRefresh={load} />
-          ))}
+        <div className="mt-6 space-y-6">
+          {projectNames.map((projName) => {
+            const projAgents = agentsByProject.get(projName) || [];
+            if (projAgents.length === 0) return null;
+            return (
+              <div key={projName}>
+                <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                  📁 {projName}
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                    {projAgents.length} agent{projAgents.length > 1 ? "s" : ""}
+                  </span>
+                </h2>
+                <div className="flex flex-col gap-4">
+                  {projAgents.map((agent) => (
+                    <AgentCard key={agent.label} agent={agent} onRefresh={load} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {ungrouped.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-500">
+                未分類
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800">
+                  {ungrouped.length}
+                </span>
+              </h2>
+              <div className="flex flex-col gap-4">
+                {ungrouped.map((agent) => (
+                  <AgentCard key={agent.label} agent={agent} onRefresh={load} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

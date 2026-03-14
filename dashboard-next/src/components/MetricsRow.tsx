@@ -5,7 +5,7 @@ interface Metric {
 
 export default function MetricsRow({ metrics }: { metrics: Metric[] }) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-4 ${metrics.length <= 4 ? "sm:grid-cols-4" : "sm:grid-cols-3 lg:grid-cols-5"}`}>
       {metrics.map((m) => (
         <div
           key={m.label}
