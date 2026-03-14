@@ -1777,6 +1777,7 @@ cmd_audit() {
   local L_AGENT_HEALTH L_AGENT_PROJECT L_AGENT_NAME L_AGENT_SCHED
   local L_AGENT_STATUS L_AGENT_EXIT L_AGENT_ALL_OK L_AGENT_ISSUES L_NO_AGENTS
   local L_CICD L_CI L_DEPLOY_CFG L_HOOKS
+  local L_INTEGRITY L_ALL_FILES_OK L_MISSING_FILES
 
   if [ "$lang" = "en" ]; then
     L_TITLE="Skill Audit Report"
@@ -1828,6 +1829,8 @@ cmd_audit() {
     L_NO_AGENTS="No agents configured."
     L_CICD="CI/CD"; L_CI="CI"; L_DEPLOY_CFG="Deploy"; L_HOOKS="Hooks"
     L_OVERVIEW="Skill Overview"; L_SKILL="Skill"; L_FUNCTION="Function"
+    L_INTEGRITY="File Integrity"; L_ALL_FILES_OK="All referenced files exist."
+    L_MISSING_FILES="missing file(s)"
   else
     L_TITLE="Skills 稽核報告"
     L_SUMMARY="摘要"
@@ -1878,6 +1881,8 @@ cmd_audit() {
     L_NO_AGENTS="無已設定的 agent。"
     L_CICD="CI/CD"; L_CI="CI"; L_DEPLOY_CFG="部署"; L_HOOKS="Hooks"
     L_OVERVIEW="全部 Skills 功能一覽"; L_SKILL="Skill"; L_FUNCTION="功能"
+    L_INTEGRITY="檔案完整性"; L_ALL_FILES_OK="所有引用檔案皆存在。"
+    L_MISSING_FILES="個檔案缺失"
   fi
 
   # Collect all skill dirs
@@ -1911,6 +1916,7 @@ cmd_audit() {
     local no_trigger=0
     local no_trigger_list=""
     local missing_tags_list="" missing_version_list="" missing_deploy_list=""
+    local integrity_issues=0 integrity_list=""
 
     for skill_dir in "${skill_dirs[@]}"; do
       local name
@@ -1944,10 +1950,44 @@ cmd_audit() {
         ((no_trigger++))
         no_trigger_list+="- $name\n"
       fi
+
+      # File integrity: check referenced files exist
+      local skill_missing=""
+      local skill_file="$skill_dir/SKILL.md"
+
+      # 1. Check CLAUDE_SKILL_DIR references in hooks and body
+      while IFS= read -r ref_path; do
+        [ -z "$ref_path" ] && continue
+        if [ ! -e "$skill_dir/$ref_path" ]; then
+          skill_missing+="  - \`$ref_path\` (CLAUDE_SKILL_DIR ref)\n"
+        fi
+      done < <(sed -n 's|.*\${CLAUDE_SKILL_DIR}/\([^"'\'' ]*\).*|\1|p' "$skill_file" 2>/dev/null | sed 's/[\\"]//g')
+
+      # 2. Check relative path references (scripts/, templates/)
+      while IFS= read -r ref_path; do
+        [ -z "$ref_path" ] && continue
+        # Clean trailing markdown punctuation
+        ref_path="$(echo "$ref_path" | sed 's/[`),]*$//')"
+        [ -z "$ref_path" ] && continue
+        # Skip globs, partial refs, and documentation patterns
+        case "$ref_path" in
+          *\**|*\{*|scripts/|templates/|scripts/deps) continue ;;
+        esac
+        if [ ! -e "$skill_dir/$ref_path" ]; then
+          skill_missing+="  - \`$ref_path\`\n"
+        fi
+      done < <(grep -oE '(scripts|templates)/[^ ")\]]+' "$skill_file" 2>/dev/null | sort -u)
+
+      if [ -n "$skill_missing" ]; then
+        local miss_count
+        miss_count=$(echo -e "$skill_missing" | grep -c '^ ')
+        ((integrity_issues += miss_count))
+        integrity_list+="- **$name** ($miss_count $L_MISSING_FILES)\n$skill_missing"
+      fi
     done
 
     # Count issues
-    local structural_issues=$((dangling + missing_deploy + missing_tags + missing_version))
+    local structural_issues=$((dangling + missing_deploy + missing_tags + missing_version + integrity_issues))
 
     echo "## $L_STRUCT"
     echo ""
@@ -1972,6 +2012,14 @@ cmd_audit() {
       [ "$missing_tags" -gt 0 ] && echo "- $L_FRONTMATTER: **$missing_tags missing tags**"
       [ "$missing_version" -gt 0 ] && echo "- $L_FRONTMATTER: **$missing_version missing version**"
       ((needs_attention += missing_tags + missing_version))
+    fi
+    if [ "$integrity_issues" -eq 0 ]; then
+      echo "- $L_INTEGRITY: OK — $L_ALL_FILES_OK"
+    else
+      echo "- $L_INTEGRITY: **$integrity_issues $L_MISSING_FILES**"
+      echo ""
+      echo -e "$integrity_list"
+      ((needs_attention += integrity_issues))
     fi
     echo ""
 
