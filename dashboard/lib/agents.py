@@ -297,6 +297,17 @@ def list_agents() -> list[AgentInfo]:
                     agent.agents_json_config = cfg
                     break
 
+    # 4. Override project from projects.json (authoritative source)
+    from lib.projects import load_projects
+    projects = load_projects()
+    project_agent_map: dict[str, str] = {}
+    for proj_name, proj in projects.items():
+        for agent_name in proj.agents:
+            project_agent_map[agent_name] = proj_name
+    for agent in agents:
+        if agent.name in project_agent_map:
+            agent.project = project_agent_map[agent.name]
+
     return agents
 
 

@@ -24,6 +24,14 @@ from lib.agents import (
     get_recent_commit,
 )
 from lib.db import init_db, get_conn, get_today_agent_cost, get_last_success_time
+from lib.projects import (
+    load_projects,
+    get_project,
+    create_project,
+    update_project,
+    delete_project,
+    enrich_projects,
+)
 from lib.tokens import (
     get_daily_usage,
     get_model_summary,
@@ -94,6 +102,8 @@ def api_overview() -> dict[str, Any]:
     hooks = list_hooks()
     skills = list_skills()
     totals = get_total_stats()
+    projects = load_projects()
+    enrich_projects(projects, agents)
 
     return {
         "metrics": {
@@ -101,6 +111,7 @@ def api_overview() -> dict[str, Any]:
             "running_agents": sum(1 for a in agents if a.loaded),
             "enabled_hooks": len(hooks),
             "total_cost_usd": totals["total_cost_usd"],
+            "total_projects": len(projects),
         },
         "agents": [_agent_to_dict(a) for a in agents],
         "hooks": [
@@ -110,6 +121,15 @@ def api_overview() -> dict[str, Any]:
                 "command": h.command,
             }
             for h in hooks
+        ],
+        "projects_summary": [
+            {
+                "name": p.name,
+                "description": p.description,
+                "agent_count": len(p.agents),
+                "agent_count_loaded": p.agent_count_loaded,
+            }
+            for p in projects.values()
         ],
     }
 
@@ -122,6 +142,11 @@ def api_agents() -> dict[str, Any]:
     last_success = get_last_success_time()
     today_cost = get_today_agent_cost()
 
+    # Group agent names by project
+    by_project: dict[str, list[str]] = {}
+    for a in agents:
+        by_project.setdefault(a.project, []).append(a.name)
+
     return {
         "metrics": {
             "total": len(agents),
@@ -130,6 +155,7 @@ def api_agents() -> dict[str, Any]:
             "today_cost": today_cost,
         },
         "agents": [_agent_to_dict(a) for a in agents],
+        "by_project": by_project,
     }
 
 
@@ -347,6 +373,88 @@ def api_tokens_filtered(
             for p in f.projects
         ],
     }
+
+
+# ── Projects ──────────────────────────────────────────────────────────
+
+def _project_to_dict(p, agents_list: list | None = None) -> dict[str, Any]:
+    """Serialize ProjectInfo to JSON-safe dict."""
+    d: dict[str, Any] = {
+        "name": p.name,
+        "repo": p.repo,
+        "description": p.description,
+        "agents": p.agents,
+        "agent_count_loaded": p.agent_count_loaded,
+        "total_cost_usd": p.total_cost_usd,
+    }
+    if agents_list is not None:
+        d["agent_details"] = [
+            _agent_to_dict(a)
+            for a in agents_list
+            if a.name in p.agents
+        ]
+    return d
+
+
+@app.get("/api/projects")
+def api_projects() -> dict[str, Any]:
+    agents = list_agents()
+    projects = load_projects()
+    enrich_projects(projects, agents)
+    return {
+        "projects": [_project_to_dict(p) for p in projects.values()],
+    }
+
+
+@app.get("/api/projects/{name}")
+def api_project_detail(name: str) -> dict[str, Any]:
+    p = get_project(name)
+    if not p:
+        raise HTTPException(404, f"Project '{name}' not found")
+    agents = list_agents()
+    enrich_projects({name: p}, agents)
+    return _project_to_dict(p, agents_list=agents)
+
+
+class ProjectCreate(BaseModel):
+    name: str
+    repo: str
+    description: str = ""
+    agents: list[str] = []
+
+
+@app.post("/api/projects")
+def api_project_create(body: ProjectCreate) -> dict[str, Any]:
+    try:
+        p = create_project(body.name, body.repo, body.description, body.agents)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"ok": True, "project": _project_to_dict(p)}
+
+
+class ProjectUpdate(BaseModel):
+    repo: str | None = None
+    description: str | None = None
+    agents: list[str] | None = None
+
+
+@app.put("/api/projects/{name}")
+def api_project_update(name: str, body: ProjectUpdate) -> dict[str, Any]:
+    kwargs = {k: v for k, v in body.model_dump().items() if v is not None}
+    try:
+        p = update_project(name, **kwargs)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True, "project": _project_to_dict(p)}
+
+
+@app.delete("/api/projects/{name}")
+def api_project_delete(name: str) -> dict[str, Any]:
+    try:
+        delete_project(name)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True}
 
 
 # ── Skills ────────────────────────────────────────────────────────────

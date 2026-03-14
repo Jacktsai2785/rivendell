@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sk-dashboard Mockup</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #fafafa; --bg-card: #ffffff; --bg-sidebar: #18181b;
+    --text: #18181b; --text-muted: #71717a; --text-inverse: #fafafa;
+    --border: #e4e4e7; --border-light: #f4f4f5;
+    --blue: #2563eb; --blue-light: #dbeafe;
+    --green: #16a34a; --green-light: #dcfce7;
+    --red: #dc2626; --red-light: #fee2e2;
+    --amber: #f59e0b; --amber-light: #fef3c7;
+    --purple: #7c3aed; --purple-light: #ede9fe;
+    --radius: 8px; --radius-sm: 6px;
+    --pad-card: 16px; --gap-section: 24px; --pad-page: 32px;
+    --font: 'Geist Sans', system-ui, -apple-system, sans-serif;
+    --mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
+  }
+  .dark {
+    --bg: #09090b; --bg-card: #18181b; --bg-sidebar: #09090b;
+    --text: #fafafa; --text-muted: #a1a1aa; --text-inverse: #18181b;
+    --border: #27272a; --border-light: #1c1c1e;
+    --blue-light: #1e3a5f; --green-light: #14532d;
+    --red-light: #450a0a; --amber-light: #451a03; --purple-light: #2e1065;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  /* ── Alert Bar (UI improvement #1) ── */
+  .alert-bar {
+    background: var(--red); color: #fff; padding: 8px var(--pad-page);
+    font-size: 13px; display: flex; align-items: center; gap: 8px;
+  }
+  .alert-bar span { font-weight: 600; }
+  .alert-bar .dismiss { margin-left: auto; cursor: pointer; opacity: .7; }
+  .alert-bar .dismiss:hover { opacity: 1; }
+
+  /* ── Layout ── */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; background: var(--bg-sidebar); color: var(--text-inverse);
+    padding: 20px 0; flex-shrink: 0; display: flex; flex-direction: column;
+  }
+  .dark .sidebar { color: #fafafa; }
+  .sidebar .logo { padding: 0 20px 24px; font-size: 18px; font-weight: 700; letter-spacing: -.5px; }
+  .sidebar .logo code { font-family: var(--mono); color: var(--blue); }
+  .sidebar nav a {
+    display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+    color: #a1a1aa; text-decoration: none; font-size: 14px; border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  .sidebar nav a:hover, .sidebar nav a.active { color: #fff; background: rgba(255,255,255,.06); border-left-color: var(--blue); }
+  .sidebar .sidebar-footer { margin-top: auto; padding: 16px 20px; font-size: 12px; color: #52525b; }
+
+  .main { flex: 1; display: flex; flex-direction: column; overflow-x: hidden; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px var(--pad-page); border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .topbar h1 { font-size: 18px; font-weight: 600; }
+  .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+  /* ── Auto-refresh indicator (UI improvement #2) ── */
+  .refresh-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+  .refresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+
+  /* ── Dark toggle ── */
+  .toggle-dark {
+    background: var(--border); border: none; border-radius: 20px; width: 44px; height: 24px;
+    position: relative; cursor: pointer; transition: background .2s;
+  }
+  .toggle-dark::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    background: #fff; border-radius: 50%; transition: transform .2s;
+  }
+  .dark .toggle-dark { background: var(--blue); }
+  .dark .toggle-dark::after { transform: translateX(20px); }
+
+  .content { padding: var(--pad-page); flex: 1; }
+
+  /* ── Page sections ── */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── Metrics Row ── */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: var(--gap-section); }
+  .metric-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: var(--pad-card); display: flex; flex-direction: column; gap: 4px;
+  }
+  .metric-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  .metric-card .value { font-size: 28px; font-weight: 700; }
+  .metric-card .trend { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+  .trend.up { color: var(--green); }
+  .trend.down { color: var(--red); }
+
+  /* ── Tables ── */
+  .section-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: var(--gap-section); }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--border-light); }
+  td { padding: 10px 14px; font-size: 14px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+    border-radius: var(--radius-sm); font-size: 11px; font-weight: 600;
+  }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-gray { background: var(--border-light); color: var(--text-muted); }
+  .badge-blue { background: var(--blue-light); color: var(--blue); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-purple { background: var(--purple-light); color: var(--purple); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+    cursor: pointer; transition: all .15s;
+  }
+  .btn:hover { background: var(--border-light); }
+  .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn-primary:hover { opacity: .9; }
+  .btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+  .btn-sm { padding: 3px 10px; font-size: 12px; }
+
+  /* ── Agent Cards ── */
+  .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: var(--gap-section); }
+  .agent-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: var(--pad-card); display: flex; flex-direction: column; gap: 12px;
+  }
+  .agent-card-header { display: flex; align-items: center; justify-content: space-between; }
+  .agent-card-header .name { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .agent-card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .agent-card .meta { font-size: 13px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+  .agent-card .actions { display: flex; gap: 8px; margin-top: 4px; }
+  .expandable { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 4px; }
+  .expandable summary { font-size: 12px; color: var(--text-muted); cursor: pointer; font-weight: 600; }
+  .expandable .inner { padding: 8px 0 0; font-size: 13px; font-family: var(--mono); color: var(--text-muted); line-height: 1.7; }
+
+  /* ── Skill Grid ── */
+  .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .skill-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: var(--pad-card); display: flex; flex-direction: column; gap: 8px;
+  }
+  .skill-card .skill-name { font-size: 15px; font-weight: 600; }
+  .skill-card .skill-desc { font-size: 13px; color: var(--text-muted); }
+  .skill-card .skill-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  /* ── Filter / Search ── */
+  .filter-bar { display: flex; gap: 12px; margin-bottom: var(--gap-section); align-items: center; flex-wrap: wrap; }
+  .filter-bar input, .filter-bar select {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 14px; background: var(--bg-card); color: var(--text);
+  }
+  .filter-bar input { flex: 1; min-width: 200px; }
+
+  /* ── Tabs (skill category — UI improvement #5) ── */
+  .cat-tabs { display: flex; gap: 4px; margin-bottom: var(--gap-section); flex-wrap: wrap; }
+  .cat-tab {
+    padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500;
+    border: 1px solid var(--border); background: transparent; color: var(--text-muted);
+    cursor: pointer; transition: all .15s;
+  }
+  .cat-tab:hover { background: var(--border-light); color: var(--text); }
+  .cat-tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+  /* ── SVG Charts ── */
+  .chart-container { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--pad-card); margin-bottom: var(--gap-section); }
+  .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  svg text { font-family: var(--font); }
+
+  /* ── ASCII Flow ── */
+  .ascii-flow {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: var(--pad-card); font-family: var(--mono); font-size: 13px;
+    line-height: 1.6; white-space: pre; overflow-x: auto; color: var(--text-muted);
+    margin-bottom: var(--gap-section);
+  }
+
+  /* ── Two-col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-section); }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .content { padding: 16px; }
+    .agent-grid, .skill-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Alert Bar — UI improvement #1 -->
+<div class="alert-bar" id="alertBar">
+  ⚠️ <span>Agent 失敗:</span> <code style="font-family:var(--mono);font-size:12px">developer</code> 於 14:22 結束 (exit_code=1) — 檢查日誌
+  <span class="dismiss" onclick="document.getElementById('alertBar').style.display='none'">✕</span>
+</div>
+
+<div class="shell">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo"><code>sk</code> dashboard</div>
+    <!-- Project Switcher -->
+    <div style="padding:0 16px 16px">
+      <select style="width:100%;padding:6px 10px;border-radius:var(--radius-sm);border:1px solid #333;background:#27272a;color:#fafafa;font-size:13px;font-family:var(--mono)">
+        <option>📁 skills-test</option>
+        <option>📁 news_stock</option>
+        <option disabled>──────────</option>
+        <option>🌐 全部專案</option>
+      </select>
+    </div>
+    <nav>
+      <a href="#overview" class="active" onclick="switchPage('overview',this)">📊 總覽</a>
+      <a href="#agents" onclick="switchPage('agents',this)">🤖 Agent 管理</a>
+      <a href="#tokens" onclick="switchPage('tokens',this)">📈 Token 用量</a>
+      <a href="#skills" onclick="switchPage('skills',this)">⚡ Skill 總覽</a>
+      <a href="#projects" onclick="switchPage('projects',this)">📁 專案管理</a>
+    </nav>
+    <div class="sidebar-footer">sk-dashboard v0.1.0<br>© 2026 skills-test</div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <h1 id="pageTitle">總覽</h1>
+      <div class="topbar-actions">
+        <!-- Auto-refresh indicator — UI improvement #2 -->
+        <div class="refresh-indicator">
+          <span class="refresh-dot"></span>
+          30s 前更新
+        </div>
+        <button class="toggle-dark" onclick="document.body.classList.toggle('dark')" title="Toggle dark mode"></button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ════════════════════════════════════════ -->
+      <!-- PAGE 1: Overview                        -->
+      <!-- ════════════════════════════════════════ -->
+      <section id="overview" class="page active">
+        <!-- Metrics -->
+        <div class="metrics">
+          <div class="metric-card">
+            <span class="label">Skill 總數</span>
+            <span class="value">42</span>
+            <span class="trend up">↑ 3 本週新增</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">執行中 Agent</span>
+            <span class="value">3</span>
+            <span class="trend up">↑ 1 vs 昨日</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">啟用 Hook</span>
+            <span class="value">5</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">估算總花費</span>
+            <span class="value">$12.34</span>
+            <span class="trend down">↓ 8% vs 昨日</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">專案數</span>
+            <span class="value">2</span>
+          </div>
+        </div>
+
+        <!-- 專案狀態表 -->
+        <div class="section-title">專案狀態</div>
+        <table>
+          <thead><tr><th>專案</th><th>Agent 數</th><th>執行中</th><th>描述</th></tr></thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600">📁 skills-test</td>
+              <td>2</td>
+              <td><span class="badge badge-green">2 running</span></td>
+              <td>Claude Code skills library</td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">📁 news_stock</td>
+              <td>1</td>
+              <td><span class="badge badge-green">1 running</span></td>
+              <td>News & stock analysis</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Agent 狀態表 — with Start/Stop buttons (UI improvement #3) -->
+        <div class="section-title">Agent 狀態</div>
+        <table>
+          <thead><tr><th>Agent</th><th>角色</th><th>狀態</th><th>排程</th><th>上次執行</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600">maintainer</td>
+              <td><span class="badge badge-blue">🔧 maintainer</span></td>
+              <td><span class="badge badge-green">🟢 running</span></td>
+              <td>每 30 分鐘</td>
+              <td>14:30 — 成功</td>
+              <td><button class="btn btn-sm btn-danger">Stop</button></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">tester</td>
+              <td><span class="badge badge-purple">🧪 tester</span></td>
+              <td><span class="badge badge-green">🟢 running</span></td>
+              <td>PR 觸發</td>
+              <td>14:15 — 成功</td>
+              <td><button class="btn btn-sm btn-danger">Stop</button></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">developer</td>
+              <td><span class="badge badge-amber">🚀 developer</span></td>
+              <td><span class="badge badge-red">🔴 failed</span></td>
+              <td>手動</td>
+              <td>14:22 — exit(1)</td>
+              <td><button class="btn btn-sm btn-primary">Start</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Hook 狀態表 -->
+        <div class="section-title">Hook 狀態</div>
+        <table>
+          <thead><tr><th>名稱</th><th>Event</th><th>Matcher</th><th>Command</th><th>狀態</th></tr></thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600">lint-guard</td>
+              <td><span class="badge badge-gray">PreToolUse</span></td>
+              <td><code style="font-family:var(--mono);font-size:12px">Edit</code></td>
+              <td><code style="font-family:var(--mono);font-size:12px">eslint --fix $FILE</code></td>
+              <td><span class="badge badge-green">啟用</span></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">test-on-save</td>
+              <td><span class="badge badge-gray">PostToolUse</span></td>
+              <td><code style="font-family:var(--mono);font-size:12px">Write</code></td>
+              <td><code style="font-family:var(--mono);font-size:12px">npm test -- --bail</code></td>
+              <td><span class="badge badge-green">啟用</span></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">dcg</td>
+              <td><span class="badge badge-gray">PreToolUse</span></td>
+              <td><code style="font-family:var(--mono);font-size:12px">Bash</code></td>
+              <td><code style="font-family:var(--mono);font-size:12px">dcg-check.sh</code></td>
+              <td><span class="badge badge-green">啟用</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Agent 協作流 -->
+        <div class="section-title">Agent 協作流</div>
+        <div class="metrics" style="margin-bottom:12px">
+          <div class="metric-card"><span class="label">Pending 任務</span><span class="value">2</span></div>
+          <div class="metric-card"><span class="label">已 Resolved</span><span class="value">14</span></div>
+        </div>
+        <div class="ascii-flow">
+  ┌─────────────┐    PR opened     ┌─────────────┐    tests pass    ┌─────────────┐
+  │  developer   │ ──────────────▸ │   tester     │ ──────────────▸ │ maintainer   │
+  │  🚀 create   │                 │  🧪 verify    │                 │ 🔧 merge      │
+  └─────────────┘                 └─────────────┘                 └─────────────┘
+        │                               │                               │
+        │  exit(1) ──▸ alert bar        │  fail ──▸ comment PR          │  merge ──▸ main
+        ▾                               ▾                               ▾
+   🔴 notify admin                 🟡 request changes              🟢 deploy hook</div>
+      </section>
+
+      <!-- ════════════════════════════════════════ -->
+      <!-- PAGE 2: Agent Management                -->
+      <!-- ════════════════════════════════════════ -->
+      <section id="agents" class="page">
+        <div class="metrics">
+          <div class="metric-card">
+            <span class="label">總 Agent 數</span>
+            <span class="value">5</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">執行中</span>
+            <span class="value">3</span>
+            <span class="trend up">↑ 50% vs 昨日</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">上次成功</span>
+            <span class="value" style="font-size:20px">2026-03-15 14:30</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">今日花費</span>
+            <span class="value">$0.4521</span>
+            <span class="trend down">↓ 12% vs 昨日</span>
+          </div>
+        </div>
+
+        <!-- Project group: skills-test -->
+        <div class="section-title" style="display:flex;align-items:center;gap:8px">📁 skills-test <span class="badge badge-blue" style="font-size:10px">2 agents</span></div>
+        <div class="agent-grid">
+          <!-- Card: maintainer -->
+          <div class="agent-card">
+            <div class="agent-card-header">
+              <span class="name"><span class="badge badge-blue">🔧 maintainer</span></span>
+              <span class="badge badge-green">🟢 loaded</span>
+            </div>
+            <div class="tags">
+              <span class="badge badge-gray">auto → main</span>
+              <span class="badge badge-green">QA: auto</span>
+              <span class="badge badge-gray">cron: */30 * * * *</span>
+            </div>
+            <div class="meta">
+              <span>排程: 每 30 分鐘自動執行</span>
+              <span>上次執行: 14:30 — 0 errors</span>
+              <span>今日 sessions: 12 | tokens: 45.2k</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-sm btn-danger">Stop</button>
+              <button class="btn btn-sm">Reload</button>
+              <button class="btn btn-sm">Logs</button>
+            </div>
+            <details class="expandable">
+              <summary>Git Safety</summary>
+              <div class="inner">allow_push: true
+force_push: false
+protected_branches: [main, release/*]
+auto_commit: true
+commit_signing: required</div>
+            </details>
+            <details class="expandable">
+              <summary>執行歷史 (最近 5 筆)</summary>
+              <div class="inner">14:30  ✅  merged PR #42    0.8s  $0.032
+14:00  ✅  merged PR #41    1.2s  $0.041
+13:30  ✅  no pending PRs   0.3s  $0.008
+13:00  ✅  merged PR #40    0.9s  $0.035
+12:30  ⚠️  conflict #39    2.1s  $0.062</div>
+            </details>
+          </div>
+
+          <!-- Card: tester -->
+          <div class="agent-card">
+            <div class="agent-card-header">
+              <span class="name"><span class="badge badge-purple">🧪 tester</span></span>
+              <span class="badge badge-green">🟢 loaded</span>
+            </div>
+            <div class="tags">
+              <span class="badge badge-gray">PR → branch</span>
+              <span class="badge badge-amber">QA: script</span>
+              <span class="badge badge-gray">trigger: PR opened</span>
+            </div>
+            <div class="meta">
+              <span>排程: PR 開啟時觸發</span>
+              <span>上次執行: 14:15 — 0 errors</span>
+              <span>今日 sessions: 8 | tokens: 32.1k</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-sm btn-danger">Stop</button>
+              <button class="btn btn-sm">Reload</button>
+              <button class="btn btn-sm">Logs</button>
+            </div>
+            <details class="expandable">
+              <summary>Git Safety</summary>
+              <div class="inner">allow_push: false
+force_push: false
+protected_branches: [main]
+auto_commit: false
+commit_signing: optional</div>
+            </details>
+            <details class="expandable">
+              <summary>執行歷史 (最近 5 筆)</summary>
+              <div class="inner">14:15  ✅  PR #42 passed    8.2s  $0.089
+13:50  ✅  PR #41 passed    6.1s  $0.072
+13:20  ❌  PR #39 failed    4.5s  $0.058
+12:40  ✅  PR #38 passed    7.8s  $0.081
+11:10  ✅  PR #37 passed    5.9s  $0.067</div>
+            </details>
+          </div>
+
+        </div><!-- end skills-test agent-grid -->
+
+        <!-- Project group: news_stock -->
+        <div class="section-title" style="display:flex;align-items:center;gap:8px;margin-top:8px">📁 news_stock <span class="badge badge-blue" style="font-size:10px">1 agent</span></div>
+        <div class="agent-grid">
+          <!-- Card: developer -->
+          <div class="agent-card" style="border-color: var(--red); border-width: 2px;">
+            <div class="agent-card-header">
+              <span class="name"><span class="badge badge-amber">🚀 developer</span></span>
+              <span class="badge badge-red">🔴 unloaded</span>
+            </div>
+            <div class="tags">
+              <span class="badge badge-gray">manual → feature/*</span>
+              <span class="badge badge-gray">QA: manual</span>
+              <span class="badge badge-gray">trigger: manual</span>
+            </div>
+            <div class="meta">
+              <span>排程: 手動觸發</span>
+              <span>上次執行: 14:22 — exit(1)</span>
+              <span>今日 sessions: 3 | tokens: 18.7k</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-sm btn-primary">Start</button>
+              <button class="btn btn-sm">Reload</button>
+              <button class="btn btn-sm">Logs</button>
+            </div>
+            <details class="expandable">
+              <summary>Git Safety</summary>
+              <div class="inner">allow_push: true
+force_push: false
+protected_branches: [main, release/*]
+auto_commit: true
+commit_signing: optional</div>
+            </details>
+            <details class="expandable">
+              <summary>執行歷史 (最近 5 筆)</summary>
+              <div class="inner">14:22  ❌  exit(1) OOM      12.3s $0.142
+13:10  ✅  feat: add API    45.2s $0.310
+11:05  ✅  feat: scaffold   32.1s $0.224
+10:00  ✅  fix: typo        2.8s  $0.018
+09:30  ⚠️  timeout          60.0s $0.410</div>
+            </details>
+          </div>
+        </div><!-- end news_stock agent-grid -->
+      </section>
+
+      <!-- ════════════════════════════════════════ -->
+      <!-- PAGE 3: Token Usage                     -->
+      <!-- ════════════════════════════════════════ -->
+      <section id="tokens" class="page">
+        <!-- Date filter -->
+        <div class="filter-bar">
+          <label style="font-size:13px;color:var(--text-muted)">從</label>
+          <input type="date" value="2026-03-08">
+          <label style="font-size:13px;color:var(--text-muted)">至</label>
+          <input type="date" value="2026-03-15">
+          <button class="btn btn-primary btn-sm">套用</button>
+        </div>
+
+        <!-- Metrics — with trend arrows (UI improvement #4) -->
+        <div class="metrics">
+          <div class="metric-card">
+            <span class="label">總 Session</span>
+            <span class="value">87</span>
+            <span class="trend up">↑ 12% vs 昨日</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">Messages</span>
+            <span class="value">1,247</span>
+            <span class="trend up">↑ 8%</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">Tokens</span>
+            <span class="value">2.4M</span>
+            <span class="trend down">↓ 3%</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">花費</span>
+            <span class="value">$12.34</span>
+            <span class="trend down">↓ 8%</span>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <!-- Daily Token Chart -->
+          <div class="chart-container">
+            <div class="chart-title">每日 Token 用量</div>
+            <svg viewBox="0 0 400 180" style="width:100%;height:auto">
+              <g fill="var(--text-muted)" font-size="10">
+                <text x="20" y="170">3/8</text><text x="70" y="170">3/9</text>
+                <text x="120" y="170">3/10</text><text x="170" y="170">3/11</text>
+                <text x="220" y="170">3/12</text><text x="270" y="170">3/13</text>
+                <text x="320" y="170">3/14</text><text x="365" y="170">3/15</text>
+              </g>
+              <g fill="var(--blue)">
+                <rect x="18" y="80" width="30" height="75" rx="3" opacity=".8"/>
+                <rect x="68" y="60" width="30" height="95" rx="3" opacity=".8"/>
+                <rect x="118" y="90" width="30" height="65" rx="3" opacity=".8"/>
+                <rect x="168" y="40" width="30" height="115" rx="3" opacity=".8"/>
+                <rect x="218" y="70" width="30" height="85" rx="3" opacity=".8"/>
+                <rect x="268" y="50" width="30" height="105" rx="3" opacity=".8"/>
+                <rect x="318" y="30" width="30" height="125" rx="3" opacity=".8"/>
+                <rect x="363" y="55" width="30" height="100" rx="3"/>
+              </g>
+              <g fill="var(--text-muted)" font-size="9" text-anchor="middle">
+                <text x="33" y="75">280k</text><text x="83" y="55">340k</text>
+                <text x="133" y="85">240k</text><text x="183" y="35">420k</text>
+                <text x="233" y="65">310k</text><text x="283" y="45">380k</text>
+                <text x="333" y="25">450k</text><text x="378" y="50">360k</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Daily Cost Chart -->
+          <div class="chart-container">
+            <div class="chart-title">每日花費 ($)</div>
+            <svg viewBox="0 0 400 180" style="width:100%;height:auto">
+              <g fill="var(--text-muted)" font-size="10">
+                <text x="20" y="170">3/8</text><text x="70" y="170">3/9</text>
+                <text x="120" y="170">3/10</text><text x="170" y="170">3/11</text>
+                <text x="220" y="170">3/12</text><text x="270" y="170">3/13</text>
+                <text x="320" y="170">3/14</text><text x="365" y="170">3/15</text>
+              </g>
+              <g fill="var(--green)">
+                <rect x="18" y="95" width="30" height="60" rx="3" opacity=".8"/>
+                <rect x="68" y="75" width="30" height="80" rx="3" opacity=".8"/>
+                <rect x="118" y="100" width="30" height="55" rx="3" opacity=".8"/>
+                <rect x="168" y="55" width="30" height="100" rx="3" opacity=".8"/>
+                <rect x="218" y="80" width="30" height="75" rx="3" opacity=".8"/>
+                <rect x="268" y="65" width="30" height="90" rx="3" opacity=".8"/>
+                <rect x="318" y="45" width="30" height="110" rx="3" opacity=".8"/>
+                <rect x="363" y="70" width="30" height="85" rx="3"/>
+              </g>
+              <g fill="var(--text-muted)" font-size="9" text-anchor="middle">
+                <text x="33" y="90">$1.12</text><text x="83" y="70">$1.48</text>
+                <text x="133" y="95">$1.02</text><text x="183" y="50">$1.85</text>
+                <text x="233" y="75">$1.38</text><text x="283" y="60">$1.65</text>
+                <text x="333" y="40">$2.01</text><text x="378" y="65">$1.56</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Model usage table -->
+        <div class="section-title">模型用量</div>
+        <table>
+          <thead><tr><th>模型</th><th>Sessions</th><th>Input Tokens</th><th>Output Tokens</th><th>花費</th><th>佔比</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-purple">opus-4-6</span></td>
+              <td>24</td><td>680k</td><td>120k</td><td>$8.42</td>
+              <td><div style="background:var(--border-light);border-radius:4px;height:8px;width:100%"><div style="background:var(--purple);border-radius:4px;height:8px;width:68%"></div></div></td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-blue">sonnet-4-6</span></td>
+              <td>45</td><td>1.2M</td><td>280k</td><td>$3.21</td>
+              <td><div style="background:var(--border-light);border-radius:4px;height:8px;width:100%"><div style="background:var(--blue);border-radius:4px;height:8px;width:26%"></div></div></td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-green">haiku-4-5</span></td>
+              <td>18</td><td>420k</td><td>95k</td><td>$0.71</td>
+              <td><div style="background:var(--border-light);border-radius:4px;height:8px;width:100%"><div style="background:var(--green);border-radius:4px;height:8px;width:6%"></div></div></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Project usage table -->
+        <div class="section-title">專案用量</div>
+        <table>
+          <thead><tr><th>專案</th><th>Sessions</th><th>Tokens</th><th>花費</th><th>佔比</th></tr></thead>
+          <tbody>
+            <tr>
+              <td style="font-weight:600">skills-test</td><td>52</td><td>1.5M</td><td>$7.82</td>
+              <td><div style="background:var(--border-light);border-radius:4px;height:8px;width:100%"><div style="background:var(--blue);border-radius:4px;height:8px;width:63%"></div></div></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">news_stock</td><td>28</td><td>720k</td><td>$3.65</td>
+              <td><div style="background:var(--border-light);border-radius:4px;height:8px;width:100%"><div style="background:var(--blue);border-radius:4px;height:8px;width:30%"></div></div></td>
+            </tr>
+            <tr>
+              <td style="font-weight:600">portfolio-site</td><td>7</td><td>180k</td><td>$0.87</td>
+              <td><div style="background:var(--border-light);border-radius:4px;height:8px;width:100%"><div style="background:var(--blue);border-radius:4px;height:8px;width:7%"></div></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ════════════════════════════════════════ -->
+      <!-- PAGE 4: Skills Overview                 -->
+      <!-- ════════════════════════════════════════ -->
+      <section id="skills" class="page">
+        <div class="filter-bar">
+          <input type="text" placeholder="搜尋 skill 名稱或關鍵字…">
+        </div>
+
+        <!-- Category tabs — UI improvement #5 -->
+        <div class="cat-tabs">
+          <button class="cat-tab active">全部 (42)</button>
+          <button class="cat-tab">開發 (12)</button>
+          <button class="cat-tab">測試 (8)</button>
+          <button class="cat-tab">部署 (5)</button>
+          <button class="cat-tab">文件 (6)</button>
+          <button class="cat-tab">安全 (4)</button>
+          <button class="cat-tab">工具 (7)</button>
+        </div>
+
+        <div class="skill-grid">
+          <div class="skill-card">
+            <div class="skill-name">commit</div>
+            <div class="skill-desc">Analyze staged changes and create well-formatted commit messages following repo conventions.</div>
+            <div class="skill-meta">
+              <span class="badge badge-blue">manual</span>
+              <span class="badge badge-gray">開發</span>
+              <span class="badge badge-green">invocable</span>
+              <span style="font-size:11px;color:var(--text-muted)">48 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">qa-testing</div>
+            <div class="skill-desc">Cross-framework test strategy and writing guidance for pytest, Vitest, and Swift Testing.</div>
+            <div class="skill-meta">
+              <span class="badge badge-amber">hook</span>
+              <span class="badge badge-gray">測試</span>
+              <span class="badge badge-green">invocable</span>
+              <span style="font-size:11px;color:var(--text-muted)">124 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">deploy</div>
+            <div class="skill-desc">Recommend deployment platform and generate deploy config (Dockerfile, fly.toml, vercel.json).</div>
+            <div class="skill-meta">
+              <span class="badge badge-blue">manual</span>
+              <span class="badge badge-gray">部署</span>
+              <span class="badge badge-green">invocable</span>
+              <span style="font-size:11px;color:var(--text-muted)">89 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">security-review</div>
+            <div class="skill-desc">Comprehensive security checklist and patterns for code security auditing.</div>
+            <div class="skill-meta">
+              <span class="badge badge-purple">agent</span>
+              <span class="badge badge-gray">安全</span>
+              <span style="font-size:11px;color:var(--text-muted)">156 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">systematic-debugging</div>
+            <div class="skill-desc">Four-phase debugging framework that ensures root cause investigation before attempting fixes.</div>
+            <div class="skill-meta">
+              <span class="badge badge-amber">hook</span>
+              <span class="badge badge-gray">開發</span>
+              <span style="font-size:11px;color:var(--text-muted)">98 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">ci-pipeline</div>
+            <div class="skill-desc">Detect project stack and generate GitHub Actions CI workflow with lint, test, build jobs.</div>
+            <div class="skill-meta">
+              <span class="badge badge-blue">manual</span>
+              <span class="badge badge-gray">部署</span>
+              <span class="badge badge-green">invocable</span>
+              <span style="font-size:11px;color:var(--text-muted)">72 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">destructive-command-guard</div>
+            <div class="skill-desc">Pure shell PreToolUse hook that blocks dangerous commands before execution.</div>
+            <div class="skill-meta">
+              <span class="badge badge-amber">hook</span>
+              <span class="badge badge-gray">安全</span>
+              <span style="font-size:11px;color:var(--text-muted)">45 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">frontend-design</div>
+            <div class="skill-desc">Create distinctive, production-grade frontend interfaces with high design quality.</div>
+            <div class="skill-meta">
+              <span class="badge badge-blue">manual</span>
+              <span class="badge badge-gray">開發</span>
+              <span class="badge badge-green">invocable</span>
+              <span style="font-size:11px;color:var(--text-muted)">210 lines</span>
+            </div>
+          </div>
+          <div class="skill-card">
+            <div class="skill-name">review-pr</div>
+            <div class="skill-desc">Analyzes PR changes for correctness, security, performance, and best practices.</div>
+            <div class="skill-meta">
+              <span class="badge badge-blue">manual</span>
+              <span class="badge badge-gray">開發</span>
+              <span class="badge badge-green">invocable</span>
+              <span style="font-size:11px;color:var(--text-muted)">134 lines</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════ -->
+      <!-- PAGE 5: Project Management               -->
+      <!-- ════════════════════════════════════════ -->
+      <section id="projects" class="page">
+        <div class="metrics">
+          <div class="metric-card">
+            <span class="label">總專案</span>
+            <span class="value">2</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">總 Agent</span>
+            <span class="value">3</span>
+          </div>
+          <div class="metric-card">
+            <span class="label">總花費</span>
+            <span class="value">$12.34</span>
+            <span class="trend down">↓ 8% vs 昨日</span>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+          <button class="btn btn-primary" onclick="document.getElementById('newProjectForm').style.display=document.getElementById('newProjectForm').style.display==='none'?'block':'none'">＋ 新增專案</button>
+        </div>
+
+        <!-- New project form (hidden by default) -->
+        <div id="newProjectForm" style="display:none;margin-bottom:var(--gap-section)">
+          <div class="agent-card">
+            <div class="section-title" style="margin-bottom:8px">新增專案</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                <label style="flex:1;min-width:200px">
+                  <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">專案名稱</div>
+                  <input type="text" placeholder="my-project" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--bg-card);color:var(--text)">
+                </label>
+                <label style="flex:2;min-width:300px">
+                  <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Repo 路徑</div>
+                  <input type="text" placeholder="/Users/…/Projects/my-project" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--bg-card);color:var(--text);font-family:var(--mono)">
+                </label>
+              </div>
+              <label>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">描述</div>
+                <input type="text" placeholder="Project description…" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--bg-card);color:var(--text)">
+              </label>
+              <label>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Agent（以逗號分隔）</div>
+                <input type="text" placeholder="maintainer, tester" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;background:var(--bg-card);color:var(--text);font-family:var(--mono)">
+              </label>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm">建立</button>
+                <button class="btn btn-sm" onclick="document.getElementById('newProjectForm').style.display='none'">取消</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project cards grid -->
+        <div class="agent-grid">
+          <!-- Card: skills-test -->
+          <div class="agent-card">
+            <div class="agent-card-header">
+              <span class="name">📁 skills-test</span>
+              <span class="badge badge-green">2 agents loaded</span>
+            </div>
+            <div class="meta">
+              <span style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">/Users/manibari/Documents/Projects/skills-test</span>
+              <span>Claude Code skills library</span>
+            </div>
+            <div class="tags">
+              <span class="badge badge-blue">🔧 maintainer</span>
+              <span class="badge badge-green" style="font-size:10px">🟢 loaded</span>
+              <span class="badge badge-purple">🧪 tester</span>
+              <span class="badge badge-green" style="font-size:10px">🟢 loaded</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-sm">編輯</button>
+              <button class="btn btn-sm btn-danger">刪除</button>
+            </div>
+          </div>
+
+          <!-- Card: news_stock -->
+          <div class="agent-card">
+            <div class="agent-card-header">
+              <span class="name">📁 news_stock</span>
+              <span class="badge badge-amber">1 agent loaded</span>
+            </div>
+            <div class="meta">
+              <span style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">/Users/manibari/Documents/Projects/news_stock</span>
+              <span>News & stock analysis</span>
+            </div>
+            <div class="tags">
+              <span class="badge badge-amber">📊 researcher</span>
+              <span class="badge badge-green" style="font-size:10px">🟢 loaded</span>
+            </div>
+            <div class="actions">
+              <button class="btn btn-sm">編輯</button>
+              <button class="btn btn-sm btn-danger">刪除</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- .content -->
+  </div><!-- .main -->
+</div><!-- .shell -->
+
+<script>
+function switchPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const titles = { overview:'總覽', agents:'Agent 管理', tokens:'Token 用量', skills:'Skill 總覽', projects:'專案管理' };
+  document.getElementById('pageTitle').textContent = titles[id] || id;
+}
+// Handle hash navigation
+if (location.hash) { const id = location.hash.slice(1); const el = document.querySelector(`a[href="#${id}"]`); if (el) switchPage(id, el); }
+// Category tab toggle (visual only)
+document.querySelectorAll('.cat-tab').forEach(tab => tab.addEventListener('click', () => {
+  document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+}));
+</script>
+</body>
+</html>

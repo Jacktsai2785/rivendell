@@ -16,6 +16,14 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
   return apiFetch(path, { method: "POST", body: JSON.stringify(body) });
 }
 
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return apiFetch(path, { method: "PUT", body: JSON.stringify(body) });
+}
+
+export function apiDelete<T>(path: string): Promise<T> {
+  return apiFetch(path, { method: "DELETE" });
+}
+
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface OverviewData {
@@ -24,9 +32,16 @@ export interface OverviewData {
     running_agents: number;
     enabled_hooks: number;
     total_cost_usd: number;
+    total_projects: number;
   };
   agents: AgentInfo[];
   hooks: HookInfo[];
+  projects_summary: {
+    name: string;
+    description: string;
+    agent_count: number;
+    agent_count_loaded: number;
+  }[];
 }
 
 export interface HookInfo {
@@ -66,6 +81,7 @@ export interface AgentsData {
     today_cost: number;
   };
   agents: AgentInfo[];
+  by_project: Record<string, string[]>;
 }
 
 export interface AgentRun {
@@ -152,4 +168,23 @@ export interface SkillInfo {
   line_count: number;
   invocable: boolean;
   lifecycle: string;
+}
+
+// ── Projects ──────────────────────────────────────────────────────────
+
+export interface ProjectInfo {
+  name: string;
+  repo: string;
+  description: string;
+  agents: string[];
+  agent_count_loaded: number;
+  total_cost_usd: number;
+}
+
+export interface ProjectsData {
+  projects: ProjectInfo[];
+}
+
+export interface ProjectDetailData extends ProjectInfo {
+  agent_details: AgentInfo[];
 }
