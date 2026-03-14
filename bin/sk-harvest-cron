@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Scheduled session harvest — analyze recent Claude Code sessions for skill candidates.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPORT_DIR="$REPO_DIR/reports"
+TODAY="$(date '+%Y-%m-%d')"
+PROJECTS_DIR="$HOME/.claude/projects"
+
+mkdir -p "$REPORT_DIR"
+
+# Find sessions modified in the last 24 hours
+recent_sessions=$(find "$PROJECTS_DIR" -name "*.jsonl" -mtime -1 2>/dev/null | head -20)
+
+if [ -z "$recent_sessions" ]; then
+    echo "[$TODAY] No recent sessions found. Skipping harvest." \
+        > "$REPORT_DIR/harvest-${TODAY}.log"
+    exit 0
+fi
+
+# Count sessions and extract project names
+session_count=$(echo "$recent_sessions" | wc -l | tr -d ' ')
+project_list=$(echo "$recent_sessions" | xargs -I{} dirname {} | xargs -I{} basename {} | sort -u | tr '\n' ', ')
+
+# Build the prompt for Claude
+PROMPT="You are reviewing recent Claude Code sessions to identify reusable patterns that could become skills.
+
+Here are the JSONL session files from the last 24 hours (${session_count} sessions across projects: ${project_list}):
+
+$(for f in $recent_sessions; do
+    echo "=== $(basename $(dirname "$f"))/$(basename "$f") ==="
+    # Extract assistant messages with tool_use to see workflow patterns
+    python3 -c "
+import json, sys
+with open('$f') as fh:
+    for line in fh:
+        try:
+            e = json.loads(line)
+            msg = e.get('message', {})
+            role = msg.get('role', '')
+            if role == 'user':
+                content = msg.get('content', '')
+                if isinstance(content, str) and len(content) > 20:
+                    print(f'USER: {content[:200]}')
+            elif role == 'assistant':
+                content = msg.get('content', [])
+                if isinstance(content, list):
+                    for c in content:
+                        if isinstance(c, dict) and c.get('type') == 'tool_use':
+                            print(f'TOOL: {c.get(\"name\", \"?\")} → {str(c.get(\"input\", {}))[:150]}')
+        except: pass
+" 2>/dev/null | tail -50
+    echo ""
+done)
+
+Analyze these sessions and identify:
+1. Repeated multi-step workflows (same sequence of tools used across sessions)
+2. Domain knowledge that was applied (API patterns, framework conventions, data formats)
+3. Problem-solving patterns that could be codified
+
+Output a structured harvest report in markdown with:
+- Session summary (date, projects, key activities)
+- Skill candidates rated as Strong/Moderate/Weak
+- For each candidate: name, purpose, trigger, category, rationale
+
+Check the existing skills at: $REPO_DIR/skills/
+Only suggest skills that don't already exist.
+
+Write the report in Traditional Chinese (繁體中文)."
+
+# Run Claude in headless mode
+claude -p "$PROMPT" \
+    --output-format text \
+    > "$REPORT_DIR/harvest-${TODAY}.md" \
+    2> "$REPORT_DIR/harvest-${TODAY}-error.log"
+
+echo "[$TODAY] Harvest complete. Report: $REPORT_DIR/harvest-${TODAY}.md"
