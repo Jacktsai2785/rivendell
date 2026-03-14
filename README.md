@@ -6,7 +6,7 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 
 ```
 skills/
-├── meta/       # Claude Code 自身管理工具 (11)
+├── meta/       # Claude Code 自身管理工具 (12)
 ├── workflow/   # 工作流程與規劃 (12)
 ├── quality/    # 程式品質、審查、除錯、測試 (9)
 ├── git/        # Git/GitHub 操作 (1)
@@ -45,7 +45,7 @@ cd ~/any-project && claude
 | `./bin/sk agent <cmd>` | Manage automated agents: `list`, `start`, `stop`, `status`, `log`, `create` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (46 skills)
+## Skills Catalog (47 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -61,6 +61,7 @@ cd ~/any-project && claude
 | **dev-process-gate** | 自動 | 開發守門：確保 requirement → flow → wireframe → mockup → dev → QA testing 流程不跳步 |
 | **knowledge-graph** | `/knowledge-graph` | 三層記憶系統：追蹤人物、公司、專案的持久事實，寫入 JSONL + 摘要 |
 | **self-improving-agent** | 自動 + hook | 捕捉學習與錯誤修正，記錄至 .learnings/，提升有價值見解到 CLAUDE.md |
+| **session-harvest** | `/session-harvest` | 工作告一段落時，自動審查 session 內容，找出可重複使用的模式並建議建立新 skill |
 | **skill-scout** | `/skill-scout` | 從 GitHub 與社群資源發現、評估、移植 Claude Code skills |
 
 ### workflow/ — 工作流程與規劃
