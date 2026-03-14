@@ -6,12 +6,12 @@ from lib.db import get_conn
 
 
 def render() -> None:
-    st.title("🤖 Agents")
+    st.title("Agent 管理")
 
     agents = list_agents()
 
     if not agents:
-        st.info("No sk agents found in ~/Library/LaunchAgents/")
+        st.info("未找到 sk agent（~/Library/LaunchAgents/）")
         return
 
     for agent in agents:
@@ -20,42 +20,42 @@ def render() -> None:
             col1, col2, col3 = st.columns([3, 1, 2])
             col1.subheader(f"{agent.project}/{agent.name}")
 
-            status_text = "🟢 Loaded" if agent.loaded else "🔴 Unloaded"
+            status_text = "🟢 已載入" if agent.loaded else "🔴 未載入"
             if agent.exit_code is not None and agent.exit_code != 0:
                 status_text = f"🔴 Exit {agent.exit_code}"
             col2.write(status_text)
-            col3.write(f"Schedule: {agent.schedule}")
+            col3.write(f"排程：{agent.schedule}")
 
             # Action buttons
             btn_col1, btn_col2, btn_col3 = st.columns(3)
             key_prefix = agent.label.replace(".", "_")
 
             if not agent.loaded:
-                if btn_col1.button("▶ Start", key=f"start_{key_prefix}"):
+                if btn_col1.button("▶ 啟動", key=f"start_{key_prefix}"):
                     ok = load_agent(agent.label)
                     if ok:
-                        st.success(f"{agent.name} started")
+                        st.success(f"{agent.name} 已啟動")
                         st.rerun()
                     else:
-                        st.error(f"Failed to start {agent.name}")
+                        st.error(f"啟動 {agent.name} 失敗")
             else:
-                if btn_col1.button("⏹ Stop", key=f"stop_{key_prefix}"):
+                if btn_col1.button("⏹ 停止", key=f"stop_{key_prefix}"):
                     ok = unload_agent(agent.label)
                     if ok:
-                        st.success(f"{agent.name} stopped")
+                        st.success(f"{agent.name} 已停止")
                         st.rerun()
                     else:
-                        st.error(f"Failed to stop {agent.name}")
+                        st.error(f"停止 {agent.name} 失敗")
 
-            if btn_col2.button("🔄 Run Now", key=f"run_{key_prefix}"):
+            if btn_col2.button("🔄 立即執行", key=f"run_{key_prefix}"):
                 ok = start_agent(agent.label)
                 if ok:
-                    st.toast(f"{agent.name} triggered")
+                    st.toast(f"{agent.name} 已觸發")
                 else:
-                    st.error(f"Failed to run {agent.name}")
+                    st.error(f"執行 {agent.name} 失敗")
 
             # Log viewer
-            with st.expander("📋 Recent Logs"):
+            with st.expander("📋 最近執行紀錄"):
                 _show_recent_logs(agent.label)
 
 
@@ -74,7 +74,7 @@ def _show_recent_logs(agent_label: str) -> None:
     conn.close()
 
     if not rows:
-        st.caption("No run records yet.")
+        st.caption("尚無執行紀錄")
         return
 
     for row in rows:
