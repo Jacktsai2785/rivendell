@@ -38,6 +38,7 @@ cd ~/any-project && claude
 | `./bin/sk import-gh <url>` | Clone skill from GitHub URL |
 | `./bin/sk list` | Show all skills grouped by category |
 | `./bin/sk check [--verbose]` | Health check: symlinks, reviews, gdrive, frontmatter |
+| `./bin/sk run <task>` | Run a task as single-shot agent (`claude -p`) |
 | `./bin/sk audit` | Generate audit report → `reports/skill-audit-YYYY-MM-DD.md` |
 | `./bin/sk permissions [dir]` | Scan project tooling → update `.claude/settings.local.json` |
 | `./bin/sk maintain` | Nightly: deploy check + permissions sync + agent health + audit |

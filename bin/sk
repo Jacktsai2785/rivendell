@@ -24,6 +24,7 @@ Commands:
   import-gh <url>     Clone skill from GitHub URL
   list                Show all skills + deployment status
   check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
+  run <task>          Run a task as single-shot agent (claude -p)
   audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
   permissions [dir]   Scan project tooling and update .claude/settings.local.json
   maintain            Nightly maintenance: permissions sync, deploy check, agent health, audit
@@ -1742,6 +1743,144 @@ cmd_maintain() {
   cmd_audit
 }
 
+cmd_run() {
+  local task="" project_dir="." model="" max_budget="" verbose=0 dry_run=0
+  local extra_tools="" permission_mode="default"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -p|--project)   project_dir="$2"; shift 2 ;;
+      --project=*)    project_dir="${1#--project=}"; shift ;;
+      -m|--model)     model="$2"; shift 2 ;;
+      --model=*)      model="${1#--model=}"; shift ;;
+      --budget)       max_budget="$2"; shift 2 ;;
+      --budget=*)     max_budget="${1#--budget=}"; shift ;;
+      --tools)        extra_tools="$2"; shift 2 ;;
+      --tools=*)      extra_tools="${1#--tools=}"; shift ;;
+      --yolo)         permission_mode="bypassPermissions"; shift ;;
+      --auto)         permission_mode="auto"; shift ;;
+      --dry-run)      dry_run=1; shift ;;
+      -v|--verbose)   verbose=1; shift ;;
+      -h|--help)      cmd_run_help; return 0 ;;
+      --)             shift; task="$*"; break ;;
+      -*)             echo -e "${RED}Unknown flag:${NC} $1"; cmd_run_help; return 1 ;;
+      *)              task="$*"; break ;;
+    esac
+  done
+
+  if [ -z "$task" ]; then
+    echo -e "${RED}Error:${NC} No task provided."
+    echo ""
+    cmd_run_help
+    return 1
+  fi
+
+  # Resolve project directory
+  if [ "$project_dir" = "." ]; then
+    project_dir="$(pwd)"
+  else
+    project_dir="$(cd "$project_dir" 2>/dev/null && pwd)" || {
+      echo -e "${RED}Error:${NC} Directory not found: $project_dir"
+      return 1
+    }
+  fi
+
+  # Build claude command
+  local cmd=("claude" "-p" "--permission-mode" "$permission_mode")
+
+  [ -n "$model" ] && cmd+=("--model" "$model")
+  [ -n "$max_budget" ] && cmd+=("--max-budget-usd" "$max_budget")
+
+  # Default allowed tools + extras
+  local tools="Read Write Edit Bash Glob Grep Agent WebFetch WebSearch"
+  [ -n "$extra_tools" ] && tools="$tools $extra_tools"
+  cmd+=("--allowedTools" "$tools")
+
+  # Session name for easy resume
+  local session_name="sk-run-$(date '+%H%M%S')"
+  cmd+=("--name" "$session_name")
+
+  # Add the task as the prompt
+  cmd+=("$task")
+
+  # Log file
+  local log_dir="$REPO_DIR/logs"
+  mkdir -p "$log_dir"
+  local log_file="$log_dir/run-$(date '+%Y%m%d-%H%M%S').log"
+
+  # Show what we're about to do
+  echo -e "${CYAN}╭─────────────────────────────────────────╮${NC}"
+  echo -e "${CYAN}│         sk run — Agent Mode              │${NC}"
+  echo -e "${CYAN}╰─────────────────────────────────────────╯${NC}"
+  echo -e "  ${GREEN}Task:${NC}    $task"
+  echo -e "  ${GREEN}Dir:${NC}     $project_dir"
+  echo -e "  ${GREEN}Mode:${NC}    $permission_mode"
+  [ -n "$model" ] && echo -e "  ${GREEN}Model:${NC}   $model"
+  [ -n "$max_budget" ] && echo -e "  ${GREEN}Budget:${NC}  \$$max_budget"
+  echo -e "  ${GREEN}Log:${NC}     $log_file"
+  echo -e "  ${GREEN}Session:${NC} $session_name"
+  echo ""
+
+  if [ "$dry_run" -eq 1 ]; then
+    echo -e "${YELLOW}[dry-run]${NC} Would execute:"
+    echo "  cd $project_dir && ${cmd[*]}"
+    return 0
+  fi
+
+  # Execute
+  echo -e "${CYAN}Running...${NC}"
+  echo ""
+
+  local start_time
+  start_time=$(date +%s)
+
+  # Run claude in the target project directory, tee to log
+  (cd "$project_dir" && "${cmd[@]}") 2>&1 | tee "$log_file"
+  local exit_code=${PIPESTATUS[0]}
+
+  local end_time elapsed
+  end_time=$(date +%s)
+  elapsed=$((end_time - start_time))
+
+  echo ""
+  echo -e "${CYAN}─────────────────────────────────────────${NC}"
+  if [ "$exit_code" -eq 0 ]; then
+    echo -e "${GREEN}✓ Done${NC} in ${elapsed}s — log: $log_file"
+  else
+    echo -e "${RED}✗ Failed${NC} (exit $exit_code) in ${elapsed}s — log: $log_file"
+  fi
+  echo -e "  Resume: ${YELLOW}claude --resume '$session_name'${NC}"
+
+  return "$exit_code"
+}
+
+cmd_run_help() {
+  cat <<'EOF'
+Usage: sk run [flags] <task description>
+
+Run a task as a single-shot agent using claude -p.
+Claude will autonomously plan, execute, and complete the task.
+
+Flags:
+  -p, --project <dir>   Target project directory (default: current dir)
+  -m, --model <model>   Model to use (e.g. sonnet, opus, haiku)
+  --budget <usd>        Max spend in USD (e.g. 1.00)
+  --tools <tools>       Extra tools to allow (space-separated)
+  --auto                Auto-approve safe tools (Read, Glob, Grep, etc.)
+  --yolo                Skip ALL permission checks (use with caution)
+  --dry-run             Show command without executing
+  -v, --verbose         Verbose output
+  -h, --help            Show this help
+
+Examples:
+  sk run "add input validation to the signup form"
+  sk run --project ~/Projects/myapp "fix the failing tests in auth module"
+  sk run --budget 0.50 --auto "refactor utils.py to use dataclasses"
+  sk run --model sonnet "update README with current API endpoints"
+  sk run --dry-run "migrate database schema"
+EOF
+}
+
 cmd_audit() {
   # Parse flags
   local lang="${SK_LANG:-zh}"
@@ -2653,6 +2792,7 @@ case "${1:-help}" in
   import-gh)  cmd_import_gh "${2:-}" ;;
   list)       cmd_list ;;
   check)      cmd_check "${2:-}" ;;
+  run)        shift; cmd_run "$@" ;;
   audit)      shift; cmd_audit "$@" ;;
   permissions) cmd_permissions "${2:-.}" ;;
   maintain)   cmd_maintain ;;
