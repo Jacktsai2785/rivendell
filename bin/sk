@@ -71,6 +71,22 @@ cmd_deploy() {
     fi
   done < <(all_skill_dirs)
   echo -e "\n${GREEN}Deployed $count skill(s).${NC}"
+
+  # Install plist templates (replace REPO_PATH with actual path)
+  local la_dir="$HOME/Library/LaunchAgents"
+  local plist_count=0
+  for tpl in "$REPO_DIR"/com.*.plist; do
+    [ -f "$tpl" ] || continue
+    local plist_name
+    plist_name="$(basename "$tpl")"
+    local dest="$la_dir/$plist_name"
+    sed "s|REPO_PATH|$REPO_DIR|g" "$tpl" > "$dest"
+    echo -e "${GREEN}plist${NC} $plist_name → $la_dir/"
+    ((plist_count++))
+  done
+  if [ "$plist_count" -gt 0 ]; then
+    echo -e "${GREEN}Installed $plist_count plist(s).${NC}"
+  fi
 }
 
 cmd_undeploy() {
@@ -2707,13 +2723,10 @@ if os.path.isfile(ledger_file):
                     inp = entry.get('input_tokens', 0)
                     out = entry.get('output_tokens', 0)
                     cost_val = entry.get('cost_usd', 0)
-                    # Add to daily totals if within range
-                    if edate in daily:
-                        daily[edate]['input'] += inp
-                        daily[edate]['output'] += out
-                        daily_calls[edate] += 1
-                        daily_sessions[edate] += 1
-                    # Always add to project totals
+                    # Note: cost-ledger tracks sk_exec() agent runs only.
+                    # claude -p sessions do NOT write to ~/.claude/projects/ JSONL,
+                    # so there is no double-counting with the interactive session data above.
+                    # We only add to proj_totals (not daily, which is already printed).
                     proj_totals[proj]['input'] += inp
                     proj_totals[proj]['output'] += out
                     proj_totals[proj]['calls'] += 1

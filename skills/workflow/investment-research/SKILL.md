@@ -47,7 +47,7 @@ Assess the macro backdrop before picking stocks. Use news_stock data directly.
 # Read from news_stock macro.db
 import sqlite3, os
 
-DB = os.path.expanduser("~/Documents/Projects/news_stock/macro.db")
+DB = os.path.expanduser(os.environ.get("NEWS_STOCK_DIR", "~/Documents/Projects/news_stock") + "/macro.db")
 conn = sqlite3.connect(DB)
 
 # Latest cycle for US and TW
@@ -93,7 +93,7 @@ indicators = conn.execute("""
 ### 1c. News Sentiment
 
 ```python
-NEWS_DB = os.path.expanduser("~/Documents/Projects/news_stock/news.db")
+NEWS_DB = os.path.expanduser(os.environ.get("NEWS_STOCK_DIR", "~/Documents/Projects/news_stock") + "/news.db")
 nconn = sqlite3.connect(NEWS_DB)
 
 # Recent news volume and sentiment keywords
@@ -116,7 +116,7 @@ Use two sources to build the research universe: **local DB pools** (existing dat
 ### Source A: Local Pools (news_stock finance.db)
 
 ```python
-FIN_DB = os.path.expanduser("~/Documents/Projects/news_stock/finance.db")
+FIN_DB = os.path.expanduser(os.environ.get("NEWS_STOCK_DIR", "~/Documents/Projects/news_stock") + "/finance.db")
 fconn = sqlite3.connect(FIN_DB)
 
 pools = fconn.execute("""
@@ -752,7 +752,7 @@ Maintain a running portfolio state file:
 | ... | | Web/Local | |
 ```
 
-Store this file at: `~/Documents/Projects/news_stock/reports/portfolio-state.md`
+Store this file at: `$NEWS_STOCK_DIR/reports/portfolio-state.md` (default: `~/Documents/Projects/news_stock/reports/portfolio-state.md`)
 
 ### Persistence Across Sessions
 
@@ -763,7 +763,7 @@ import json, os
 from datetime import date
 
 STATE_FILE = os.path.expanduser(
-    "~/Documents/Projects/news_stock/reports/portfolio-state.json"
+    os.environ.get("NEWS_STOCK_DIR", "~/Documents/Projects/news_stock") + "/reports/portfolio-state.json"
 )
 
 state = {

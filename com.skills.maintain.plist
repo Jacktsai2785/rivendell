@@ -6,7 +6,7 @@
     <string>com.skills.maintain</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/manibari/Documents/Projects/skills-test/bin/sk-maintain-cron</string>
+        <string>REPO_PATH/bin/sk-maintain-cron</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -16,6 +16,6 @@
         <integer>0</integer>
     </dict>
     <key>WorkingDirectory</key>
-    <string>/Users/manibari/Documents/Projects/skills-test</string>
+    <string>REPO_PATH</string>
 </dict>
 </plist>
