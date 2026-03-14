@@ -36,7 +36,7 @@ Commands:
   help                Show this help message
 
 Categories: meta, workflow, quality, git, frontend, backend, docs
-  Total: 28 skills
+  Total: $(find "$SKILLS_DIR" -name "SKILL.md" -maxdepth 3 2>/dev/null | wc -l | tr -d ' ') skills
 EOF
 }
 
