@@ -1,35 +1,70 @@
 #!/usr/bin/env bash
 # Scheduled session harvest — analyze recent Claude Code sessions for skill candidates.
+# Runs frequently (every 8h) but only produces a report when enough new sessions exist.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPORT_DIR="$REPO_DIR/reports"
+NOW="$(date '+%Y-%m-%d_%H%M')"
 TODAY="$(date '+%Y-%m-%d')"
 PROJECTS_DIR="$HOME/.claude/projects"
+STATE_FILE="$REPORT_DIR/.harvest-state"
+MIN_SESSIONS=3  # minimum new sessions to trigger a harvest
 
 mkdir -p "$REPORT_DIR"
 
-# Find sessions modified in the last 24 hours
-recent_sessions=$(find "$PROJECTS_DIR" -name "*.jsonl" -mtime -1 2>/dev/null | head -20)
+# --- Determine time window: since last harvest or 24h, whichever is shorter ---
+if [ -f "$STATE_FILE" ]; then
+    last_run=$(cat "$STATE_FILE")
+    # Find sessions modified after last harvest
+    recent_sessions=$(find "$PROJECTS_DIR" -name "*.jsonl" -newer "$STATE_FILE" 2>/dev/null | head -30)
+else
+    # First run: look at last 24 hours
+    recent_sessions=$(find "$PROJECTS_DIR" -name "*.jsonl" -mtime -1 2>/dev/null | head -30)
+fi
 
-if [ -z "$recent_sessions" ]; then
-    echo "[$TODAY] No recent sessions found. Skipping harvest." \
-        > "$REPORT_DIR/harvest-${TODAY}.log"
+session_count=0
+if [ -n "$recent_sessions" ]; then
+    session_count=$(echo "$recent_sessions" | wc -l | tr -d ' ')
+fi
+
+# --- Check if enough sessions to justify a harvest ---
+if [ "$session_count" -lt "$MIN_SESSIONS" ]; then
+    echo "[$NOW] Only $session_count new session(s) since last harvest (need $MIN_SESSIONS). Skipping."
     exit 0
 fi
 
-# Count sessions and extract project names
-session_count=$(echo "$recent_sessions" | wc -l | tr -d ' ')
+# --- Count unique messages to gauge session depth ---
+total_messages=$(python3 -c "
+import json, sys
+count = 0
+for path in sys.argv[1:]:
+    try:
+        with open(path) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                    if e.get('message', {}).get('usage'):
+                        count += 1
+                except: pass
+    except: pass
+print(count)
+" $recent_sessions)
+
+echo "[$NOW] Found $session_count session(s) with ~$total_messages messages. Running harvest..."
+
+# --- Build project list ---
 project_list=$(echo "$recent_sessions" | xargs -I{} dirname {} | xargs -I{} basename {} | sort -u | tr '\n' ', ')
 
-# Build the prompt for Claude
+# --- Build prompt ---
 PROMPT="You are reviewing recent Claude Code sessions to identify reusable patterns that could become skills.
 
-Here are the JSONL session files from the last 24 hours (${session_count} sessions across projects: ${project_list}):
+Session stats: ${session_count} sessions, ~${total_messages} messages, across projects: ${project_list}
+
+Here are the session summaries:
 
 $(for f in $recent_sessions; do
     echo "=== $(basename $(dirname "$f"))/$(basename "$f") ==="
-    # Extract assistant messages with tool_use to see workflow patterns
     python3 -c "
 import json, sys
 with open('$f') as fh:
@@ -59,7 +94,7 @@ Analyze these sessions and identify:
 3. Problem-solving patterns that could be codified
 
 Output a structured harvest report in markdown with:
-- Session summary (date, projects, key activities)
+- Session summary (date, projects, key activities, message count)
 - Skill candidates rated as Strong/Moderate/Weak
 - For each candidate: name, purpose, trigger, category, rationale
 
@@ -68,10 +103,13 @@ Only suggest skills that don't already exist.
 
 Write the report in Traditional Chinese (繁體中文)."
 
-# Run Claude in headless mode
+# --- Run Claude in headless mode ---
 claude -p "$PROMPT" \
     --output-format text \
     > "$REPORT_DIR/harvest-${TODAY}.md" \
     2> "$REPORT_DIR/harvest-${TODAY}-error.log"
 
-echo "[$TODAY] Harvest complete. Report: $REPORT_DIR/harvest-${TODAY}.md"
+# --- Update state ---
+date '+%Y-%m-%d %H:%M:%S' > "$STATE_FILE"
+
+echo "[$NOW] Harvest complete ($session_count sessions, ~$total_messages msgs). Report: $REPORT_DIR/harvest-${TODAY}.md"
