@@ -1,4 +1,4 @@
-# Skills 稽核報告 — 2026-03-12
+# Skills 稽核報告 — 2026-03-13
 
 ## 摘要
 
@@ -24,63 +24,63 @@
 ### 🔧 開發中
 
 **docs/**
-- mcp-builder — 3 次修訂, 2天前
-- office-docx — 3 次修訂, 2天前
-- office-pdf — 3 次修訂, 2天前
-- office-pptx — 3 次修訂, 2天前
-- office-xlsx — 3 次修訂, 2天前
+- mcp-builder — 3 次修訂, 3天前
+- office-docx — 3 次修訂, 3天前
+- office-pdf — 3 次修訂, 3天前
+- office-pptx — 3 次修訂, 3天前
+- office-xlsx — 3 次修訂, 3天前
 
 **frontend/**
-- frontend-design — 2 次修訂, 3天前
-- ui-ux-pro-max — 3 次修訂, 2天前
-- webapp-testing — 3 次修訂, 2天前
+- frontend-design — 2 次修訂, 4天前
+- ui-ux-pro-max — 3 次修訂, 3天前
+- webapp-testing — 3 次修訂, 3天前
 
 **git/**
-- review-pr — 3 次修訂, 2天前
+- review-pr — 3 次修訂, 3天前
 
 **meta/**
-- dev-process-gate — 3 次修訂, 0天前
-- init-project — 2 次修訂, 3天前
-- plan-check-style — 3 次修訂, 0天前
-- setup-permissions — 3 次修訂, 0天前
-- skill-creator — 2 次修訂, 3天前
+- dev-process-gate — 3 次修訂, 1天前
+- init-project — 2 次修訂, 4天前
+- plan-check-style — 3 次修訂, 1天前
+- setup-permissions — 3 次修訂, 1天前
+- skill-creator — 2 次修訂, 4天前
 
 **quality/**
-- code-reviewer — 3 次修訂, 2天前
-- security-review — 3 次修訂, 2天前
-- systematic-debugging — 2 次修訂, 3天前
+- code-reviewer — 3 次修訂, 3天前
+- security-review — 3 次修訂, 3天前
+- systematic-debugging — 2 次修訂, 4天前
 
 **workflow/**
-- dispatching-parallel-agents — 3 次修訂, 2天前
-- executing-plans — 3 次修訂, 2天前
-- gdrive-to-skills — 2 次修訂, 3天前
-- investment-research — 2 次修訂, 2天前
-- planning-with-files — 3 次修訂, 2天前
-- writing-plans — 3 次修訂, 2天前
+- dispatching-parallel-agents — 3 次修訂, 3天前
+- executing-plans — 3 次修訂, 3天前
+- gdrive-to-skills — 2 次修訂, 4天前
+- investment-research — 2 次修訂, 3天前
+- planning-with-files — 3 次修訂, 3天前
+- writing-plans — 3 次修訂, 3天前
 
 <details><summary>✅ 穩定 (12)</summary>
 
 **backend/**
-- db-migration — 1 次, 0天前
-- firebase-backend — 1 次, 4天前
+- db-migration — 1 次, 1天前
+- firebase-backend — 1 次, 5天前
 
 **frontend/**
-- ios-integration — 1 次, 4天前
-- swiftui-patterns — 1 次, 4天前
+- ios-integration — 1 次, 5天前
+- swiftui-patterns — 1 次, 5天前
 
 **meta/**
-- audit-fix — 1 次, 0天前
-- ci-pipeline — 1 次, 0天前
-- deploy — 1 次, 0天前
+- audit-fix — 1 次, 1天前
+- ci-pipeline — 1 次, 1天前
+- deploy — 1 次, 1天前
 
 **quality/**
-- post-change-qa — 1 次, 0天前
-- qa-testing — 1 次, 2天前
+- post-change-qa — 1 次, 1天前
+- qa-testing — 1 次, 3天前
 
 **workflow/**
-- mockup — 1 次, 4天前
-- requirement — 1 次, 4天前
-- user-flow — 1 次, 4天前
+- mockup — 1 次, 5天前
+- requirement — 1 次, 5天前
+- user-flow — 1 次, 5天前
 
 </details>
 
@@ -122,6 +122,8 @@
 | de-slopify | 移除 AI 生成的 slop 痕跡（含繁中模式：值得注意的是…） |
 | destructive-command-guard | PreToolUse hook，攔截 git reset --hard、rm -rf 等危險指令 |
 | post-change-qa | 改完 code 後自動重啟 server、跑測試、Playwright 截圖驗證 |
+| qa-auto | 根據 QA 計畫自動產生測試程式碼、執行測試、回報覆蓋率缺口 |
+| qa-planner | 分析 code diff 產出 QA 計畫：影響範圍、測試案例、風險評估 |
 | qa-testing | 跨框架測試撰寫指南：pytest / Vitest / Swift Testing |
 | security-review | 全面安全檢查清單：auth、input validation、secrets、API |
 | systematic-debugging | 四階段除錯框架：觀察 → 假設 → 驗證 → 修復，禁止跳到答案 |
@@ -230,21 +232,21 @@ a07a319 feat: add Projects page with persistent conversations and context
 
 | | |
 |---|---|
-| **狀態** | ✅ 近期有動 — 4 個 commit（本週）, 55 個（本月） |
+| **狀態** | ✅ 近期有動 — 2 個 commit（本週）, 56 個（本月） |
 | **技術棧** |  Node.js Python |
 | **分支** | `main` (1 total) |
-| **Git** | 11 dirty |
+| **Git** | 20 dirty, 1 unpushed |
 | **CI/CD** | CI ❌ · 部署 ❌ · Hooks ❌ |
 | **Config** | OK | **權限** | OK (14 rules) |
 
 <details><summary>近期 commits</summary>
 
 ```
+cd686b2 docs: daily portfolio health report 2026-03-12
 6d0eb00 feat: add backtest, strategy, sentiment, pool, and news modules
 1efcbd7 feat: add usage tracking system and git-based dev analysis report
 b6ab487 feat: set backtest default start date to 2021-01-01
 105ab3f feat: add AI stock role descriptions (zh-TW) and fix MACOM/NOVA tickers
-c14a1b3 feat: add sector query, geopolitical page, and adaptive momentum strategy
 ```
 </details>
 
@@ -252,7 +254,7 @@ c14a1b3 feat: add sector query, geopolitical page, and adaptive momentum strateg
 
 | | |
 |---|---|
-| **狀態** | 💤 沉寂 — 0 個 commit（本週）, 5 個（本月） |
+| **狀態** | 💤 沉寂 — 0 個 commit（本週）, 1 個（本月） |
 | **技術棧** |  Node.js |
 | **分支** | `main` (1 total) |
 | **Git** | 1 dirty |
@@ -296,21 +298,21 @@ c709193 balance: raise capturedCityLoyalty and lower foreignDecayPerTick
 
 | | |
 |---|---|
-| **狀態** | 🔥 活躍 — 15 個 commit（本週）, 43 個（本月） |
+| **狀態** | 🔥 活躍 — 19 個 commit（本週）, 31 個（本月） |
 | **技術棧** |  Node.js Python |
 | **分支** | `main` (1 total) |
-| **Git** | 2 dirty |
+| **Git** | 27 dirty |
 | **CI/CD** | CI ❌ · 部署 ❌ · Hooks ✅ |
-| **Config** | OK | **權限** | OK (10 rules) |
+| **Config** | OK | **權限** | OK (16 rules) |
 
 <details><summary>近期 commits</summary>
 
 ```
-44e8b6c fix: add Traditional/Simplified Chinese matching in materialize
-f1ebc98 fix: business card OCR fields lost during followup + materialize role awareness
-1970e7b feat(S40): Telegram vision, deal automation, relationship network enhancements
-5e09192 feat: responsive desktop layout — 2-col grids and wider containers
-9df7150 feat(S39): push dashboard, global search, navigation update
+26d161b fix: deal-intel unlink 404 and Gantt intel id/date mismatch
+e3c1512 fix: handle list-type contact_name in materialize
+b992241 feat: auto-enrich intel chat with existing DB entities
+4b424e1 feat: conversational intel capture on web — chat-style Q&A
+c78a85d feat: auto-link intel to existing deals on materialize
 ```
 </details>
 
@@ -364,36 +366,36 @@ d452c9f refactor: simplify onboarding, remove ProfileView, drop scheduledDate
 ~~~mermaid
 xychart-beta
     title "每日花費（USD）"
-    x-axis ["03-06", "03-07", "03-08", "03-09", "03-10", "03-11", "03-12"]
-    y-axis "USD" 0 --> 750
-    bar [41, 0, 306, 362, 195, 685, 0]
+    x-axis ["03-07", "03-08", "03-09", "03-10", "03-11", "03-12", "03-13"]
+    y-axis "USD" 0 --> 800
+    bar [0, 306, 362, 195, 707, 125, 18]
 ~~~
 
 | 日期 | Sessions | API 呼叫 | Tokens | 預估花費 |
 |------|----------|-----------|--------|-----------|
-| 2026-03-06 (Fri) | 4 | 230 | 14.6M | $40.55 |
 | 2026-03-07 (Sat) | 0 | 0 | 0 | $0.00 |
 | 2026-03-08 (Sun) | 6 | 1,240 | 117.8M | $306.28 |
 | 2026-03-09 (Mon) | 12 | 1,649 | 143.1M | $362.21 |
 | 2026-03-10 (Tue) | 15 | 1,019 | 68.8M | $194.65 |
-| 2026-03-11 (Wed) | 19 | 3,194 | 284.8M | $684.85 |
-| 2026-03-12 (Thu) | 0 | 0 | 0 | $0.00 |
-| **Total** | | | **629.2M** | **$1588.55** |
+| 2026-03-11 (Wed) | 20 | 3,302 | 292.7M | $706.77 |
+| 2026-03-12 (Thu) | 5 | 483 | 50.9M | $124.57 |
+| 2026-03-13 (Fri) | 4 | 74 | 4.6M | $17.64 |
+| **Total** | | | **677.9M** | **$1712.12** |
 
 ### 各專案花費（7 日）
 
 | 專案 | API 呼叫 | Tokens | 預估花費 |
 |---------|-----------|--------|-----------|
-| sales-assistant | 3,296 | 282.7M | $678.10 |
-| TailTrack | 1,561 | 142.2M | $349.54 |
-| skills-test | 1,368 | 114.1M | $281.46 |
-| -Users-manibari-Documents-Chimes-AI-richwave | 464 | 38.5M | $123.14 |
-| news-stock | 300 | 24.6M | $79.96 |
-| -Users-manibari-Documents-Projects | 343 | 27.0M | $76.35 |
+| sales-assistant | 3,727 | 326.6M | $767.20 |
+| TailTrack | 1,439 | 136.0M | $336.68 |
+| skills-test | 1,322 | 112.1M | $273.31 |
+| -Users-manibari-Documents-Chimes-AI-richwave | 516 | 44.2M | $141.58 |
+| news-stock | 396 | 28.5M | $97.35 |
+| -Users-manibari-Documents-Projects | 367 | 30.4M | $96.00 |
 
 _計價: Opus input $15/M, output $75/M, cache create $18.75/M, cache read $1.50/M_
 
 
 ---
 
-*由以下工具產生 `./bin/sk audit` — 2026-03-12 — 35 skills, 2 issue(s)*
+*由以下工具產生 `./bin/sk audit` — 2026-03-13 — 35 skills, 2 issue(s)*
