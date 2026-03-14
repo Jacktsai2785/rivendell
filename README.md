@@ -31,7 +31,7 @@ cd ~/any-project && claude
 
 | Command | Description |
 |---------|-------------|
-| `./bin/sk deploy` | Symlink all skills → `~/.claude/skills/` |
+| `./bin/sk deploy` | Symlink all skills → `~/.claude/skills/` + install plist templates → `~/Library/LaunchAgents/` |
 | `./bin/sk undeploy` | Remove repo symlinks from `~/.claude/skills/` |
 | `./bin/sk create <cat/name>` | Scaffold new skill (e.g. `quality/my-linter`) |
 | `./bin/sk import <name>` | Import from SkillsMP via `agent-skills-cli` |
@@ -131,6 +131,8 @@ cd ~/any-project && claude
 ## How Deploy Works
 
 Each skill directory gets symlinked individually into `~/.claude/skills/`. Edits to skill files take effect immediately — re-deploy only when adding new skills.
+
+Deploy also installs `com.*.plist` templates into `~/Library/LaunchAgents/`, replacing `REPO_PATH` with the actual repo path.
 
 ## Using Skills in Other Projects
 
