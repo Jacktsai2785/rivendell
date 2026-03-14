@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import plistlib
 import subprocess
 from dataclasses import dataclass, field
@@ -12,6 +13,27 @@ AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 PROJECT_DIR = Path(__file__).parent.parent.parent  # skills-test root
 AGENT_PREFIX = "com.sk.agent."
 MAINTAIN_PREFIX = "com.skills."
+
+# Role inference from agent name/type
+ROLE_MAP: dict[str, tuple[str, str]] = {
+    "maintainer": ("🔧", "maintainer"),
+    "tester": ("🧪", "tester"),
+    "developer": ("🚀", "developer"),
+    "researcher": ("📊", "researcher"),
+    "audit": ("🔍", "auditor"),
+    "review": ("📝", "reviewer"),
+}
+
+
+@dataclass
+class AgentsJsonConfig:
+    """Parsed config from .claude/agents.json for a specific agent."""
+    merge_strategy: str = "auto"  # "auto" or "pr"
+    allowed_paths: list[str] = field(default_factory=list)
+    forbidden_paths: list[str] = field(default_factory=list)
+    max_files_changed: int = 0
+    qa_pre_commit: str = "off"  # "off", "auto", or script path
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -25,6 +47,40 @@ class AgentInfo:
     installed: bool = True  # plist is in ~/Library/LaunchAgents/
     pid: int | None = None
     exit_code: int | None = None
+    working_directory: str = ""
+    agents_json_config: AgentsJsonConfig | None = None
+
+    @property
+    def role_badge(self) -> str:
+        """Return role emoji + label based on agent name."""
+        name_lower = self.name.lower()
+        for key, (emoji, label) in ROLE_MAP.items():
+            if key in name_lower:
+                return f"{emoji} {label}"
+        return "⚙️ agent"
+
+    @property
+    def merge_strategy_display(self) -> str:
+        """Human-readable merge strategy."""
+        cfg = self.agents_json_config
+        if not cfg:
+            return "—"
+        if cfg.merge_strategy == "pr":
+            return "PR → branch"
+        return "auto → main"
+
+    @property
+    def qa_display(self) -> str:
+        """Human-readable QA status."""
+        cfg = self.agents_json_config
+        if not cfg:
+            return "off"
+        qa = cfg.qa_pre_commit
+        if qa == "off":
+            return "off"
+        if qa == "auto":
+            return "auto (pytest)"
+        return qa
 
     @property
     def schedule_list(self) -> list[dict[str, Any]]:
@@ -82,6 +138,66 @@ def _parse_schedule(plist_data: dict[str, Any]) -> dict[str, Any]:
     if "StartInterval" in plist_data:
         return {"type": "interval", "seconds": plist_data["StartInterval"]}
     return {"type": "unknown"}
+
+
+def read_agents_json(project_dir: str | Path) -> dict[str, AgentsJsonConfig]:
+    """Read .claude/agents.json and return per-agent config.
+
+    The file maps agent names to their git/qa settings.
+    Returns empty dict if file doesn't exist.
+    """
+    agents_json = Path(project_dir) / ".claude" / "agents.json"
+    if not agents_json.exists():
+        return {}
+
+    try:
+        data = json.loads(agents_json.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+    configs: dict[str, AgentsJsonConfig] = {}
+    agents_section = data if isinstance(data, dict) else {}
+
+    # Support both flat {agent_name: {...}} and nested {"agents": {agent_name: {...}}}
+    if "agents" in agents_section and isinstance(agents_section["agents"], dict):
+        agents_section = agents_section["agents"]
+
+    for agent_name, agent_data in agents_section.items():
+        if not isinstance(agent_data, dict):
+            continue
+        git = agent_data.get("git", {})
+        qa = agent_data.get("qa", {})
+        configs[agent_name] = AgentsJsonConfig(
+            merge_strategy=git.get("merge_strategy", "auto"),
+            allowed_paths=git.get("allowed_paths", []),
+            forbidden_paths=git.get("forbidden_paths", []),
+            max_files_changed=git.get("max_files_changed", 0),
+            qa_pre_commit=qa.get("pre_commit", "off"),
+            raw=agent_data,
+        )
+
+    return configs
+
+
+def get_recent_commit(project_dir: str, agent_name: str) -> tuple[str, str] | None:
+    """Get the most recent auto-commit SHA + message for an agent.
+
+    Returns (short_sha, message) or None.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "log", "--oneline", "--grep", f"agent.*{agent_name}",
+             "-n", "1", "--format=%h|%s"],
+            capture_output=True, text=True, timeout=5,
+            cwd=project_dir,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            parts = result.stdout.strip().split("|", 1)
+            if len(parts) == 2:
+                return parts[0], parts[1]
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
 
 
 def _extract_name_and_project(label: str, plist_data: dict[str, Any]) -> tuple[str, str]:
@@ -163,6 +279,24 @@ def list_agents() -> list[AgentInfo]:
             agents.append(agent)
             seen_labels.add(agent.label)
 
+    # 3. Enrich agents with agents.json config
+    configs_cache: dict[str, dict[str, AgentsJsonConfig]] = {}
+    for agent in agents:
+        wd = agent.working_directory
+        if not wd:
+            continue
+        if wd not in configs_cache:
+            configs_cache[wd] = read_agents_json(wd)
+        configs = configs_cache[wd]
+        # Match by agent name (try exact, then partial)
+        if agent.name in configs:
+            agent.agents_json_config = configs[agent.name]
+        else:
+            for key, cfg in configs.items():
+                if key in agent.name or agent.name in key:
+                    agent.agents_json_config = cfg
+                    break
+
     return agents
 
 
@@ -193,6 +327,7 @@ def _load_agent_info(plist_path: Path, installed: bool) -> AgentInfo | None:
         installed=installed,
         pid=pid,
         exit_code=exit_code,
+        working_directory=data.get("WorkingDirectory", ""),
     )
 
 

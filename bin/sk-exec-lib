@@ -188,6 +188,12 @@ ${prompt}"
   fi
 
   # Auto-commit agent output if enabled and run succeeded
+  local commit_sha_result=""
+  local files_changed_result=""
+  local qa_passed_result=""
+  local branch_name_result=""
+  local pr_url_result=""
+
   if [ "$exit_code" -eq 0 ] && [ "${SK_EXEC_AUTO_COMMIT:-0}" = "1" ]; then
     local merge_strategy="${SK_EXEC_MERGE_STRATEGY:-auto}"
     if [ "$merge_strategy" = "pr" ]; then
@@ -195,7 +201,18 @@ ${prompt}"
     else
       sk_exec_post_git "$project_dir" "$log_prefix" "$timestamp"
     fi
+    # Capture post-git results
+    commit_sha_result="${SK_EXEC_POST_COMMIT_SHA:-}"
+    files_changed_result="${SK_EXEC_POST_FILES_CHANGED:-}"
+    qa_passed_result="${SK_EXEC_POST_QA_PASSED:-}"
+    branch_name_result="${SK_EXEC_POST_BRANCH_NAME:-}"
+    pr_url_result="${SK_EXEC_POST_PR_URL:-}"
   fi
+
+  # Record run to dashboard DB
+  _sk_exec_record_run "$project_name" "$log_prefix" "$start_time" "$end_time" \
+    "$exit_code" "$structured_log" "$commit_sha_result" "$files_changed_result" \
+    "$qa_passed_result" "$branch_name_result" "$pr_url_result"
 
   return "$exit_code"
 }
@@ -466,6 +483,7 @@ sk_exec_post_git() {
   sk_exec_pre_commit_check "$project_dir" || {
     echo -e "\033[0;31m[post-git]\033[0m QA gate failed — unstaging and skipping commit." >&2
     git reset HEAD -- . &>/dev/null
+    SK_EXEC_POST_QA_PASSED="0"
     _sk_exec_log_event "$structured_log" "qa_gate_failed" "$agent_name"
     return 1
   }
@@ -497,6 +515,11 @@ EOF
   commit_sha="$(git rev-parse --short HEAD)"
   echo -e "\033[0;32m[post-git]\033[0m Committed: $commit_sha"
   git diff --stat HEAD~1 2>/dev/null | sed 's/^/  /'
+
+  # Export result vars for _sk_exec_record_run
+  SK_EXEC_POST_COMMIT_SHA="$commit_sha"
+  SK_EXEC_POST_FILES_CHANGED="$(git diff --name-only HEAD~1 2>/dev/null | wc -l | tr -d ' ')"
+  SK_EXEC_POST_QA_PASSED="1"
 
   # Log commit SHA to structured log
   _sk_exec_log_event "$structured_log" "auto_commit" "$commit_sha"
@@ -618,6 +641,12 @@ EOF
   commit_sha="$(git rev-parse --short HEAD)"
   echo -e "\033[0;32m[branch]\033[0m Committed $commit_sha on $branch_name"
 
+  # Export result vars for _sk_exec_record_run
+  SK_EXEC_POST_COMMIT_SHA="$commit_sha"
+  SK_EXEC_POST_FILES_CHANGED="$(git diff --name-only HEAD~1 2>/dev/null | wc -l | tr -d ' ')"
+  SK_EXEC_POST_QA_PASSED="1"
+  SK_EXEC_POST_BRANCH_NAME="$branch_name"
+
   _sk_exec_log_event "$structured_log" "branch_commit" "$commit_sha on $branch_name"
 
   # Push
@@ -642,6 +671,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" \
         --label "agent-generated" 2>&1)" || true
       if [ -n "$pr_url" ]; then
         echo -e "\033[0;32m[branch]\033[0m PR created: $pr_url"
+        SK_EXEC_POST_PR_URL="$pr_url"
         _sk_exec_log_event "$structured_log" "pr_created" "$pr_url"
       fi
     fi
@@ -659,6 +689,91 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" \
 #   $1 — structured log path (empty = skip)
 #   $2 — event type
 #   $3 — event detail
+
+# ─── _sk_exec_record_run() ─────────────────────────────────────────
+# Write a run record to the dashboard SQLite database.
+#
+# Arguments:
+#   $1  — project name
+#   $2  — agent name
+#   $3  — start_time (epoch)
+#   $4  — end_time (epoch)
+#   $5  — exit code
+#   $6  — structured log path (to extract tokens/cost)
+#   $7  — commit SHA (optional)
+#   $8  — files changed count (optional)
+#   $9  — qa passed (0/1, optional)
+#   $10 — branch name (optional)
+#   $11 — PR URL (optional)
+
+_sk_exec_record_run() {
+  local project="$1" agent_name="$2"
+  local start_epoch="$3" end_epoch="$4"
+  local run_exit_code="$5" structured_file="$6"
+  local commit_sha="${7:-}" files_changed="${8:-}"
+  local qa_passed="${9:-}" branch_name="${10:-}" pr_url="${11:-}"
+
+  local db_path="${SK_EXEC_REPO_DIR}/dashboard/data/sk-dashboard.db"
+
+  # Ensure data dir exists
+  mkdir -p "$(dirname "$db_path")"
+
+  python3 -c "
+import sqlite3, json, sys
+from datetime import datetime
+
+db_path = '$db_path'
+project = '$project'
+agent_name = '$agent_name'
+start_epoch = int('$start_epoch') if '$start_epoch' else 0
+end_epoch = int('$end_epoch') if '$end_epoch' else 0
+exit_code = int('$run_exit_code') if '$run_exit_code' else None
+structured_file = '$structured_file'
+commit_sha = '$commit_sha' or None
+files_changed = int('$files_changed') if '$files_changed' else None
+qa_passed = int('$qa_passed') if '$qa_passed' else None
+branch_name = '$branch_name' or None
+pr_url = '$pr_url' or None
+
+started_at = datetime.fromtimestamp(start_epoch).isoformat() if start_epoch else None
+finished_at = datetime.fromtimestamp(end_epoch).isoformat() if end_epoch else None
+
+# Extract tokens/cost from structured log
+tokens_used = None
+cost_usd = None
+if structured_file:
+    try:
+        with open(structured_file) as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                    if obj.get('type') == 'result':
+                        tokens_used = obj.get('input_tokens', 0) + obj.get('output_tokens', 0)
+                        cost_usd = obj.get('cost_usd', 0)
+                except:
+                    continue
+    except:
+        pass
+
+conn = sqlite3.connect(db_path)
+conn.execute('''CREATE TABLE IF NOT EXISTS agent_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_name TEXT NOT NULL, project TEXT NOT NULL,
+    started_at TEXT, finished_at TEXT, exit_code INTEGER,
+    log_path TEXT, report_path TEXT, tokens_used INTEGER, cost_usd REAL,
+    commit_sha TEXT, files_changed INTEGER, qa_passed INTEGER,
+    branch_name TEXT, pr_url TEXT
+)''')
+conn.execute('''INSERT INTO agent_runs
+    (agent_name, project, started_at, finished_at, exit_code,
+     tokens_used, cost_usd, commit_sha, files_changed, qa_passed, branch_name, pr_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+    (agent_name, project, started_at, finished_at, exit_code,
+     tokens_used, cost_usd, commit_sha, files_changed, qa_passed, branch_name, pr_url))
+conn.commit()
+conn.close()
+" 2>/dev/null || true
+}
 
 _sk_exec_log_event() {
   local log_file="$1"
