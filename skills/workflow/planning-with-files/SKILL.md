@@ -24,7 +24,7 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: "SD=\"${CURSOR_SKILL_ROOT:-.cursor/skills/planning-with-files}/scripts\"; powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$SD/check-complete.ps1\" 2>/dev/null || sh \"$SD/check-complete.sh\""
+          command: "sh \"${CLAUDE_SKILL_DIR}/scripts/check-complete.sh\""
 metadata:
   version: "2.16.1"
 ---
@@ -33,18 +33,12 @@ metadata:
 
 Work like Manus: Use persistent markdown files as your "working memory on disk."
 
-## FIRST: Check for Previous Session (v2.2.0)
+## FIRST: Check for Previous Session
 
 **Before starting work**, check for unsynced context from a previous session:
 
 ```bash
-# Linux/macOS (auto-detects python3 or python)
-$(command -v python3 || command -v python) .cursor/skills/planning-with-files/scripts/session-catchup.py "$(pwd)"
-```
-
-```powershell
-# Windows PowerShell
-python "$env:USERPROFILE\.cursor\skills\planning-with-files\scripts\session-catchup.py" (Get-Location)
+python3 "${CLAUDE_SKILL_DIR}/scripts/session-catchup.py" "$(pwd)"
 ```
 
 If catchup report shows unsynced context:
@@ -55,12 +49,12 @@ If catchup report shows unsynced context:
 
 ## Important: Where Files Go
 
-- **Templates** are in `.cursor/skills/planning-with-files/templates/`
+- **Templates** are in `templates/` (relative to this skill directory)
 - **Your planning files** go in **your project directory**
 
 | Location | What Goes There |
 |----------|-----------------|
-| Skill directory (`.cursor/skills/planning-with-files/`) | Templates, scripts, reference docs |
+| Skill directory | Templates, scripts |
 | Your project directory | `task_plan.md`, `findings.md`, `progress.md` |
 
 ## Quick Start
@@ -205,11 +199,6 @@ Helper scripts for automation:
 - `scripts/init-session.sh` — Initialize all planning files
 - `scripts/check-complete.sh` — Verify all phases complete
 - `scripts/session-catchup.py` — Recover context from previous session (v2.2.0)
-
-## Advanced Topics
-
-- **Manus Principles:** See [reference.md](reference.md)
-- **Real Examples:** See [examples.md](examples.md)
 
 ## Anti-Patterns
 

@@ -4,3 +4,7 @@
 reports/*.log
 reports/maintain-*
 scripts/__pycache__/
+dashboard/data/*.db
+dashboard/data/*.db-wal
+dashboard/data/*.db-shm
+__pycache__/
