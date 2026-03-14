@@ -4,18 +4,15 @@ import sys
 from pathlib import Path
 
 # Ensure dashboard/lib is importable
-sys.path.insert(0, str(Path(__file__).parent))
+DASHBOARD_DIR = Path(__file__).parent
+PROJECT_ROOT = DASHBOARD_DIR.parent
+sys.path.insert(0, str(DASHBOARD_DIR))
 
 import streamlit as st
 from lib.db import init_db
 
 st.set_page_config(page_title="sk-dashboard", page_icon="📊", layout="wide")
 init_db()
-
-from lib.audit_importer import import_audit_reports
-if "imported" not in st.session_state:
-    count = import_audit_reports()
-    st.session_state.imported = True
 
 st.sidebar.title("📊 sk-dashboard")
 page = st.sidebar.radio("導覽", ["總覽", "Agent 管理", "Token 用量", "Skill 總覽"])
@@ -27,7 +24,7 @@ if st.sidebar.button("🔍 執行 Audit", use_container_width=True):
         result = subprocess.run(
             ["./bin/sk", "audit"],
             capture_output=True, text=True,
-            cwd="/Users/manibari/Documents/Projects/skills-test",
+            cwd=str(PROJECT_ROOT),
             timeout=120,
         )
         if result.returncode == 0:
