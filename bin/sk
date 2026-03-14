@@ -1074,6 +1074,8 @@ cmd_agent() {
     status)  cmd_agent_status "$@" ;;
     log)     cmd_agent_log "$@" ;;
     create)  cmd_agent_create "$@" ;;
+    run)     cmd_agent_run "$@" ;;
+    commit)  cmd_agent_commit "$@" ;;
     help|--help|-h) cmd_agent_help ;;
     *)
       echo -e "${RED}Unknown agent command:${NC} $subcmd"
@@ -1095,8 +1097,10 @@ Commands:
   log <name> [--project P] [--lines N]  Show agent log (default 50 lines)
       [--structured]  Show structured JSONL (thinking, tools, cost)
       [--thinking]    Show only thinking blocks
-  create                      Scaffold new agent (interactive)
-  help                        Show this help
+  run <name> [--project P] [mode]   Run agent immediately (skip scheduler)
+  commit <name> [--project P]       Commit accumulated untracked reports
+  create                            Scaffold new agent (interactive)
+  help                              Show this help
 EOF
 }
 
@@ -1618,6 +1622,213 @@ else:
   echo -e "${GREEN}Agent scaffolded.${NC} Next steps:"
   echo "  1. Edit $script_path"
   echo "  2. sk agent start $name --project $project"
+}
+
+cmd_agent_run() {
+  local name="" project="" mode=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) project="$2"; shift 2 ;;
+      --project=*) project="${1#--project=}"; shift ;;
+      *) [ -z "$name" ] && name="$1" || mode="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}Usage:${NC} sk agent run <name> [--project <proj>] [mode]"
+    echo "  mode: daily, weekly, full, etc. (passed as first arg to the agent script)"
+    return 1
+  fi
+
+  local resolved
+  resolved="$(agent_resolve "$name" "$project")" || return 1
+  local proj_dir proj_name agent_name
+  proj_dir="$(echo "$resolved" | cut -d'|' -f1)"
+  proj_name="$(echo "$resolved" | cut -d'|' -f2)"
+  agent_name="$(echo "$resolved" | cut -d'|' -f3)"
+
+  local agents_file="$proj_dir/.claude/agents.json"
+
+  # Read script and args from config
+  local script args_raw
+  script="$(agent_get_config "$agents_file" "$agent_name" "script")"
+  args_raw="$(agent_get_config "$agents_file" "$agent_name" "args")"
+
+  if [ -z "$script" ]; then
+    echo -e "${RED}No script configured for agent:${NC} $agent_name"
+    return 1
+  fi
+
+  local script_path="$proj_dir/$script"
+  if [ ! -f "$script_path" ]; then
+    echo -e "${RED}Script not found:${NC} $script_path"
+    return 1
+  fi
+
+  # Load git config from agents.json if present
+  _agent_load_git_config "$agents_file" "$agent_name"
+
+  # Build command: script + (mode override or configured args)
+  local cmd_args=()
+  if [ -n "$mode" ]; then
+    cmd_args+=("$mode")
+  elif [ -n "$args_raw" ]; then
+    # args_raw is space-separated from agent_get_config
+    read -ra cmd_args <<< "$args_raw"
+  fi
+
+  echo -e "${CYAN}=== Running agent: $agent_name ($proj_name) ===${NC}"
+  echo -e "  ${CYAN}Script:${NC} $script_path"
+  [ -n "$mode" ] && echo -e "  ${CYAN}Mode:${NC}   $mode"
+  echo ""
+
+  # Execute
+  cd "$proj_dir"
+  bash "$script_path" "${cmd_args[@]}"
+  local exit_code=$?
+
+  if [ "$exit_code" -eq 0 ]; then
+    echo -e "\n${GREEN}✓ Agent run completed.${NC}"
+  else
+    echo -e "\n${RED}✗ Agent run failed (exit $exit_code).${NC}"
+  fi
+  return "$exit_code"
+}
+
+cmd_agent_commit() {
+  local name="" project=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --project) project="$2"; shift 2 ;;
+      --project=*) project="${1#--project=}"; shift ;;
+      *) name="$1"; shift ;;
+    esac
+  done
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}Usage:${NC} sk agent commit <name> [--project <proj>]"
+    return 1
+  fi
+
+  local resolved
+  resolved="$(agent_resolve "$name" "$project")" || return 1
+  local proj_dir proj_name agent_name
+  proj_dir="$(echo "$resolved" | cut -d'|' -f1)"
+  proj_name="$(echo "$resolved" | cut -d'|' -f2)"
+  agent_name="$(echo "$resolved" | cut -d'|' -f3)"
+
+  local agents_file="$proj_dir/.claude/agents.json"
+
+  # Load git config from agents.json
+  _agent_load_git_config "$agents_file" "$agent_name"
+
+  # Default scope for manual commit — broader than auto
+  local commit_scope="${SK_EXEC_COMMIT_SCOPE:-reports/*.md reports/*.html reports/*.json data/*.jsonl}"
+
+  echo -e "${CYAN}=== Committing accumulated output: $agent_name ($proj_name) ===${NC}"
+
+  cd "$proj_dir"
+
+  # Show what would be committed
+  local untracked
+  untracked="$(git ls-files --others --exclude-standard)"
+  local modified
+  modified="$(git diff --name-only)"
+
+  if [ -z "$untracked" ] && [ -z "$modified" ]; then
+    echo -e "${YELLOW}No changes to commit.${NC}"
+    return 0
+  fi
+
+  echo -e "\n${CYAN}Untracked files:${NC}"
+  [ -n "$untracked" ] && echo "$untracked" | sed 's/^/  + /' || echo "  (none)"
+  echo -e "\n${CYAN}Modified files:${NC}"
+  [ -n "$modified" ] && echo "$modified" | sed 's/^/  ~ /' || echo "  (none)"
+
+  # Stage matching files
+  for pattern in $commit_scope; do
+    git add $pattern 2>/dev/null || true
+  done
+
+  if git diff --cached --quiet; then
+    echo -e "\n${YELLOW}No files matching scope: $commit_scope${NC}"
+    return 0
+  fi
+
+  # Apply path filters
+  sk_exec_path_filter "$proj_dir" || return 1
+
+  if git diff --cached --quiet; then
+    echo -e "\n${YELLOW}All files filtered out.${NC}"
+    return 0
+  fi
+
+  # Show staged
+  echo -e "\n${CYAN}Staged for commit:${NC}"
+  git diff --cached --stat | sed 's/^/  /'
+
+  # Commit
+  local today
+  today="$(date '+%Y-%m-%d')"
+  local commit_msg
+  commit_msg="$(cat <<EOF
+chore(agent): ${agent_name} accumulated output ${today}
+
+Manual commit via sk agent commit
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+EOF
+)"
+
+  git commit -m "$commit_msg" --quiet
+  local sha
+  sha="$(git rev-parse --short HEAD)"
+  echo -e "\n${GREEN}✓ Committed: $sha${NC}"
+
+  # Push if configured
+  if [ "${SK_EXEC_AUTO_PUSH:-0}" = "1" ]; then
+    echo -e "${CYAN}Pushing...${NC}"
+    git push 2>&1 && echo -e "${GREEN}✓ Pushed.${NC}" || echo -e "${RED}Push failed.${NC}"
+  fi
+}
+
+# Helper: load git config from agents.json into SK_EXEC_* env vars
+_agent_load_git_config() {
+  local agents_file="$1"
+  local agent_name="$2"
+
+  local merge_strategy allowed_paths forbidden_paths max_files branch_prefix create_pr commit_scope
+
+  merge_strategy="$(agent_get_config "$agents_file" "$agent_name" "git.merge_strategy")"
+  [ -n "$merge_strategy" ] && export SK_EXEC_MERGE_STRATEGY="$merge_strategy"
+
+  allowed_paths="$(agent_get_config "$agents_file" "$agent_name" "git.allowed_paths")"
+  if [ -n "$allowed_paths" ]; then
+    # Convert space-separated to colon-separated
+    export SK_EXEC_ALLOWED_PATHS="${allowed_paths// /:}"
+  fi
+
+  forbidden_paths="$(agent_get_config "$agents_file" "$agent_name" "git.forbidden_paths")"
+  if [ -n "$forbidden_paths" ]; then
+    export SK_EXEC_FORBIDDEN_PATHS="${forbidden_paths// /:}"
+  fi
+
+  max_files="$(agent_get_config "$agents_file" "$agent_name" "git.max_files_changed")"
+  [ -n "$max_files" ] && export SK_EXEC_MAX_FILES="$max_files"
+
+  branch_prefix="$(agent_get_config "$agents_file" "$agent_name" "git.branch_prefix")"
+  [ -n "$branch_prefix" ] && export SK_EXEC_BRANCH_PREFIX="$branch_prefix"
+
+  create_pr="$(agent_get_config "$agents_file" "$agent_name" "git.create_pr")"
+  [ "$create_pr" = "true" ] && export SK_EXEC_CREATE_PR="1"
+
+  # QA config
+  local qa_check
+  qa_check="$(agent_get_config "$agents_file" "$agent_name" "qa.pre_commit")"
+  [ -n "$qa_check" ] && export SK_EXEC_QA_CHECK="$qa_check"
+
+  # Commit scope from git.allowed_paths (if no explicit scope)
+  commit_scope="$(agent_get_config "$agents_file" "$agent_name" "git.commit_scope")"
+  [ -n "$commit_scope" ] && export SK_EXEC_COMMIT_SCOPE="$commit_scope"
 }
 
 # Agent health check — used by audit and maintain

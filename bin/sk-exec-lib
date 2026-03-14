@@ -187,6 +187,16 @@ ${prompt}"
     sk_cost_append "$project_name" "$log_prefix" "$session_name" "$structured_log"
   fi
 
+  # Auto-commit agent output if enabled and run succeeded
+  if [ "$exit_code" -eq 0 ] && [ "${SK_EXEC_AUTO_COMMIT:-0}" = "1" ]; then
+    local merge_strategy="${SK_EXEC_MERGE_STRATEGY:-auto}"
+    if [ "$merge_strategy" = "pr" ]; then
+      sk_exec_branch_workflow "$project_dir" "$log_prefix" "$timestamp"
+    else
+      sk_exec_post_git "$project_dir" "$log_prefix" "$timestamp"
+    fi
+  fi
+
   return "$exit_code"
 }
 
@@ -250,5 +260,421 @@ entry = {
 
 with open(ledger, 'a') as f:
     f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+" 2>/dev/null || true
+}
+
+# ─── sk_exec_pre_commit_check() ──────────────────────────────────────
+# Run QA checks before committing. Returns 0 if OK, 1 if failed.
+#
+# Arguments:
+#   $1 — project directory
+#
+# Configuration:
+#   SK_EXEC_QA_CHECK — "off" (default), "auto", or path to script
+
+sk_exec_pre_commit_check() {
+  local project_dir="$1"
+  local qa_check="${SK_EXEC_QA_CHECK:-off}"
+
+  [ "$qa_check" = "off" ] && return 0
+
+  if [ "$qa_check" = "auto" ]; then
+    # Auto-detect test framework
+    if [ -f "$project_dir/pyproject.toml" ] || [ -f "$project_dir/pytest.ini" ] || [ -f "$project_dir/setup.cfg" ]; then
+      if command -v pytest &>/dev/null; then
+        echo -e "\033[0;36m[qa-gate]\033[0m Running pytest..."
+        (cd "$project_dir" && pytest --tb=short -q 2>&1) && return 0
+        return 1
+      fi
+    elif [ -f "$project_dir/vitest.config.ts" ] || [ -f "$project_dir/vitest.config.js" ]; then
+      if command -v npx &>/dev/null; then
+        echo -e "\033[0;36m[qa-gate]\033[0m Running vitest..."
+        (cd "$project_dir" && npx vitest run 2>&1) && return 0
+        return 1
+      fi
+    elif [ -f "$project_dir/Package.swift" ]; then
+      echo -e "\033[0;36m[qa-gate]\033[0m Running swift test..."
+      (cd "$project_dir" && swift test 2>&1) && return 0
+      return 1
+    fi
+    # No test framework detected — pass
+    return 0
+  fi
+
+  # Custom script path
+  if [ -x "$qa_check" ]; then
+    echo -e "\033[0;36m[qa-gate]\033[0m Running $qa_check..."
+    (cd "$project_dir" && "$qa_check" 2>&1) && return 0
+    return 1
+  elif [ -f "$qa_check" ]; then
+    echo -e "\033[0;36m[qa-gate]\033[0m Running $qa_check..."
+    (cd "$project_dir" && bash "$qa_check" 2>&1) && return 0
+    return 1
+  fi
+
+  echo -e "\033[0;33m[qa-gate]\033[0m QA script not found: $qa_check" >&2
+  return 1
+}
+
+# ─── sk_exec_path_filter() ───────────────────────────────────────────
+# Filter staged files by allowed/forbidden path patterns.
+# Unstages files that don't pass the filter.
+#
+# Arguments:
+#   $1 — project directory
+#
+# Configuration:
+#   SK_EXEC_ALLOWED_PATHS   — colon-separated globs (empty = all allowed)
+#   SK_EXEC_FORBIDDEN_PATHS — colon-separated globs (default: ".env*:*.db:.claude/**")
+#   SK_EXEC_MAX_FILES       — max changed files (0 = unlimited)
+
+sk_exec_path_filter() {
+  local project_dir="$1"
+  local allowed="${SK_EXEC_ALLOWED_PATHS:-}"
+  local forbidden="${SK_EXEC_FORBIDDEN_PATHS:-.env*:*.db:.claude/**}"
+  local max_files="${SK_EXEC_MAX_FILES:-0}"
+
+  cd "$project_dir"
+
+  # Get list of staged files
+  local staged_files
+  staged_files="$(git diff --cached --name-only 2>/dev/null)"
+  [ -z "$staged_files" ] && return 0
+
+  local rejected=()
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    local dominated=false
+
+    # Check forbidden paths
+    if [ -n "$forbidden" ]; then
+      IFS=':' read -ra fpats <<< "$forbidden"
+      for pat in "${fpats[@]}"; do
+        # Use bash extended globbing via python for reliability
+        if python3 -c "
+import fnmatch, sys
+sys.exit(0 if fnmatch.fnmatch('$file', '$pat') else 1)
+" 2>/dev/null; then
+          dominated=true
+          break
+        fi
+      done
+    fi
+
+    # Check allowed paths (if specified, file must match at least one)
+    if [ "$dominated" = false ] && [ -n "$allowed" ]; then
+      local in_allowed=false
+      IFS=':' read -ra apats <<< "$allowed"
+      for pat in "${apats[@]}"; do
+        if python3 -c "
+import fnmatch, sys
+sys.exit(0 if fnmatch.fnmatch('$file', '$pat') else 1)
+" 2>/dev/null; then
+          in_allowed=true
+          break
+        fi
+      done
+      [ "$in_allowed" = false ] && dominated=true
+    fi
+
+    if [ "$dominated" = true ]; then
+      rejected+=("$file")
+      git reset HEAD -- "$file" &>/dev/null
+    fi
+  done <<< "$staged_files"
+
+  if [ ${#rejected[@]} -gt 0 ]; then
+    echo -e "\033[0;33m[path-filter]\033[0m Unstaged ${#rejected[@]} file(s) outside allowed paths:"
+    for f in "${rejected[@]}"; do
+      echo "  - $f"
+    done
+  fi
+
+  # Check max files
+  if [ "$max_files" -gt 0 ]; then
+    local remaining
+    remaining="$(git diff --cached --name-only | wc -l | tr -d ' ')"
+    if [ "$remaining" -gt "$max_files" ]; then
+      echo -e "\033[0;31m[path-filter]\033[0m Too many files changed ($remaining > $max_files). Unstaging all." >&2
+      git reset HEAD -- . &>/dev/null
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+# ─── sk_exec_post_git() ──────────────────────────────────────────────
+# Auto-commit agent output files after a successful run.
+# Only stages files matching SK_EXEC_COMMIT_SCOPE patterns.
+#
+# Arguments:
+#   $1 — project directory
+#   $2 — agent name (for commit message)
+#   $3 — timestamp
+#
+# Configuration:
+#   SK_EXEC_COMMIT_SCOPE — space-separated glob patterns to stage
+#   SK_EXEC_AUTO_PUSH    — "1" to push after commit
+#   SK_EXEC_GIT_SIGNOFF  — agent signature (default: "agent")
+
+sk_exec_post_git() {
+  local project_dir="$1"
+  local agent_name="$2"
+  local timestamp="$3"
+  local commit_scope="${SK_EXEC_COMMIT_SCOPE:-reports/*.md reports/*.html data/*.jsonl}"
+  local auto_push="${SK_EXEC_AUTO_PUSH:-0}"
+  local signoff="${SK_EXEC_GIT_SIGNOFF:-agent}"
+  local dry_run="${SK_EXEC_DRY_RUN:-0}"
+  local quiet="${SK_EXEC_QUIET:-0}"
+  local structured_log="${SK_EXEC_RESULT_STRUCTURED:-}"
+
+  cd "$project_dir"
+
+  # Check for any changes
+  if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+    [ "$quiet" != "1" ] && echo -e "\033[0;36m[post-git]\033[0m No changes to commit."
+    return 0
+  fi
+
+  # Stage files matching commit scope
+  local staged_count=0
+  for pattern in $commit_scope; do
+    # Use git add with glob — only matches existing files
+    git add $pattern 2>/dev/null && staged_count=$((staged_count + 1)) || true
+  done
+
+  # Check if anything was staged
+  if git diff --cached --quiet; then
+    [ "$quiet" != "1" ] && echo -e "\033[0;36m[post-git]\033[0m No matching files to commit (scope: $commit_scope)."
+    return 0
+  fi
+
+  # Apply path filters (allowed/forbidden)
+  sk_exec_path_filter "$project_dir" || {
+    _sk_exec_log_event "$structured_log" "path_filter_rejected" "$agent_name"
+    return 1
+  }
+
+  # Re-check after filtering
+  if git diff --cached --quiet; then
+    [ "$quiet" != "1" ] && echo -e "\033[0;36m[post-git]\033[0m All staged files were filtered out."
+    return 0
+  fi
+
+  # QA gate
+  sk_exec_pre_commit_check "$project_dir" || {
+    echo -e "\033[0;31m[post-git]\033[0m QA gate failed — unstaging and skipping commit." >&2
+    git reset HEAD -- . &>/dev/null
+    _sk_exec_log_event "$structured_log" "qa_gate_failed" "$agent_name"
+    return 1
+  }
+
+  # Build commit message
+  local run_date
+  run_date="$(echo "$timestamp" | sed 's/\([0-9]\{8\}\).*/\1/' | sed 's/\(....\)\(..\)\(..\)/\1-\2-\3/')"
+  local commit_msg
+  commit_msg="$(cat <<EOF
+chore(agent): ${agent_name} run ${run_date}
+
+Auto-committed by sk_exec [${signoff}]
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+EOF
+)"
+
+  # Dry run
+  if [ "$dry_run" = "1" ]; then
+    echo -e "\033[0;33m[post-git dry-run]\033[0m Would commit:"
+    git diff --cached --stat
+    echo "  Message: chore(agent): ${agent_name} run ${run_date}"
+    [ "$auto_push" = "1" ] && echo "  Would push to origin"
+    return 0
+  fi
+
+  # Commit
+  git commit -m "$commit_msg" --quiet
+  local commit_sha
+  commit_sha="$(git rev-parse --short HEAD)"
+  echo -e "\033[0;32m[post-git]\033[0m Committed: $commit_sha"
+  git diff --stat HEAD~1 2>/dev/null | sed 's/^/  /'
+
+  # Log commit SHA to structured log
+  _sk_exec_log_event "$structured_log" "auto_commit" "$commit_sha"
+
+  # Push
+  if [ "$auto_push" = "1" ]; then
+    echo -e "\033[0;36m[post-git]\033[0m Pushing..."
+    if git push 2>&1; then
+      echo -e "\033[0;32m[post-git]\033[0m Pushed successfully."
+      _sk_exec_log_event "$structured_log" "auto_push" "ok"
+    else
+      echo -e "\033[0;31m[post-git]\033[0m Push failed." >&2
+      _sk_exec_log_event "$structured_log" "auto_push" "failed"
+    fi
+  fi
+
+  return 0
+}
+
+# ─── sk_exec_branch_workflow() ────────────────────────────────────────
+# Create a branch, commit changes, push, and optionally create a PR.
+# Used for "pr" merge strategy agents (e.g. developer role).
+#
+# Arguments:
+#   $1 — project directory
+#   $2 — agent name
+#   $3 — timestamp
+#
+# Configuration:
+#   SK_EXEC_BRANCH_PREFIX  — branch prefix (default: "agent/")
+#   SK_EXEC_CREATE_PR      — "1" to create PR via gh
+#   SK_EXEC_COMMIT_SCOPE   — glob patterns to stage
+#   SK_EXEC_AUTO_PUSH      — "1" to push (required for PR)
+
+sk_exec_branch_workflow() {
+  local project_dir="$1"
+  local agent_name="$2"
+  local timestamp="$3"
+  local branch_prefix="${SK_EXEC_BRANCH_PREFIX:-agent/}"
+  local create_pr="${SK_EXEC_CREATE_PR:-0}"
+  local commit_scope="${SK_EXEC_COMMIT_SCOPE:-reports/*.md reports/*.html data/*.jsonl}"
+  local dry_run="${SK_EXEC_DRY_RUN:-0}"
+  local quiet="${SK_EXEC_QUIET:-0}"
+  local structured_log="${SK_EXEC_RESULT_STRUCTURED:-}"
+
+  cd "$project_dir"
+
+  # Check for changes
+  if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+    [ "$quiet" != "1" ] && echo -e "\033[0;36m[branch]\033[0m No changes to commit."
+    return 0
+  fi
+
+  # Generate branch name
+  local run_date
+  run_date="$(echo "$timestamp" | sed 's/\([0-9]\{8\}\).*/\1/' | sed 's/\(....\)\(..\)\(..\)/\1-\2-\3/')"
+  local short_sha
+  short_sha="$(git rev-parse --short HEAD)"
+  local branch_name="${branch_prefix}${agent_name}/${run_date}-${short_sha}"
+
+  if [ "$dry_run" = "1" ]; then
+    echo -e "\033[0;33m[branch dry-run]\033[0m Would create branch: $branch_name"
+    return 0
+  fi
+
+  # Create and switch to branch
+  local original_branch
+  original_branch="$(git rev-parse --abbrev-ref HEAD)"
+  git checkout -b "$branch_name" --quiet
+
+  # Stage files matching commit scope
+  for pattern in $commit_scope; do
+    git add $pattern 2>/dev/null || true
+  done
+
+  if git diff --cached --quiet; then
+    echo -e "\033[0;36m[branch]\033[0m No matching files to commit."
+    git checkout "$original_branch" --quiet
+    git branch -D "$branch_name" --quiet 2>/dev/null
+    return 0
+  fi
+
+  # Apply path filters
+  sk_exec_path_filter "$project_dir" || {
+    git reset HEAD -- . &>/dev/null
+    git checkout "$original_branch" --quiet
+    git branch -D "$branch_name" --quiet 2>/dev/null
+    _sk_exec_log_event "$structured_log" "path_filter_rejected" "$agent_name"
+    return 1
+  }
+
+  if git diff --cached --quiet; then
+    git checkout "$original_branch" --quiet
+    git branch -D "$branch_name" --quiet 2>/dev/null
+    return 0
+  fi
+
+  # QA gate
+  sk_exec_pre_commit_check "$project_dir" || {
+    echo -e "\033[0;31m[branch]\033[0m QA gate failed — aborting branch." >&2
+    git reset HEAD -- . &>/dev/null
+    git checkout "$original_branch" --quiet
+    git branch -D "$branch_name" --quiet 2>/dev/null
+    _sk_exec_log_event "$structured_log" "qa_gate_failed" "$agent_name"
+    return 1
+  }
+
+  # Commit
+  local commit_msg
+  commit_msg="$(cat <<EOF
+feat(agent): ${agent_name} run ${run_date}
+
+Auto-committed by sk_exec (branch workflow)
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+EOF
+)"
+  git commit -m "$commit_msg" --quiet
+  local commit_sha
+  commit_sha="$(git rev-parse --short HEAD)"
+  echo -e "\033[0;32m[branch]\033[0m Committed $commit_sha on $branch_name"
+
+  _sk_exec_log_event "$structured_log" "branch_commit" "$commit_sha on $branch_name"
+
+  # Push
+  if [ "${SK_EXEC_AUTO_PUSH:-0}" = "1" ]; then
+    echo -e "\033[0;36m[branch]\033[0m Pushing $branch_name..."
+    git push -u origin "$branch_name" 2>&1 || {
+      echo -e "\033[0;31m[branch]\033[0m Push failed." >&2
+      git checkout "$original_branch" --quiet
+      return 1
+    }
+    _sk_exec_log_event "$structured_log" "branch_push" "$branch_name"
+
+    # Create PR
+    if [ "$create_pr" = "1" ] && command -v gh &>/dev/null; then
+      echo -e "\033[0;36m[branch]\033[0m Creating PR..."
+      local pr_url
+      pr_url="$(gh pr create \
+        --title "Agent: ${agent_name} ${run_date}" \
+        --body "Auto-generated by ${agent_name} agent via sk_exec branch workflow.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" \
+        --label "agent-generated" 2>&1)" || true
+      if [ -n "$pr_url" ]; then
+        echo -e "\033[0;32m[branch]\033[0m PR created: $pr_url"
+        _sk_exec_log_event "$structured_log" "pr_created" "$pr_url"
+      fi
+    fi
+  fi
+
+  # Return to original branch
+  git checkout "$original_branch" --quiet
+  return 0
+}
+
+# ─── _sk_exec_log_event() ────────────────────────────────────────────
+# Append event to structured JSONL log (internal helper).
+#
+# Arguments:
+#   $1 — structured log path (empty = skip)
+#   $2 — event type
+#   $3 — event detail
+
+_sk_exec_log_event() {
+  local log_file="$1"
+  local event_type="$2"
+  local detail="$3"
+  [ -z "$log_file" ] && return 0
+  [ ! -f "$log_file" ] && return 0
+  python3 -c "
+import json
+from datetime import datetime
+entry = {
+    'type': '$event_type',
+    'detail': '''$detail''',
+    'ts': datetime.now().isoformat()
+}
+with open('$log_file', 'a') as f:
+    f.write(json.dumps(entry) + '\n')
 " 2>/dev/null || true
 }

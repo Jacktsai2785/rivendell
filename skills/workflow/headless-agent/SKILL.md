@@ -296,6 +296,86 @@ Adjust `--max-turns` per mode — daily checks need fewer turns than full resear
 - Do not commit runner scripts with sensitive prompts to public repositories.
 - Do not expose the runner script or its output directory to untrusted users.
 
+## Agent Git Operations
+
+`sk_exec` supports automatic git operations after a successful agent run via environment variables:
+
+### Auto-commit (reports, data)
+
+```bash
+SK_EXEC_AUTO_COMMIT=1              # Enable auto-commit after successful run
+SK_EXEC_AUTO_PUSH=1                # Push after commit
+SK_EXEC_COMMIT_SCOPE="reports/*.md reports/*.html data/*.jsonl"  # Glob patterns to stage
+SK_EXEC_GIT_SIGNOFF="agent-name"   # Signature in commit message
+```
+
+Only files matching `SK_EXEC_COMMIT_SCOPE` are staged. Commit only happens if the agent exits 0.
+
+### Path filtering (safety)
+
+```bash
+SK_EXEC_ALLOWED_PATHS="src/**:config/**"     # Colon-separated globs (empty = all)
+SK_EXEC_FORBIDDEN_PATHS=".env*:*.db:.claude/**"  # Always blocked
+SK_EXEC_MAX_FILES=5                          # Max files per commit (0 = unlimited)
+```
+
+### QA gate
+
+```bash
+SK_EXEC_QA_CHECK=off     # "off" (default), "auto" (detect pytest/vitest/swift), or script path
+```
+
+When `auto`, detects pytest/vitest/swift test and runs before committing. Failure → unstage + skip commit.
+
+### Branch workflow (for code changes)
+
+```bash
+SK_EXEC_MERGE_STRATEGY=pr          # "auto" = commit to main, "pr" = branch + PR
+SK_EXEC_BRANCH_PREFIX="agent/"     # Branch name prefix
+SK_EXEC_CREATE_PR=1                # Create PR via gh after push
+```
+
+Branch workflow: creates `agent/{name}/{date}-{sha}` branch → commit → push → PR.
+
+### agents.json schema
+
+Define git and QA config per-agent in `.claude/agents.json`:
+
+```json
+{
+  "agents": {
+    "maintainer": {
+      "type": "claude-dev",
+      "script": "scripts/maintainer.sh",
+      "schedule": { "type": "daily", "hour": 4, "minute": 0 },
+      "git": {
+        "merge_strategy": "auto",
+        "allowed_paths": ["src/**", "config/**"],
+        "forbidden_paths": [".env*", "*.db"],
+        "max_files_changed": 5
+      },
+      "qa": { "pre_commit": "auto" }
+    }
+  }
+}
+```
+
+### Multi-role agents
+
+| Role | Scope | Merge strategy | Human review |
+|------|-------|---------------|-------------|
+| **maintainer** | stability, efficiency | `auto` → main | No |
+| **tester** | tests, coverage reports | `auto` → main | No |
+| **developer** | features, UI/UX | `pr` → branch + PR | Yes |
+
+### Manual commands
+
+```bash
+sk agent run research-agent --project news_stock         # Run immediately
+sk agent run research-agent --project news_stock weekly   # Specify mode
+sk agent commit research-agent --project news_stock       # Commit accumulated output
+```
+
 ## Integration with Other Skills
 
 This skill provides the infrastructure layer. Combine with domain-specific skills for the agent's actual task:
