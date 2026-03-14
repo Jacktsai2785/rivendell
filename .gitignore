@@ -9,3 +9,4 @@ dashboard/data/*.db-wal
 dashboard/data/*.db-shm
 __pycache__/
 logs/
+data/cost-ledger.jsonl

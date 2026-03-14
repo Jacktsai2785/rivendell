@@ -12,6 +12,9 @@ YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Source the unified execution engine
+source "$(dirname "$0")/sk-exec-lib"
+
 usage() {
   cat <<EOF
 Usage: ./bin/sk <command> [args]
@@ -1744,8 +1747,9 @@ cmd_maintain() {
 }
 
 cmd_run() {
-  local task="" project_dir="." model="" max_budget="" verbose=0 dry_run=0
-  local extra_tools="" permission_mode="default"
+  local task="" project_dir="." model="" max_budget="" dry_run=0
+  local extra_tools="" permission_mode="default" resume_session=""
+  local inject_context=0
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1759,14 +1763,23 @@ cmd_run() {
       --tools=*)      extra_tools="${1#--tools=}"; shift ;;
       --yolo)         permission_mode="bypassPermissions"; shift ;;
       --auto)         permission_mode="auto"; shift ;;
+      --resume)       resume_session="$2"; shift 2 ;;
+      --resume=*)     resume_session="${1#--resume=}"; shift ;;
+      --context)      inject_context=1; shift ;;
       --dry-run)      dry_run=1; shift ;;
-      -v|--verbose)   verbose=1; shift ;;
       -h|--help)      cmd_run_help; return 0 ;;
       --)             shift; task="$*"; break ;;
       -*)             echo -e "${RED}Unknown flag:${NC} $1"; cmd_run_help; return 1 ;;
       *)              task="$*"; break ;;
     esac
   done
+
+  # Handle --resume directly
+  if [ -n "$resume_session" ]; then
+    echo -e "${CYAN}Resuming session:${NC} $resume_session"
+    claude --resume "$resume_session"
+    return $?
+  fi
 
   if [ -z "$task" ]; then
     echo -e "${RED}Error:${NC} No task provided."
@@ -1776,82 +1789,27 @@ cmd_run() {
   fi
 
   # Resolve project directory
-  if [ "$project_dir" = "." ]; then
-    project_dir="$(pwd)"
-  else
+  if [ "$project_dir" != "." ]; then
     project_dir="$(cd "$project_dir" 2>/dev/null && pwd)" || {
       echo -e "${RED}Error:${NC} Directory not found: $project_dir"
       return 1
     }
   fi
 
-  # Build claude command
-  local cmd=("claude" "-p" "--permission-mode" "$permission_mode")
-
-  [ -n "$model" ] && cmd+=("--model" "$model")
-  [ -n "$max_budget" ] && cmd+=("--max-budget-usd" "$max_budget")
-
-  # Default allowed tools + extras
+  # Build tools string
   local tools="Read Write Edit Bash Glob Grep Agent WebFetch WebSearch"
   [ -n "$extra_tools" ] && tools="$tools $extra_tools"
-  cmd+=("--allowedTools" "$tools")
 
-  # Session name for easy resume
-  local session_name="sk-run-$(date '+%H%M%S')"
-  cmd+=("--name" "$session_name")
-
-  # Add the task as the prompt
-  cmd+=("$task")
-
-  # Log file
-  local log_dir="$REPO_DIR/logs"
-  mkdir -p "$log_dir"
-  local log_file="$log_dir/run-$(date '+%Y%m%d-%H%M%S').log"
-
-  # Show what we're about to do
-  echo -e "${CYAN}╭─────────────────────────────────────────╮${NC}"
-  echo -e "${CYAN}│         sk run — Agent Mode              │${NC}"
-  echo -e "${CYAN}╰─────────────────────────────────────────╯${NC}"
-  echo -e "  ${GREEN}Task:${NC}    $task"
-  echo -e "  ${GREEN}Dir:${NC}     $project_dir"
-  echo -e "  ${GREEN}Mode:${NC}    $permission_mode"
-  [ -n "$model" ] && echo -e "  ${GREEN}Model:${NC}   $model"
-  [ -n "$max_budget" ] && echo -e "  ${GREEN}Budget:${NC}  \$$max_budget"
-  echo -e "  ${GREEN}Log:${NC}     $log_file"
-  echo -e "  ${GREEN}Session:${NC} $session_name"
-  echo ""
-
-  if [ "$dry_run" -eq 1 ]; then
-    echo -e "${YELLOW}[dry-run]${NC} Would execute:"
-    echo "  cd $project_dir && ${cmd[*]}"
-    return 0
-  fi
-
-  # Execute
-  echo -e "${CYAN}Running...${NC}"
-  echo ""
-
-  local start_time
-  start_time=$(date +%s)
-
-  # Run claude in the target project directory, tee to log
-  (cd "$project_dir" && "${cmd[@]}") 2>&1 | tee "$log_file"
-  local exit_code=${PIPESTATUS[0]}
-
-  local end_time elapsed
-  end_time=$(date +%s)
-  elapsed=$((end_time - start_time))
-
-  echo ""
-  echo -e "${CYAN}─────────────────────────────────────────${NC}"
-  if [ "$exit_code" -eq 0 ]; then
-    echo -e "${GREEN}✓ Done${NC} in ${elapsed}s — log: $log_file"
-  else
-    echo -e "${RED}✗ Failed${NC} (exit $exit_code) in ${elapsed}s — log: $log_file"
-  fi
-  echo -e "  Resume: ${YELLOW}claude --resume '$session_name'${NC}"
-
-  return "$exit_code"
+  # Delegate to sk_exec()
+  SK_EXEC_PROJECT_DIR="$project_dir" \
+  SK_EXEC_MODEL="$model" \
+  SK_EXEC_BUDGET="$max_budget" \
+  SK_EXEC_TOOLS="$tools" \
+  SK_EXEC_PERM_MODE="$permission_mode" \
+  SK_EXEC_LOG_PREFIX="run" \
+  SK_EXEC_CONTEXT="$inject_context" \
+  SK_EXEC_DRY_RUN="$dry_run" \
+  sk_exec "$task"
 }
 
 cmd_run_help() {
@@ -1860,6 +1818,7 @@ Usage: sk run [flags] <task description>
 
 Run a task as a single-shot agent using claude -p.
 Claude will autonomously plan, execute, and complete the task.
+Output is structured (stream-json) with cost tracking via sk_exec().
 
 Flags:
   -p, --project <dir>   Target project directory (default: current dir)
@@ -1868,8 +1827,9 @@ Flags:
   --tools <tools>       Extra tools to allow (space-separated)
   --auto                Auto-approve safe tools (Read, Glob, Grep, etc.)
   --yolo                Skip ALL permission checks (use with caution)
+  --resume <session>    Resume a previous session by name
+  --context             Inject project .claude/CLAUDE.md into prompt
   --dry-run             Show command without executing
-  -v, --verbose         Verbose output
   -h, --help            Show this help
 
 Examples:
@@ -1877,6 +1837,8 @@ Examples:
   sk run --project ~/Projects/myapp "fix the failing tests in auth module"
   sk run --budget 0.50 --auto "refactor utils.py to use dataclasses"
   sk run --model sonnet "update README with current API endpoints"
+  sk run --context "refactor the auth module"
+  sk run --resume sk-run-myapp-143022
   sk run --dry-run "migrate database schema"
 EOF
 }
@@ -2732,7 +2694,34 @@ for i, d in enumerate(dates):
 print(f'| **Total** | | | **{fmt_tokens(week_total_tokens)}** | **\${week_total_cost:.2f}** |')
 print()
 
-# Per-project breakdown
+# Per-project breakdown (interactive + agent ledger)
+ledger_file = os.path.join('$REPO_DIR', 'data', 'cost-ledger.jsonl')
+if os.path.isfile(ledger_file):
+    try:
+        with open(ledger_file) as lf:
+            for line in lf:
+                try:
+                    entry = json.loads(line)
+                    edate = entry.get('date', '')
+                    proj = entry.get('project', 'unknown')
+                    inp = entry.get('input_tokens', 0)
+                    out = entry.get('output_tokens', 0)
+                    cost_val = entry.get('cost_usd', 0)
+                    # Add to daily totals if within range
+                    if edate in daily:
+                        daily[edate]['input'] += inp
+                        daily[edate]['output'] += out
+                        daily_calls[edate] += 1
+                        daily_sessions[edate] += 1
+                    # Always add to project totals
+                    proj_totals[proj]['input'] += inp
+                    proj_totals[proj]['output'] += out
+                    proj_totals[proj]['calls'] += 1
+                except:
+                    continue
+    except:
+        pass
+
 if proj_totals:
     print(f'### {L[\"cost_by_proj\"]}')
     print()

@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+# sk-exec-lib — Unified Agent Execution Engine
+# Source this file to get sk_exec() and sk_cost_append()
+#
+# Usage:
+#   source "$(dirname "$0")/sk-exec-lib"
+#   SK_EXEC_PROJECT_DIR="/path/to/project" sk_exec "do something"
+
+# Guard against double-sourcing
+[ -n "${_SK_EXEC_LIB_LOADED:-}" ] && return 0
+_SK_EXEC_LIB_LOADED=1
+
+# Resolve repo dir (same as bin/sk)
+SK_EXEC_REPO_DIR="${SK_EXEC_REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+SK_EXEC_PARSER="${SK_EXEC_REPO_DIR}/scripts/parse-agent-log.py"
+
+# ─── sk_exec() ───────────────────────────────────────────────────────
+# Run claude -p with structured logging and cost tracking.
+#
+# Arguments:
+#   $1 — prompt text
+#
+# Configuration via SK_EXEC_* env vars:
+#   SK_EXEC_PROJECT_DIR   — target directory (default: pwd)
+#   SK_EXEC_MODEL         — model name
+#   SK_EXEC_BUDGET        — max USD
+#   SK_EXEC_TOOLS         — allowed tools (space-separated)
+#   SK_EXEC_PERM_MODE     — default/auto/bypassPermissions (default: "default")
+#   SK_EXEC_SESSION_NAME  — for resume (auto-generated if empty)
+#   SK_EXEC_LOG_PREFIX    — log filename prefix (default: "run")
+#   SK_EXEC_STRUCTURED    — "1" for stream-json + parser (default: "1")
+#   SK_EXEC_OUTPUT_DIR    — log destination (default: $SK_EXEC_REPO_DIR/logs)
+#   SK_EXEC_CONTEXT       — "1" to inject project CLAUDE.md into prompt
+#   SK_EXEC_QUIET         — "1" to suppress banner
+#   SK_EXEC_DRY_RUN       — "1" to print command without executing
+#
+# Result vars set after execution:
+#   SK_EXEC_RESULT_LOG        — path to plain log file
+#   SK_EXEC_RESULT_STRUCTURED — path to structured JSONL (if enabled)
+#   SK_EXEC_RESULT_EXIT       — exit code
+#   SK_EXEC_RESULT_ELAPSED    — elapsed seconds
+#   SK_EXEC_RESULT_SESSION    — session name used
+
+sk_exec() {
+  local prompt="${1:?sk_exec: prompt required}"
+
+  # Read config from env with defaults
+  local project_dir="${SK_EXEC_PROJECT_DIR:-$(pwd)}"
+  local model="${SK_EXEC_MODEL:-}"
+  local budget="${SK_EXEC_BUDGET:-}"
+  local tools="${SK_EXEC_TOOLS:-Read Write Edit Bash Glob Grep Agent WebFetch WebSearch}"
+  local perm_mode="${SK_EXEC_PERM_MODE:-default}"
+  local log_prefix="${SK_EXEC_LOG_PREFIX:-run}"
+  local structured="${SK_EXEC_STRUCTURED:-1}"
+  local output_dir="${SK_EXEC_OUTPUT_DIR:-${SK_EXEC_REPO_DIR}/logs}"
+  local inject_context="${SK_EXEC_CONTEXT:-0}"
+  local quiet="${SK_EXEC_QUIET:-0}"
+  local dry_run="${SK_EXEC_DRY_RUN:-0}"
+
+  # Resolve project directory
+  project_dir="$(cd "$project_dir" 2>/dev/null && pwd)" || {
+    echo "sk_exec: directory not found: $project_dir" >&2
+    return 1
+  }
+
+  # Derive project short name from directory
+  local project_name
+  project_name="$(basename "$project_dir")"
+
+  # Session name
+  local session_name="${SK_EXEC_SESSION_NAME:-sk-${log_prefix}-${project_name}-$(date '+%H%M%S')}"
+
+  # Prepare log paths
+  mkdir -p "$output_dir"
+  local timestamp
+  timestamp="$(date '+%Y%m%d-%H%M%S')"
+  local log_file="${output_dir}/${log_prefix}-${timestamp}.log"
+  local structured_log=""
+  if [ "$structured" = "1" ]; then
+    structured_log="${output_dir}/${log_prefix}-${timestamp}.structured.jsonl"
+  fi
+
+  # Inject CLAUDE.md context if requested
+  if [ "$inject_context" = "1" ]; then
+    local claude_md="${project_dir}/.claude/CLAUDE.md"
+    if [ -f "$claude_md" ]; then
+      local ctx
+      ctx="$(cat "$claude_md")"
+      prompt="# Project Context (from .claude/CLAUDE.md)
+
+${ctx}
+
+---
+
+${prompt}"
+    fi
+  fi
+
+  # Build claude command
+  local cmd=("claude" "-p" "--permission-mode" "$perm_mode")
+
+  [ -n "$model" ] && cmd+=("--model" "$model")
+  [ -n "$budget" ] && cmd+=("--max-budget-usd" "$budget")
+  cmd+=("--allowedTools" "$tools")
+  cmd+=("--name" "$session_name")
+
+  if [ "$structured" = "1" ]; then
+    cmd+=("--output-format" "stream-json")
+  fi
+
+  cmd+=("$prompt")
+
+  # Banner
+  if [ "$quiet" != "1" ]; then
+    echo -e "\033[0;36m╭─────────────────────────────────────────╮\033[0m"
+    echo -e "\033[0;36m│         sk exec — Agent Engine           │\033[0m"
+    echo -e "\033[0;36m╰─────────────────────────────────────────╯\033[0m"
+    local task_preview="${prompt:0:80}"
+    [ ${#prompt} -gt 80 ] && task_preview="${task_preview}..."
+    echo -e "  \033[0;32mTask:\033[0m    $task_preview"
+    echo -e "  \033[0;32mDir:\033[0m     $project_dir"
+    echo -e "  \033[0;32mMode:\033[0m    $perm_mode"
+    [ -n "$model" ] && echo -e "  \033[0;32mModel:\033[0m   $model"
+    [ -n "$budget" ] && echo -e "  \033[0;32mBudget:\033[0m  \$$budget"
+    echo -e "  \033[0;32mLog:\033[0m     $log_file"
+    echo -e "  \033[0;32mSession:\033[0m $session_name"
+    [ "$structured" = "1" ] && echo -e "  \033[0;32mJSON:\033[0m    $structured_log"
+    echo ""
+  fi
+
+  # Dry run
+  if [ "$dry_run" = "1" ]; then
+    echo -e "\033[0;33m[dry-run]\033[0m Would execute:"
+    echo "  cd $project_dir && ${cmd[*]}"
+    # Set result vars for dry-run
+    SK_EXEC_RESULT_LOG="$log_file"
+    SK_EXEC_RESULT_STRUCTURED="$structured_log"
+    SK_EXEC_RESULT_EXIT=0
+    SK_EXEC_RESULT_ELAPSED=0
+    SK_EXEC_RESULT_SESSION="$session_name"
+    return 0
+  fi
+
+  # Execute
+  [ "$quiet" != "1" ] && echo -e "\033[0;36mRunning...\033[0m" && echo ""
+
+  local start_time exit_code
+  start_time=$(date +%s)
+
+  if [ "$structured" = "1" ] && [ -f "$SK_EXEC_PARSER" ]; then
+    # Stream-json mode: pipe through parser
+    (cd "$project_dir" && "${cmd[@]}") 2>>"$log_file" \
+      | python3 -u "$SK_EXEC_PARSER" --output "$structured_log" \
+      | tee -a "$log_file"
+    exit_code=${PIPESTATUS[0]}
+  else
+    # Plain mode: tee to log
+    (cd "$project_dir" && "${cmd[@]}") 2>&1 | tee "$log_file"
+    exit_code=${PIPESTATUS[0]}
+  fi
+
+  local end_time elapsed
+  end_time=$(date +%s)
+  elapsed=$((end_time - start_time))
+
+  # Set result vars
+  SK_EXEC_RESULT_LOG="$log_file"
+  SK_EXEC_RESULT_STRUCTURED="$structured_log"
+  SK_EXEC_RESULT_EXIT="$exit_code"
+  SK_EXEC_RESULT_ELAPSED="$elapsed"
+  SK_EXEC_RESULT_SESSION="$session_name"
+
+  # Summary
+  if [ "$quiet" != "1" ]; then
+    echo ""
+    echo -e "\033[0;36m─────────────────────────────────────────\033[0m"
+    if [ "$exit_code" -eq 0 ]; then
+      echo -e "\033[0;32m✓ Done\033[0m in ${elapsed}s — log: $log_file"
+    else
+      echo -e "\033[0;31m✗ Failed\033[0m (exit $exit_code) in ${elapsed}s — log: $log_file"
+    fi
+    echo -e "  Resume: \033[0;33mclaude --resume '$session_name'\033[0m"
+  fi
+
+  # Auto-append cost if structured log exists
+  if [ "$structured" = "1" ] && [ -f "$structured_log" ]; then
+    sk_cost_append "$project_name" "$log_prefix" "$session_name" "$structured_log"
+  fi
+
+  return "$exit_code"
+}
+
+# ─── sk_cost_append() ────────────────────────────────────────────────
+# Read the result line from a structured JSONL log and append to cost ledger.
+#
+# Arguments:
+#   $1 — project name
+#   $2 — run type (e.g. "run", "research-agent")
+#   $3 — session name
+#   $4 — structured JSONL file path
+
+sk_cost_append() {
+  local project="$1" run_type="$2" session="$3" structured_file="$4"
+  local ledger_dir="${SK_EXEC_REPO_DIR}/data"
+  local ledger="${ledger_dir}/cost-ledger.jsonl"
+
+  [ ! -f "$structured_file" ] && return 0
+
+  mkdir -p "$ledger_dir"
+
+  # Extract the last "result" line from structured log
+  python3 -c "
+import json, sys
+from datetime import datetime
+
+structured_file = '$structured_file'
+project = '$project'
+run_type = '$run_type'
+session = '$session'
+ledger = '$ledger'
+
+result = None
+try:
+    with open(structured_file) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+                if obj.get('type') == 'result':
+                    result = obj
+            except:
+                continue
+except:
+    sys.exit(0)
+
+if not result:
+    sys.exit(0)
+
+now = datetime.now()
+entry = {
+    'date': now.strftime('%Y-%m-%d'),
+    'time': now.strftime('%H:%M:%S'),
+    'project': project,
+    'run_type': run_type,
+    'session': session,
+    'model': result.get('model', 'unknown'),
+    'input_tokens': result.get('input_tokens', 0),
+    'output_tokens': result.get('output_tokens', 0),
+    'cost_usd': result.get('cost_usd', 0),
+}
+
+with open(ledger, 'a') as f:
+    f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+" 2>/dev/null || true
+}
