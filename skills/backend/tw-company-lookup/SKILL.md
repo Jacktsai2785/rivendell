@@ -10,7 +10,7 @@ description: >
   DO NOT TRIGGER when: researching international companies, stock research
   (use investment-research), or general web scraping (use web-scraper).
 tags: [backend, taiwan]
-version: 1
+version: 2
 source: manual
 user_invocable: true
 ---
@@ -74,12 +74,13 @@ def lookup_company(search_term: str) -> dict:
 
         # 1. Load search page
         page.goto(FINDBIZ_URL, wait_until='networkidle', timeout=20000)
-        time.sleep(1)
+        page.wait_for_selector('input[name="qryCond"]', timeout=10000)
 
         # 2. Search
         page.fill('input[name="qryCond"]', search_term)
         page.click('input[type="submit"], button:has-text("查詢")')
-        time.sleep(3)
+        # Wait for results to appear (look for result count or detail link)
+        page.wait_for_selector('text=/共.*筆/, text=詳細資料, text=查無資料', timeout=15000)
 
         # 3. Check results count
         body = page.inner_text('body')
@@ -99,20 +100,26 @@ def lookup_company(search_term: str) -> dict:
                 'results_preview': body[:2000]
             }
 
-        # 5. Click detail
+        # 5. Click detail and wait for detail page to load
         page.click('text=詳細資料')
-        time.sleep(3)
+        page.wait_for_selector('text=統一編號', timeout=15000)
 
         results = {}
 
         # 6. Get basic info
         results['basic'] = page.inner_text('body')
 
-        # 7. Click through tabs
+        # 7. Click through tabs — wait for content to load after each click
         for tab in TABS:
             try:
                 page.click(f'text={tab}')
-                time.sleep(2)
+                # Wait for tab content: either a data table or "無資料" message
+                page.wait_for_selector(
+                    'table, text=/無.*資料/, text=/序號/',
+                    timeout=10000,
+                )
+                # Extra short wait for DOM to fully settle after tab switch
+                page.wait_for_timeout(500)
                 results[tab] = page.inner_text('body')
             except Exception as e:
                 results[tab] = f'Error: {e}'
@@ -243,8 +250,8 @@ Present results as a structured table:
 |-------|----------|
 | findbiz timeout | Increase timeout to 30000ms, retry once |
 | Multiple search results | Use 統一編號 instead of company name |
-| Empty text after click | Add `time.sleep(3)` before extraction |
-| Tab click fails | Tab may not exist for this company (e.g., no factories) — skip |
+| Empty text after tab click | `wait_for_selector` handles this — waits for table/data before reading. If still empty, increase `wait_for_timeout()` to 1000ms |
+| Tab click fails | Tab may not exist for this company (e.g., no factories) — skip gracefully |
 | Playwright not installed | `pip install playwright && playwright install chromium` |
 
 ## ROC Calendar Conversion
