@@ -4,9 +4,12 @@ description: >
   B2B customer intelligence: company name → structured web research → actionable
   sales report. Uses WebSearch + Playwright (findbiz.nat.gov.tw for TW companies)
   to gather company overview, leadership, financials, competitors, pain points,
-  and sales strategy. Outputs markdown report + saves to reports/customer-intel/.
+  and sales strategy. Markdown report is SSOT, auto-synced to Nexus intel API.
+  Supports conversational enrichment — user adds info via chat, agent updates
+  both md and Nexus together.
   TRIGGER when: user asks to research a company, prepare for a client meeting,
-  gather customer intelligence, or says "客戶調查" / "公司調查" / "會前準備" / "情蒐".
+  gather customer intelligence, update client info, or says "客戶調查" / "公司調查" /
+  "會前準備" / "情蒐" / "更新[公司名]報告".
   DO NOT TRIGGER when: researching stocks or investments (use investment-research),
   debugging code (use systematic-debugging), or reviewing code (use code-reviewer).
 tags: [workflow, sales]
@@ -25,7 +28,41 @@ Structured B2B customer research workflow. Input a company name, get an actionab
 2. **Find entry points** — pain points, challenges, and how our capabilities map to their needs
 3. **Prepare for the meeting** — talking points, topics to avoid, risk assessment
 
-## Research Workflow
+## Architecture: md as Single Source of Truth
+
+```
+┌─────────────────────────────────────────────────────┐
+│  reports/customer-intel/[company]_[date].md          │  ← SSOT
+│  (complete intel report, 8 sections)                 │
+└────────────┬──────────────────────┬──────────────────┘
+             │ auto-sync on change  │ read for answers
+             ▼                      ▼
+   ┌─────────────────┐    ┌──────────────────┐
+   │  Nexus Intel API │    │  Agent 對話查詢   │
+   │  (structured)    │    │  (read md → reply)│
+   └─────────────────┘    └──────────────────┘
+```
+
+**Rules:**
+1. **md is SSOT** — all changes go to md first, then sync to Nexus
+2. **Nexus is a projection** — never edit Nexus directly; always derive from md
+3. **Agent handles sync** — user talks to agent, agent updates md + Nexus together
+4. **Conversation-first** — user adds/corrects info via chat, agent writes to correct section
+
+## Lifecycle
+
+```
+Phase 1: Research     /customer-intel [公司名]
+  → 產出 md 報告 → 解析 parsed_json → POST intel → confirm → materialize
+
+Phase 2: Enrich       使用者對話補充（聯絡人、預算、會議紀錄...）
+  → agent 更新 md 對應 section → PATCH intel parsed_json → re-materialize
+
+Phase 3: Maintain     持續更新（新新聞、人事異動、deal 進展）
+  → agent 更新 md → sync Nexus
+```
+
+## Research Workflow (Phase 1)
 
 ```
 1. Input & Disambiguation  →  2. Official Registry   →  3. Company Overview
@@ -33,6 +70,10 @@ Structured B2B customer research workflow. Input a company name, get an actionab
 
 4. Deep Intel Collection   →  5. Pain Points Analysis →  6. Report Output
    (news, people, finance)     (challenges + our fit)     (markdown + file save)
+
+7. Nexus Sync              →  8. Done
+   (POST + confirm +            (report in terminal +
+    materialize)                  saved to file)
 ```
 
 ---
@@ -188,6 +229,8 @@ Every finding MUST be tagged:
 # 客戶情報報告 — [公司名稱]
 > 調查日期：[YYYY-MM-DD]
 > 調查方式：customer-intel skill
+> Nexus Intel ID：[auto-filled after sync]
+> 最後更新：[YYYY-MM-DD]
 
 ---
 
@@ -326,9 +369,105 @@ Information depth varies dramatically by company size. Adapt expectations:
 
 ---
 
-## nx_intel JSON Format (Optional)
+## Phase 2: Conversational Enrichment
 
-When user requests sales-assistant integration, output compatible JSON:
+When user provides new information via chat, update BOTH md and Nexus.
+
+### Trigger Patterns
+
+- "奇美的 IT 主管叫林志明" → update 三、關鍵人物
+- "把 deal potential 改成 high" → update 八、風險評估
+- "他們預算大概 500 萬" → update 四、財務狀況
+- "剛開完會，他們對 IoT 很有興趣" → update 二、近期動態 + 六、痛點
+
+### Update Procedure
+
+```
+1. Identify which section(s) to update
+2. Read current md file
+3. Edit the relevant section (preserve other sections)
+4. Parse updated md → generate new parsed_json
+5. PATCH /api/nx/intel/{intel_id} with updated parsed_json
+6. POST /api/nx/intel/{intel_id}/materialize (if new contacts/entities)
+7. Confirm changes to user
+```
+
+### Section → parsed_json Field Mapping
+
+| md Section | parsed_json Fields |
+|-----------|-------------------|
+| 一、公司概覽 | `company_name`, `industry`, `industry_label` |
+| 三、關鍵人物 | `contact_name`, `contact_title`, `contact_email`, `contact_phone`, `decision_maker` |
+| 四、財務狀況 | `budget` |
+| 六、痛點與挑戰 | `pain_points` |
+| 八、風險評估 | `deal_potential` |
+| 全域 | `notes` (append-style) |
+
+### Re-materialize Rules
+
+Only re-materialize when:
+- New contact added (creates contact entity)
+- Company name changed (unlikely but possible)
+- Decision maker changed
+
+Do NOT re-materialize for:
+- Notes update
+- Pain points change
+- Deal potential change
+→ These only need `PATCH` on the intel record.
+
+### Nexus API Quick Reference
+
+```bash
+# Update intel parsed_json
+curl -X PATCH http://localhost:8002/api/nx/intel/{intel_id} \
+  -H "Content-Type: application/json" \
+  -d '{"parsed_json": "{...updated json...}"}'
+
+# Re-materialize (only when new entities)
+curl -X POST http://localhost:8002/api/nx/intel/{intel_id}/materialize
+```
+
+### Finding the Intel ID
+
+The md report header should include the Nexus intel ID after initial sync:
+
+```markdown
+> 調查日期：2026-03-15
+> Nexus Intel ID：24
+```
+
+If missing, search by company name:
+```bash
+curl -s http://localhost:8002/api/nx/intel/ | python3 -c "
+import json, sys
+for i in json.load(sys.stdin):
+    if '[company_name]' in (i.get('raw_input') or ''):
+        print(f'Intel ID: {i[\"id\"]}')
+"
+```
+
+---
+
+## Phase 3: Continuous Maintenance
+
+For existing reports, periodically refresh with new data:
+
+```
+使用者：「更新奇美食品的報告」
+  → agent 讀取現有 md
+  → 重新執行 Step 3a (新聞) + Step 3b (人事) 搜尋
+  → 比對差異，僅更新有變動的 section
+  → sync Nexus
+  → 在 md 底部加上更新紀錄：
+    _Updated on [date]: 新增 2026 Q1 新聞 3 則_
+```
+
+---
+
+## nx_intel JSON Format
+
+Auto-generated from md report during Nexus sync:
 
 ```json
 {
