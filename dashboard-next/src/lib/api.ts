@@ -53,6 +53,7 @@ export interface HookInfo {
 export interface AgentInfo {
   label: string;
   name: string;
+  description: string;
   project: string;
   plist_path: string;
   working_directory: string;

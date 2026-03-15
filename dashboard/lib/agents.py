@@ -28,6 +28,7 @@ ROLE_MAP: dict[str, tuple[str, str]] = {
 @dataclass
 class AgentsJsonConfig:
     """Parsed config from .claude/agents.json for a specific agent."""
+    description: str = ""
     merge_strategy: str = "auto"  # "auto" or "pr"
     allowed_paths: list[str] = field(default_factory=list)
     forbidden_paths: list[str] = field(default_factory=list)
@@ -168,6 +169,7 @@ def read_agents_json(project_dir: str | Path) -> dict[str, AgentsJsonConfig]:
         git = agent_data.get("git", {})
         qa = agent_data.get("qa", {})
         configs[agent_name] = AgentsJsonConfig(
+            description=agent_data.get("description", ""),
             merge_strategy=git.get("merge_strategy", "auto"),
             allowed_paths=git.get("allowed_paths", []),
             forbidden_paths=git.get("forbidden_paths", []),
@@ -279,7 +281,18 @@ def list_agents() -> list[AgentInfo]:
             agents.append(agent)
             seen_labels.add(agent.label)
 
-    # 3. Enrich agents with agents.json config
+    # 3. Enrich from projects.json (authoritative source for project + working_directory)
+    from lib.projects import load_projects
+    projects = load_projects()
+    for agent in agents:
+        for proj_name, proj in projects.items():
+            if agent.name in proj.agents:
+                agent.project = proj_name
+                if not agent.working_directory and proj.repo:
+                    agent.working_directory = proj.repo
+                break
+
+    # 4. Enrich agents with agents.json config
     configs_cache: dict[str, dict[str, AgentsJsonConfig]] = {}
     for agent in agents:
         wd = agent.working_directory
@@ -296,17 +309,6 @@ def list_agents() -> list[AgentInfo]:
                 if key in agent.name or agent.name in key:
                     agent.agents_json_config = cfg
                     break
-
-    # 4. Override project from projects.json (authoritative source)
-    from lib.projects import load_projects
-    projects = load_projects()
-    project_agent_map: dict[str, str] = {}
-    for proj_name, proj in projects.items():
-        for agent_name in proj.agents:
-            project_agent_map[agent_name] = proj_name
-    for agent in agents:
-        if agent.name in project_agent_map:
-            agent.project = project_agent_map[agent.name]
 
     return agents
 

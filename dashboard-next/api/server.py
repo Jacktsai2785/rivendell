@@ -76,6 +76,7 @@ def _agent_to_dict(agent) -> dict[str, Any]:
         commit = get_recent_commit(agent.working_directory, agent.name)
 
     cfg = agent.agents_json_config
+    description = cfg.description if cfg else ""
     git_safety = None
     if cfg and (cfg.allowed_paths or cfg.forbidden_paths or cfg.max_files_changed):
         git_safety = {
@@ -96,6 +97,7 @@ def _agent_to_dict(agent) -> dict[str, Any]:
     return {
         "label": agent.label,
         "name": agent.name,
+        "description": description,
         "project": agent.project,
         "plist_path": str(agent.plist_path),
         "working_directory": agent.working_directory or _resolve_working_dir(agent),

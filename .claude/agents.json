@@ -2,7 +2,7 @@
   "agents": {
     "maintain": {
       "type": "shell",
-      "description": "Nightly: deploy check, permissions sync, agent health, audit",
+      "description": "每晚維運：部署檢查、權限同步、agent 健康狀態、審計",
       "script": "bin/sk-maintain-cron",
       "schedule": { "type": "daily", "hour": 22, "minute": 0 },
       "logs": "reports/",
@@ -15,7 +15,7 @@
     },
     "harvest": {
       "type": "claude",
-      "description": "Analyze recent Claude sessions for skill candidates (every 8h)",
+      "description": "每 8 小時分析近期 Claude 對話，挖掘可複用的 skill 候選",
       "script": "bin/sk-harvest-cron",
       "schedule": { "type": "interval", "interval": 28800 },
       "logs": "reports/",
@@ -28,7 +28,7 @@
     },
     "tester": {
       "type": "shell",
-      "description": "Daily: validate 50 skills structure + dashboard build + agent health",
+      "description": "每日驗證：50+ skills 結構檢查、dashboard 建置測試、agent 健康狀態",
       "script": "bin/sk-tester-cron",
       "schedule": { "type": "daily", "hour": 6, "minute": 0 },
       "logs": "reports/",
