@@ -1,0 +1,76 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: Frontend (lint + build)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      contains(join(github.event.pull_request.*.filename, ','), 'dashboard-next/') ||
+      contains(join(github.event.pull_request.*.filename, ','), '.github/workflows/')
+    defaults:
+      run:
+        working-directory: dashboard-next
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dashboard-next/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  backend:
+    name: Backend (lint + import check)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      contains(join(github.event.pull_request.*.filename, ','), 'dashboard-next/api/')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r dashboard-next/api/requirements.txt ruff
+      - run: ruff check dashboard-next/api/
+      - name: Smoke test — verify server imports
+        working-directory: dashboard-next
+        run: python -c "from api.server import app; print('OK')"
+
+  skills:
+    name: Skill structure validation
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      contains(join(github.event.pull_request.*.filename, ','), 'skills/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate SKILL.md frontmatter
+        run: |
+          fail=0
+          for skill_md in skills/*/*/SKILL.md; do
+            dir="$(dirname "$skill_md")"
+            name="$(basename "$dir")"
+            if ! head -20 "$skill_md" | grep -q '^name:'; then
+              echo "FAIL: $skill_md — missing name"
+              fail=$((fail + 1))
+            fi
+            if ! head -20 "$skill_md" | grep -q '^description:'; then
+              echo "FAIL: $skill_md — missing description"
+              fail=$((fail + 1))
+            fi
+          done
+          if [ "$fail" -gt 0 ]; then
+            echo "$fail skill(s) failed validation"
+            exit 1
+          fi
+          echo "All skills passed"
