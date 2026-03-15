@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -10,7 +10,7 @@ import {
   Coins,
   Sparkles,
 } from "lucide-react";
-import { apiFetch, type ProjectsData } from "@/lib/api";
+import { apiFetch, type ProjectsData, type AgentsData } from "@/lib/api";
 
 interface NavItem {
   href: string;
@@ -27,6 +27,70 @@ const NAV: NavItem[] = [
   { href: "/skills", label: "Skill 總覽", icon: Sparkles },
 ];
 
+interface RunningAgent {
+  label: string;
+  name: string;
+  project: string;
+  pid: number | null;
+}
+
+function RunningAgentsPanel() {
+  const [agents, setAgents] = useState<RunningAgent[]>([]);
+
+  const poll = useCallback(() => {
+    apiFetch<AgentsData>("/api/agents")
+      .then((data) => {
+        const running = data.agents
+          .filter((a) => a.pid !== null)
+          .map((a) => ({
+            label: a.label,
+            name: a.name,
+            project: a.project,
+            pid: a.pid,
+          }));
+        setAgents(running);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => clearInterval(id);
+  }, [poll]);
+
+  if (agents.length === 0) return null;
+
+  return (
+    <div className="border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
+      <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+        </span>
+        執行中 ({agents.length})
+      </p>
+      <div className="space-y-1">
+        {agents.map((a) => (
+          <Link
+            key={a.label}
+            href={`/agents/${encodeURIComponent(a.label)}`}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+            <span className="min-w-0 truncate font-medium">
+              {a.name}
+            </span>
+            <span className="ml-auto shrink-0 font-mono text-[10px] text-zinc-400">
+              {a.project}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [projects, setProjects] = useState<string[]>([]);
@@ -38,7 +102,7 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <aside className="w-56 shrink-0 border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 min-h-screen">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 min-h-screen">
       <div className="px-4 py-6">
         <h1 className="text-lg font-bold tracking-tight">sk-dashboard</h1>
       </div>
@@ -76,6 +140,11 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Running agents indicator — always visible */}
+      <div className="mt-auto">
+        <RunningAgentsPanel />
+      </div>
     </aside>
   );
 }

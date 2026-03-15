@@ -55,6 +55,7 @@ export interface AgentInfo {
   name: string;
   project: string;
   plist_path: string;
+  working_directory: string;
   schedule: Record<string, unknown>;
   schedule_display: string;
   schedule_list: Record<string, number>[];
@@ -187,4 +188,33 @@ export interface ProjectsData {
 
 export interface ProjectDetailData extends ProjectInfo {
   agent_details: AgentInfo[];
+}
+
+export interface AgentFile {
+  name: string;
+  path: string;
+  size: number;
+  modified: number;
+  type: string;
+}
+
+export interface AgentFileContent {
+  name: string;
+  content: string;
+  size: number;
+}
+
+export interface TimelineEvent {
+  ts: string;
+  type: "tool" | "text" | "thinking" | "result" | "auto_commit" | "auto_push" | string;
+  name?: string;
+  input?: Record<string, unknown>;
+  text?: string;
+  preview?: string;
+  len?: number;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  cost_usd?: number;
+  detail?: string;
 }

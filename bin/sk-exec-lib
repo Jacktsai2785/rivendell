@@ -105,7 +105,7 @@ ${prompt}"
   cmd+=("--name" "$session_name")
 
   if [ "$structured" = "1" ]; then
-    cmd+=("--output-format" "stream-json")
+    cmd+=("--verbose" "--output-format" "stream-json")
   fi
 
   cmd+=("$prompt")

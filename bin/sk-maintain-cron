@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Wrapper for launchd — runs sk maintain with dated log files
+# Records execution to dashboard DB via sk-exec-lib
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,6 +9,19 @@ TODAY="$(date '+%Y-%m-%d')"
 
 mkdir -p "$REPORT_DIR"
 
+# Source exec lib for _sk_exec_record_run
+source "$REPO_DIR/bin/sk-exec-lib"
+
+start_epoch=$(date +%s)
+
 "$REPO_DIR/bin/sk" maintain \
   > "$REPORT_DIR/maintain-${TODAY}.log" \
-  2> "$REPORT_DIR/maintain-${TODAY}-error.log"
+  2> "$REPORT_DIR/maintain-${TODAY}-error.log" \
+  && run_exit=0 || run_exit=$?
+
+end_epoch=$(date +%s)
+
+_sk_exec_record_run "skills-test" "maintain" "$start_epoch" "$end_epoch" \
+  "$run_exit" "" "" "" "" "" ""
+
+exit "$run_exit"

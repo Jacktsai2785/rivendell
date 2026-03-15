@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Scheduled session harvest — analyze recent Claude Code sessions for skill candidates.
 # Runs frequently (every 8h) but only produces a report when enough new sessions exist.
+# Records execution to dashboard DB via sk-exec-lib
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,6 +13,9 @@ STATE_FILE="$REPORT_DIR/.harvest-state"
 MIN_SESSIONS=3  # minimum new sessions to trigger a harvest
 
 mkdir -p "$REPORT_DIR"
+
+# Source exec lib for _sk_exec_record_run
+source "$REPO_DIR/bin/sk-exec-lib"
 
 # --- Determine time window: since last harvest or 24h, whichever is shorter ---
 if [ -f "$STATE_FILE" ]; then
@@ -104,10 +108,19 @@ Only suggest skills that don't already exist.
 Write the report in Traditional Chinese (繁體中文)."
 
 # --- Run Claude in headless mode ---
+start_epoch=$(date +%s)
+
 claude -p "$PROMPT" \
     --output-format text \
     > "$REPORT_DIR/harvest-${TODAY}.md" \
-    2> "$REPORT_DIR/harvest-${TODAY}-error.log"
+    2> "$REPORT_DIR/harvest-${TODAY}-error.log" \
+    && run_exit=0 || run_exit=$?
+
+end_epoch=$(date +%s)
+
+# --- Record run to dashboard DB ---
+_sk_exec_record_run "skills-test" "harvest" "$start_epoch" "$end_epoch" \
+  "$run_exit" "" "" "" "" "" ""
 
 # --- Update state ---
 date '+%Y-%m-%d %H:%M:%S' > "$STATE_FILE"

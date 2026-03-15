@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AgentInfo, AgentRun } from "@/lib/api";
 import { apiFetch, apiPost } from "@/lib/api";
 import RunHistory from "./RunHistory";
+import Link from "next/link";
 import {
   ChevronDown,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   Download,
   RefreshCw,
   Shield,
+  ExternalLink,
 } from "lucide-react";
 
 function StatusBadge({ agent }: { agent: AgentInfo }) {
@@ -34,12 +36,18 @@ export default function AgentCard({
   const [showHistory, setShowHistory] = useState(false);
   const [runs, setRuns] = useState<AgentRun[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  async function action(path: string, body: Record<string, unknown>) {
+  async function action(path: string, body: Record<string, unknown>, successMsg?: string) {
     setBusy(true);
     setError(null);
+    setToast(null);
     try {
       await apiPost(path, body);
+      if (successMsg) {
+        setToast(successMsg);
+        setTimeout(() => setToast(null), 3000);
+      }
       onRefresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -70,9 +78,13 @@ export default function AgentCard({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-base font-semibold">
+          <Link
+            href={`/agents/${encodeURIComponent(agent.label)}`}
+            className="text-base font-semibold hover:text-blue-600 dark:hover:text-blue-400"
+          >
             {agent.project}/{agent.name}
-          </h3>
+            <ExternalLink size={14} className="ml-1.5 inline" />
+          </Link>
           <p className="text-xs text-zinc-500">{agent.role_badge}</p>
         </div>
         <div className="flex items-center gap-4 text-sm">
@@ -131,7 +143,7 @@ export default function AgentCard({
         {agent.installed && (
           <button
             disabled={busy}
-            onClick={() => action("/api/agents/start", { label: agent.label })}
+            onClick={() => action("/api/agents/start", { label: agent.label }, `已觸發 ${agent.name}，背景執行中...`)}
             className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             <RefreshCw size={14} /> 立即執行
@@ -141,6 +153,9 @@ export default function AgentCard({
 
       {error && (
         <p className="mt-2 text-xs text-red-500">{error}</p>
+      )}
+      {toast && (
+        <p className="mt-2 text-xs text-green-600 dark:text-green-400">{toast}</p>
       )}
 
       {/* Collapsible sections */}

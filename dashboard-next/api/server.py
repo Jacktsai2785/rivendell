@@ -42,7 +42,17 @@ from lib.tokens import (
 from lib.skills import list_skills
 from lib.hooks import list_hooks
 
-app = FastAPI(title="sk-dashboard API")
+app = FastAPI(
+    title="sk-dashboard API",
+    openapi_tags=[
+        {"name": "Overview", "description": "Dashboard overview metrics"},
+        {"name": "Agents", "description": "Agent lifecycle & scheduling"},
+        {"name": "Projects", "description": "Project CRUD & detail"},
+        {"name": "Tokens", "description": "Token usage & cost analytics"},
+        {"name": "Skills", "description": "Skills catalog"},
+        {"name": "Collaboration", "description": "Learnings & error tracking"},
+    ],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -74,11 +84,21 @@ def _agent_to_dict(agent) -> dict[str, Any]:
             "max_files_changed": cfg.max_files_changed,
         }
 
+    def _resolve_working_dir(a) -> str:
+        """Fallback: resolve working dir from projects.json repo path."""
+        if a.project and a.project != "unknown":
+            projects = load_projects()
+            p = projects.get(a.project)
+            if p:
+                return p.repo
+        return ""
+
     return {
         "label": agent.label,
         "name": agent.name,
         "project": agent.project,
         "plist_path": str(agent.plist_path),
+        "working_directory": agent.working_directory or _resolve_working_dir(agent),
         "schedule": agent.schedule,
         "schedule_display": agent.schedule_display,
         "schedule_list": agent.schedule_list,
@@ -96,7 +116,7 @@ def _agent_to_dict(agent) -> dict[str, Any]:
 
 # ── Overview ──────────────────────────────────────────────────────────
 
-@app.get("/api/overview")
+@app.get("/api/overview", tags=["Overview"])
 def api_overview() -> dict[str, Any]:
     agents = list_agents()
     hooks = list_hooks()
@@ -136,7 +156,7 @@ def api_overview() -> dict[str, Any]:
 
 # ── Agents ────────────────────────────────────────────────────────────
 
-@app.get("/api/agents")
+@app.get("/api/agents", tags=["Agents"])
 def api_agents() -> dict[str, Any]:
     agents = list_agents()
     last_success = get_last_success_time()
@@ -163,7 +183,7 @@ class AgentAction(BaseModel):
     label: str
 
 
-@app.post("/api/agents/load")
+@app.post("/api/agents/load", tags=["Agents"])
 def api_agent_load(body: AgentAction) -> dict[str, Any]:
     ok = load_agent(body.label)
     if not ok:
@@ -171,7 +191,7 @@ def api_agent_load(body: AgentAction) -> dict[str, Any]:
     return {"ok": True}
 
 
-@app.post("/api/agents/unload")
+@app.post("/api/agents/unload", tags=["Agents"])
 def api_agent_unload(body: AgentAction) -> dict[str, Any]:
     ok = unload_agent(body.label)
     if not ok:
@@ -179,7 +199,7 @@ def api_agent_unload(body: AgentAction) -> dict[str, Any]:
     return {"ok": True}
 
 
-@app.post("/api/agents/start")
+@app.post("/api/agents/start", tags=["Agents"])
 def api_agent_start(body: AgentAction) -> dict[str, Any]:
     ok = start_agent(body.label)
     if not ok:
@@ -191,7 +211,7 @@ class InstallAction(BaseModel):
     plist_path: str
 
 
-@app.post("/api/agents/install")
+@app.post("/api/agents/install", tags=["Agents"])
 def api_agent_install(body: InstallAction) -> dict[str, Any]:
     ok, logs = install_agent(Path(body.plist_path))
     if not ok:
@@ -204,7 +224,7 @@ class ScheduleUpdate(BaseModel):
     entries: list[dict[str, int]]
 
 
-@app.post("/api/agents/schedule")
+@app.post("/api/agents/schedule", tags=["Agents"])
 def api_agent_schedule(body: ScheduleUpdate) -> dict[str, Any]:
     agents = list_agents()
     agent = next((a for a in agents if a.label == body.label), None)
@@ -216,7 +236,68 @@ def api_agent_schedule(body: ScheduleUpdate) -> dict[str, Any]:
     return {"ok": True, "message": msg}
 
 
-@app.get("/api/agents/{agent_label}/runs")
+@app.get("/api/agents/{agent_label}/live", tags=["Agents"])
+def api_agent_live(agent_label: str, offset: int = 0) -> dict[str, Any]:
+    """Live execution status: is agent running + tail of stdout log."""
+    import re as _re
+    import subprocess
+
+    agents = list_agents()
+    agent = next((a for a in agents if a.label == agent_label), None)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    # Check if running via launchctl
+    running = False
+    pid = None
+    try:
+        result = subprocess.run(
+            ["launchctl", "list", agent_label],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if '"PID"' in line:
+                m = _re.search(r"(\d+)", line)
+                if m:
+                    pid = int(m.group(1))
+                    running = True
+    except Exception:
+        pass
+
+    # Find and tail stdout log
+    wd = agent.working_directory
+    if not wd and agent.project and agent.project != "unknown":
+        projects = load_projects()
+        p = projects.get(agent.project)
+        if p:
+            wd = p.repo
+
+    log_lines: list[str] = []
+    log_size = 0
+    if wd:
+        reports_dir = Path(wd) / "reports"
+        # Look for stdout log
+        stdout_log = reports_dir / f"{agent.name}-stdout.log"
+        if stdout_log.is_file():
+            content = stdout_log.read_text(errors="replace")
+            # Strip ANSI
+            content = _re.sub(r'\033\[[0-9;]*m', '', content)
+            all_lines = content.splitlines()
+            log_size = len(all_lines)
+            # Return lines after offset
+            if offset < log_size:
+                log_lines = all_lines[offset:]
+
+    return {
+        "running": running,
+        "pid": pid,
+        "log_lines": log_lines,
+        "log_size": log_size,
+        "offset": offset,
+    }
+
+
+@app.get("/api/agents/{agent_label}/runs", tags=["Agents"])
 def api_agent_runs(agent_label: str, limit: int = 10) -> list[dict[str, Any]]:
     conn = get_conn()
     parts = agent_label.split(".")
@@ -252,9 +333,222 @@ def api_agent_runs(agent_label: str, limit: int = 10) -> list[dict[str, Any]]:
     ]
 
 
+# ── Agent Files ──────────────────────────────────────────────────────
+
+@app.get("/api/agents/{agent_label}/files", tags=["Agents"])
+def api_agent_files(agent_label: str) -> list[dict[str, Any]]:
+    """List log/report files for an agent."""
+    agents = list_agents()
+    agent = next((a for a in agents if a.label == agent_label), None)
+    if not agent:
+        return []
+
+    wd = agent.working_directory
+    if not wd and agent.project and agent.project != "unknown":
+        projects = load_projects()
+        p = projects.get(agent.project)
+        if p:
+            wd = p.repo
+    if not wd:
+        return []
+
+    reports_dir = Path(wd) / "reports"
+    if not reports_dir.is_dir():
+        return []
+
+    # Match files by agent name prefix or known output patterns
+    name = agent.name
+    files = []
+    for f in sorted(reports_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not f.is_file():
+            continue
+        fname = f.name
+        # Match: agent-name*.log, agent-name*.md, agent-name*.jsonl,
+        #        stdout/stderr logs, daily/weekly reports
+        if (fname.startswith(name)
+            or fname.startswith(f"{name}-stdout")
+            or fname.startswith(f"{name}-stderr")
+            or (name.endswith("-daily") and fname.startswith("daily-"))
+            or (name.endswith("-weekly") and fname.startswith("weekly-"))):
+            stat = f.stat()
+            files.append({
+                "name": fname,
+                "path": str(f),
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+                "type": f.suffix.lstrip("."),
+            })
+    return files[:30]
+
+
+@app.get("/api/agents/{agent_label}/timeline", tags=["Agents"])
+def api_agent_timeline(
+    agent_label: str,
+    run_index: int = 0,
+    started_at: str | None = None,
+) -> list[dict[str, Any]]:
+    """Parse structured JSONL into a timeline of events.
+
+    If started_at is provided (e.g. '2026-03-15T12:54:12'), match the
+    structured log file whose filename timestamp is closest to that time.
+    Otherwise fall back to run_index (0 = most recent).
+    """
+    agents = list_agents()
+    agent = next((a for a in agents if a.label == agent_label), None)
+    if not agent:
+        return []
+
+    wd = agent.working_directory
+    if not wd and agent.project and agent.project != "unknown":
+        projects = load_projects()
+        p = projects.get(agent.project)
+        if p:
+            wd = p.repo
+    if not wd:
+        return []
+
+    reports_dir = Path(wd) / "reports"
+    if not reports_dir.is_dir():
+        return []
+
+    # Find structured JSONL files, sorted newest first
+    name = agent.name
+    # Also match base name (research-agent for research-agent-weekly)
+    base = name.replace("-weekly", "").replace("-daily", "")
+    jsonl_files = sorted(
+        [f for f in reports_dir.glob("*.structured.jsonl")
+         if f.name.startswith(name) or f.name.startswith(base)],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+    if not jsonl_files:
+        return []
+
+    # Match by started_at timestamp if provided
+    target = None
+    if started_at:
+        # Extract date+time from started_at: "2026-03-15T12:54:12" → "20260315-1254"
+        import re
+        clean = re.sub(r"[T:\-]", "", started_at)[:12]  # "20260315125412"
+        match_prefix = clean[:8] + "-" + clean[8:]  # "20260315-125412"
+        for f in jsonl_files:
+            # Filename like: research-agent-20260315-125412.structured.jsonl
+            if match_prefix[:13] in f.name:  # match "20260315-1254"
+                target = f
+                break
+        # Fallback: closest by mtime
+        if not target:
+            from datetime import datetime
+            try:
+                target_ts = datetime.fromisoformat(started_at).timestamp()
+                target = min(jsonl_files, key=lambda f: abs(f.stat().st_mtime - target_ts))
+            except ValueError:
+                pass
+
+    if not target:
+        if run_index >= len(jsonl_files):
+            return []
+        target = jsonl_files[run_index]
+    events = []
+    import json as _json
+    for line in target.read_text(errors="replace").splitlines():
+        try:
+            obj = _json.loads(line)
+        except (ValueError, _json.JSONDecodeError):
+            continue
+        etype = obj.get("type", "")
+        ts_val = obj.get("ts", "")
+        if etype == "tool":
+            # Parse input JSON for display
+            input_str = obj.get("input", "")
+            try:
+                input_parsed = _json.loads(input_str) if isinstance(input_str, str) else input_str
+            except (ValueError, _json.JSONDecodeError):
+                input_parsed = input_str
+            events.append({
+                "ts": ts_val,
+                "type": "tool",
+                "name": obj.get("name", ""),
+                "input": input_parsed,
+            })
+        elif etype == "text":
+            events.append({
+                "ts": ts_val,
+                "type": "text",
+                "text": obj.get("text", "")[:500],
+                "len": obj.get("len", 0),
+            })
+        elif etype == "thinking":
+            events.append({
+                "ts": ts_val,
+                "type": "thinking",
+                "preview": obj.get("preview", ""),
+                "len": obj.get("len", 0),
+            })
+        elif etype == "result":
+            events.append({
+                "ts": ts_val,
+                "type": "result",
+                "model": obj.get("model", ""),
+                "input_tokens": obj.get("input_tokens", 0),
+                "output_tokens": obj.get("output_tokens", 0),
+                "cost_usd": obj.get("cost_usd", 0),
+            })
+        elif etype in ("auto_commit", "auto_push", "qa_gate_failed", "path_filter_rejected"):
+            events.append({
+                "ts": ts_val,
+                "type": etype,
+                "detail": obj.get("detail", ""),
+            })
+
+    return events
+
+
+@app.get("/api/agents/{agent_label}/file", tags=["Agents"])
+def api_agent_file(agent_label: str, path: str = "") -> dict[str, Any]:
+    """Read content of a specific agent file."""
+    agents = list_agents()
+    agent = next((a for a in agents if a.label == agent_label), None)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    wd = agent.working_directory
+    if not wd and agent.project and agent.project != "unknown":
+        projects = load_projects()
+        p = projects.get(agent.project)
+        if p:
+            wd = p.repo
+    if not wd:
+        raise HTTPException(404, "Agent working directory unknown")
+
+    file_path = Path(path)
+    reports_dir = Path(wd) / "reports"
+
+    # Security: only allow reading from the agent's reports directory
+    try:
+        file_path.resolve().relative_to(reports_dir.resolve())
+    except ValueError:
+        raise HTTPException(403, "Access denied")
+
+    if not file_path.is_file():
+        raise HTTPException(404, "File not found")
+
+    content = file_path.read_text(errors="replace")
+    # Strip ANSI escape codes for display
+    import re
+    content = re.sub(r'\033\[[0-9;]*m', '', content)
+
+    return {
+        "name": file_path.name,
+        "content": content,
+        "size": len(content),
+    }
+
+
 # ── Collaboration (learnings) ────────────────────────────────────────
 
-@app.get("/api/collaboration")
+@app.get("/api/collaboration", tags=["Collaboration"])
 def api_collaboration() -> dict[str, Any]:
     import re
 
@@ -298,7 +592,7 @@ def api_collaboration() -> dict[str, Any]:
 
 # ── Tokens ────────────────────────────────────────────────────────────
 
-@app.get("/api/tokens")
+@app.get("/api/tokens", tags=["Tokens"])
 def api_tokens(days: int = 30) -> dict[str, Any]:
     daily = get_daily_usage(days)
     models = get_model_summary()
@@ -332,7 +626,7 @@ def api_tokens(days: int = 30) -> dict[str, Any]:
     }
 
 
-@app.get("/api/tokens/filtered")
+@app.get("/api/tokens/filtered", tags=["Tokens"])
 def api_tokens_filtered(
     date_start: str | None = None,
     date_end: str | None = None,
@@ -396,7 +690,7 @@ def _project_to_dict(p, agents_list: list | None = None) -> dict[str, Any]:
     return d
 
 
-@app.get("/api/projects")
+@app.get("/api/projects", tags=["Projects"])
 def api_projects() -> dict[str, Any]:
     agents = list_agents()
     projects = load_projects()
@@ -406,7 +700,7 @@ def api_projects() -> dict[str, Any]:
     }
 
 
-@app.get("/api/projects/{name}")
+@app.get("/api/projects/{name}", tags=["Projects"])
 def api_project_detail(name: str) -> dict[str, Any]:
     p = get_project(name)
     if not p:
@@ -423,7 +717,7 @@ class ProjectCreate(BaseModel):
     agents: list[str] = []
 
 
-@app.post("/api/projects")
+@app.post("/api/projects", tags=["Projects"])
 def api_project_create(body: ProjectCreate) -> dict[str, Any]:
     try:
         p = create_project(body.name, body.repo, body.description, body.agents)
@@ -438,7 +732,7 @@ class ProjectUpdate(BaseModel):
     agents: list[str] | None = None
 
 
-@app.put("/api/projects/{name}")
+@app.put("/api/projects/{name}", tags=["Projects"])
 def api_project_update(name: str, body: ProjectUpdate) -> dict[str, Any]:
     kwargs = {k: v for k, v in body.model_dump().items() if v is not None}
     try:
@@ -448,7 +742,7 @@ def api_project_update(name: str, body: ProjectUpdate) -> dict[str, Any]:
     return {"ok": True, "project": _project_to_dict(p)}
 
 
-@app.delete("/api/projects/{name}")
+@app.delete("/api/projects/{name}", tags=["Projects"])
 def api_project_delete(name: str) -> dict[str, Any]:
     try:
         delete_project(name)
@@ -459,7 +753,7 @@ def api_project_delete(name: str) -> dict[str, Any]:
 
 # ── Skills ────────────────────────────────────────────────────────────
 
-@app.get("/api/skills")
+@app.get("/api/skills", tags=["Skills"])
 def api_skills() -> list[dict[str, Any]]:
     skills = list_skills()
     return [
