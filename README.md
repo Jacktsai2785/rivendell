@@ -7,11 +7,11 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 ```
 skills/
 ├── meta/       # Claude Code 自身管理工具 (12)
-├── workflow/   # 工作流程與規劃 (13)
+├── workflow/   # 工作流程與規劃 (14)
 ├── quality/    # 程式品質、審查、除錯、測試 (9)
 ├── git/        # Git/GitHub 操作 (1)
 ├── frontend/   # 前端設計、iOS、測試 (5)
-├── backend/    # 後端服務 (3)
+├── backend/    # 後端服務 (5)
 └── docs/       # 文件處理與 MCP 建置 (6)
 ```
 
@@ -45,7 +45,7 @@ cd ~/any-project && claude
 | `./bin/sk agent <cmd>` | Manage automated agents: `list`, `start`, `stop`, `status`, `log`, `create` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (49 skills)
+## Skills Catalog (52 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -81,6 +81,7 @@ cd ~/any-project && claude
 | **context-recovery** | 自動 + hook | Session 壓縮後自動復原工作上下文，使用 Git 狀態與專案 metadata |
 | **headless-agent** | 自動 | 將 Claude Code 作為非互動式 agent 執行，含排程、結構化日誌、auto-commit/push、QA gate、branch workflow、multi-role agents |
 | **launchd-agent** | 自動 | 建立、設定、除錯 macOS launchd agents（plist 產生、排程、launchctl 生命週期管理） |
+| **customer-intel** | `/customer-intel` 或自動 | B2B 客戶情蒐：公司名 → WebSearch + Playwright → 結構化報告（概覽、管理層、財務、競爭、痛點、策略建議） |
 
 ### quality/ — 程式品質
 
@@ -119,6 +120,8 @@ cd ~/any-project && claude
 | **firebase-backend** | 自動 | Firebase 後端設計：Firestore schema、Security Rules、Cloud Functions v2、FCM 推播 |
 | **db-migration** | 自動 | 偵測 DB stack，設定 migration 工具（Alembic/Prisma/Drizzle），指導安全 schema 變更 |
 | **sqlite-to-postgres** | 自動 | SQLite → PostgreSQL/Supabase 遷移指南：語法差異、schema 轉換、資料遷移、驗證 |
+| **tw-company-lookup** | `/tw-company-lookup` 或自動 | 用 Playwright 查詢經濟部 findbiz.nat.gov.tw：公司基本資料、董監事、工廠、歷史變更 |
+| **web-scraper** | 自動 | Playwright headless 爬蟲 fallback：WebFetch 被擋時用，支援截圖、表單互動、tab 導覽 |
 
 ### docs/ — 文件處理與 MCP 建置
 
