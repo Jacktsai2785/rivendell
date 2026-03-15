@@ -505,6 +505,77 @@ def api_agent_timeline(
     return events
 
 
+@app.get("/api/agents/{agent_label}/artifacts", tags=["Agents"])
+def api_agent_artifacts(agent_label: str, started_at: str = "") -> list[dict[str, Any]]:
+    """Find report/output files associated with a specific run.
+
+    Matches by:
+    1. Filename containing the run date (e.g. daily-2026-03-15.md)
+    2. File modification time within the run window (started_at → finished_at)
+    """
+    if not started_at:
+        return []
+
+    agents = list_agents()
+    agent = next((a for a in agents if a.label == agent_label), None)
+    if not agent:
+        return []
+
+    wd = agent.working_directory
+    if not wd and agent.project and agent.project != "unknown":
+        projects = load_projects()
+        p = projects.get(agent.project)
+        if p:
+            wd = p.repo
+    if not wd:
+        return []
+
+    reports_dir = Path(wd) / "reports"
+    if not reports_dir.is_dir():
+        return []
+
+    from datetime import datetime, timedelta
+
+    try:
+        run_dt = datetime.fromisoformat(started_at)
+    except ValueError:
+        return []
+
+    run_date = run_dt.strftime("%Y-%m-%d")
+    run_ts = run_dt.timestamp()
+    # Search window: from run start to +2 hours (generous for long runs)
+    window_end = run_ts + 7200
+
+    results = []
+    seen = set()
+    for f in sorted(reports_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+        if not f.is_file():
+            continue
+        fname = f.name
+        suffix = f.suffix.lower()
+        # Only report files (.md, .html, .json) — skip logs/jsonl
+        if suffix not in (".md", ".html", ".json"):
+            continue
+        # Skip structured log jsonl and stdout/stderr logs
+        if "structured" in fname or "stdout" in fname or "stderr" in fname:
+            continue
+
+        mtime = f.stat().st_mtime
+        # Match by date in filename or by modification time within window
+        if run_date in fname or (run_ts - 60 <= mtime <= window_end):
+            if fname not in seen:
+                seen.add(fname)
+                results.append({
+                    "name": fname,
+                    "path": str(f),
+                    "size": f.stat().st_size,
+                    "modified": mtime,
+                    "type": suffix.lstrip("."),
+                })
+
+    return results[:10]
+
+
 @app.get("/api/agents/{agent_label}/file", tags=["Agents"])
 def api_agent_file(agent_label: str, path: str = "") -> dict[str, Any]:
     """Read content of a specific agent file."""

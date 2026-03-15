@@ -1,0 +1,43 @@
+{
+  "agents": {
+    "maintain": {
+      "type": "shell",
+      "description": "Nightly: deploy check, permissions sync, agent health, audit",
+      "script": "bin/sk-maintain-cron",
+      "schedule": { "type": "daily", "hour": 22, "minute": 0 },
+      "logs": "reports/",
+      "git": {
+        "merge_strategy": "auto",
+        "commit_scope": "reports/*.md reports/*.log",
+        "forbidden_paths": [".env*", "*.db", ".claude/**"]
+      },
+      "qa": { "pre_commit": "off" }
+    },
+    "harvest": {
+      "type": "claude",
+      "description": "Analyze recent Claude sessions for skill candidates (every 8h)",
+      "script": "bin/sk-harvest-cron",
+      "schedule": { "type": "interval", "interval": 28800 },
+      "logs": "reports/",
+      "git": {
+        "merge_strategy": "auto",
+        "commit_scope": "reports/harvest-*.md",
+        "forbidden_paths": [".env*", "*.db", ".claude/**"]
+      },
+      "qa": { "pre_commit": "off" }
+    },
+    "tester": {
+      "type": "shell",
+      "description": "Daily: validate 50 skills structure + dashboard build + agent health",
+      "script": "bin/sk-tester-cron",
+      "schedule": { "type": "daily", "hour": 6, "minute": 0 },
+      "logs": "reports/",
+      "git": {
+        "merge_strategy": "auto",
+        "commit_scope": "reports/test-*.md",
+        "forbidden_paths": [".env*", "*.db", ".claude/**", "skills/**"]
+      },
+      "qa": { "pre_commit": "off" }
+    }
+  }
+}
