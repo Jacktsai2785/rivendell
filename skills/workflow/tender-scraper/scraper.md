@@ -99,6 +99,72 @@ ROC year = 115 → Western year = 115 + 1911 = 2026
 Result: 2026-03-24
 ```
 
+## Phase 3.5: Screenshot-Based Detail Parsing
+
+After fetching basic info from the g0v API, capture screenshots of the tender detail page and parse with AI vision for richer content (scope, qualification, evaluation method).
+
+### When to Use
+
+- Always run for new tenders that pass the 公開徵求 filter
+- The g0v API provides basic metadata but lacks detailed requirements/scope
+- Screenshots capture the full tender announcement including specs
+
+### Workflow
+
+```python
+from services.nexus.tender_detail_parser import capture_tender_screenshots, build_vision_prompt
+
+# 1. Capture screenshots
+paths = capture_tender_screenshots(unit_id, job_number)
+
+# 2. Read each screenshot with Claude's vision
+for path in paths:
+    # Use Read tool on the screenshot file — Claude can read images natively
+    # Then apply the vision prompt to extract structured data
+
+# 3. Parse the YAML response and merge into the case file
+```
+
+### Step-by-step
+
+```
+1. Call capture_tender_screenshots(unit_id, job_number)
+   → Returns list of PNG paths in materials/tenders/screenshots/
+
+2. For each screenshot path:
+   - Read the image file (Read tool supports PNG)
+   - Apply build_vision_prompt() to extract structured YAML
+
+3. Merge parsed fields into the case file:
+   - scope_summary → "## 標案說明" section
+   - qualification → "## 資格條件" section
+   - evaluation_method → add to "## 備註"
+   - contract_period → add to frontmatter or "## 備註"
+   - contact_name/phone/email → update frontmatter + "## 聯絡資訊"
+
+4. If multiple screenshots, merge results (later sections may have specs)
+```
+
+### Screenshot Storage
+
+```
+materials/tenders/screenshots/
+├── {job_number}_{date}_full.png    ← full-page screenshot
+├── {job_number}_{date}_s1.png      ← section 1 (if page is long)
+├── {job_number}_{date}_s2.png      ← section 2
+└── ...
+```
+
+Screenshots are ephemeral — can be cleaned up after parsing. The extracted data lives in the case .md file.
+
+### Error Handling
+
+- If Playwright fails (site blocked, timeout) → skip screenshot enrichment, keep basic API data
+- If AI vision parsing returns incomplete results → keep what was extracted, mark gaps
+- Never block the main scraper flow for screenshot failures
+
+---
+
 ## Phase 4: Write New Case Files
 
 For each new tender, create a markdown file:

@@ -67,9 +67,10 @@ Read [scraper.md](scraper.md) for the complete scraping workflow.
 1. **Fetch** — WebFetch g0v API for today's listings (paginate all pages)
 2. **Dedup** — Glob `materials/tenders/cases/*.md`, read frontmatter, match by `job_number`
 3. **Detail + Filter** — For new tenders, fetch detail API; keep only `招標資料.招標方式 == "公開徵求"`
-4. **Create** — New tenders → write `cases/{job_number}-{slug}.md` with frontmatter
-5. **Archive** — Deadline passed → move to `cases/archived/`, set status: archived
-6. **Regenerate** — Rebuild `INDEX.md` and `by-category/*.md` from all active case files
+4. **Screenshot Parse** — Playwright captures tender page screenshots → AI vision extracts scope, qualification, evaluation method
+5. **Create** — New tenders → write `cases/{job_number}-{slug}.md` with frontmatter + parsed detail
+6. **Archive** — Deadline passed → move to `cases/archived/`, set status: archived
+7. **Regenerate** — Rebuild `INDEX.md` and `by-category/*.md` from all active case files
 
 ## Case File Format
 
@@ -118,9 +119,25 @@ Runs as headless agent via LaunchAgent `com.sk.agent.sales.tender-scraper`.
 Schedule: Daily 08:30.
 Runner: `scripts/tender-scraper.sh`
 
+## Screenshot Detail Parsing
+
+For each new tender, Playwright captures the detail page and AI vision extracts:
+- Scope/requirements summary (需求規格)
+- Qualification requirements (資格條件)
+- Evaluation method (評選方式)
+- Contract period (履約期限)
+
+**Tool**: `services/nexus/tender_detail_parser.py`
+- `capture_tender_screenshots(unit_id, job_number)` → list of PNG paths
+- `build_vision_prompt()` → prompt for AI vision parsing
+- Screenshots stored in `materials/tenders/screenshots/` (ephemeral)
+
+See [scraper.md](scraper.md) Phase 3.5 for detailed workflow.
+
 ## Key Paths
 
 - `materials/tenders/cases/*.md` — Individual tender files (SSOT)
 - `materials/tenders/cases/archived/*.md` — Past-deadline tenders
+- `materials/tenders/screenshots/` — Ephemeral screenshots for AI parsing
 - `materials/tenders/INDEX.md` — Auto-generated active summary
 - `materials/tenders/by-category/*.md` — Per-category views
