@@ -7,7 +7,7 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 ```
 skills/
 ├── meta/       # Claude Code 自身管理工具 (12)
-├── workflow/   # 工作流程與規劃 (14)
+├── workflow/   # 工作流程與規劃 (15)
 ├── quality/    # 程式品質、審查、除錯、測試 (9)
 ├── git/        # Git/GitHub 操作 (1)
 ├── frontend/   # 前端設計、iOS、測試 (5)
@@ -45,7 +45,7 @@ cd ~/any-project && claude
 | `./bin/sk agent <cmd>` | Manage automated agents: `list`, `start`, `stop`, `status`, `log`, `create` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (52 skills)
+## Skills Catalog (53 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -82,6 +82,7 @@ cd ~/any-project && claude
 | **headless-agent** | 自動 | 將 Claude Code 作為非互動式 agent 執行，含排程、結構化日誌、auto-commit/push、QA gate、branch workflow、multi-role agents |
 | **launchd-agent** | 自動 | 建立、設定、除錯 macOS launchd agents（plist 產生、排程、launchctl 生命週期管理） |
 | **customer-intel** | `/customer-intel` 或自動 | B2B 客戶情蒐：公司名 → WebSearch + Playwright → 結構化報告（概覽、管理層、財務、競爭、痛點、策略建議） |
+| **tender-scraper** | `/tender-scraper` 或自動 | 自動爬取政府標案（g0v API）、篩選公開徵求、歸檔過期、生成索引 |
 
 ### quality/ — 程式品質
 
