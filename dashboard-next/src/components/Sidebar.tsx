@@ -32,6 +32,7 @@ interface RunningAgent {
   name: string;
   project: string;
   pid: number | null;
+  activity: { tool: string; label: string; detail: string } | null;
 }
 
 function RunningAgentsPanel() {
@@ -47,6 +48,7 @@ function RunningAgentsPanel() {
             name: a.name,
             project: a.project,
             pid: a.pid,
+            activity: a.current_activity ?? null,
           }));
         setAgents(running);
       })
@@ -70,20 +72,34 @@ function RunningAgentsPanel() {
         </span>
         執行中 ({agents.length})
       </p>
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {agents.map((a) => (
           <Link
             key={a.label}
             href={`/agents/${encodeURIComponent(a.label)}`}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="block rounded-md px-2 py-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
-            <span className="min-w-0 truncate font-medium">
-              {a.name}
-            </span>
-            <span className="ml-auto shrink-0 font-mono text-[10px] text-zinc-400">
-              {a.project}
-            </span>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+              <span className="min-w-0 truncate font-medium">
+                {a.name}
+              </span>
+              <span className="ml-auto shrink-0 font-mono text-[10px] text-zinc-400">
+                {a.project}
+              </span>
+            </div>
+            {a.activity && (
+              <div className="mt-0.5 ml-3.5 flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500">
+                <span className="shrink-0 font-medium text-zinc-500 dark:text-zinc-400">
+                  {a.activity.label}
+                </span>
+                {a.activity.detail && (
+                  <span className="min-w-0 truncate font-mono">
+                    {a.activity.detail}
+                  </span>
+                )}
+              </div>
+            )}
           </Link>
         ))}
       </div>

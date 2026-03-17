@@ -73,6 +73,11 @@ export interface AgentInfo {
     forbidden_paths: string[];
     max_files_changed: number;
   } | null;
+  current_activity: {
+    tool: string;
+    label: string;
+    detail: string;
+  } | null;
 }
 
 export interface AgentsData {
