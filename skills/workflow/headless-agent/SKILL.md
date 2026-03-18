@@ -96,7 +96,7 @@ The log parser (`parse-agent-log.py`) reads Claude's `stream-json` output from s
 
 Each event includes a timestamp (`ts` field).
 
-The parser from `skills-test/scripts/parse-agent-log.py` can be used directly or copied into your project.
+The parser from `scripts/parse-agent-log.py` (in the rivendell repo) can be used directly or copied into your project.
 
 ## macOS Scheduling (launchd)
 

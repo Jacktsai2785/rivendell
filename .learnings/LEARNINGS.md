@@ -22,7 +22,12 @@
   8. Delete and recreate venv (shebangs are not relocatable)
   9. `launchctl load` new plists
   10. Rename GitHub repo last (redirect keeps old URL working)
-- **Rule**: When user asks to rename a repo/project, automatically scan ALL of the above locations before touching anything, present a complete change list, then execute in the correct order.
+- **Also breaks (easy to miss)**:
+  - **Other repos** that import from this repo (e.g. `news_stock/scripts/*.sh` sourcing `skills-test/bin/sk-exec-lib`) — must `grep -r "old-name" ~/Documents/Projects/` across ALL projects, not just the renamed one
+  - `.next/` build cache embeds absolute paths — must `rm -rf .next` and rebuild
+  - `package-lock.json` caches repo name
+  - Skill SKILL.md files that reference repo name in docs
+- **Rule**: When user asks to rename a repo/project, automatically scan ALL of the above locations **plus all sibling repos** before touching anything, present a complete change list, then execute in the correct order.
 
 ## 2026-03-18 — Never hardcode repo/project name in scripts; derive it dynamically
 
