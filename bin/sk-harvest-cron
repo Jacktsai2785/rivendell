@@ -5,6 +5,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_NAME="$(basename "$REPO_DIR")"
 REPORT_DIR="$REPO_DIR/reports"
 NOW="$(date '+%Y-%m-%d_%H%M')"
 TODAY="$(date '+%Y-%m-%d')"
@@ -119,7 +120,7 @@ claude -p "$PROMPT" \
 end_epoch=$(date +%s)
 
 # --- Record run to dashboard DB ---
-_sk_exec_record_run "rivendell" "harvest" "$start_epoch" "$end_epoch" \
+_sk_exec_record_run "$PROJECT_NAME" "harvest" "$start_epoch" "$end_epoch" \
   "$run_exit" "" "" "" "" "" ""
 
 # --- Update state ---

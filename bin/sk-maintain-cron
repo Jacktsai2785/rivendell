@@ -4,6 +4,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_NAME="$(basename "$REPO_DIR")"
 REPORT_DIR="$REPO_DIR/reports"
 TODAY="$(date '+%Y-%m-%d')"
 
@@ -21,7 +22,7 @@ start_epoch=$(date +%s)
 
 end_epoch=$(date +%s)
 
-_sk_exec_record_run "rivendell" "maintain" "$start_epoch" "$end_epoch" \
+_sk_exec_record_run "$PROJECT_NAME" "maintain" "$start_epoch" "$end_epoch" \
   "$run_exit" "" "" "" "" "" ""
 
 exit "$run_exit"

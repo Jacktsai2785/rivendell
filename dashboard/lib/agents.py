@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
-PROJECT_DIR = Path(__file__).parent.parent.parent  # skills-test root
+PROJECT_DIR = Path(__file__).parent.parent.parent  # repo root
 AGENT_PREFIX = "com.sk.agent."
 MAINTAIN_PREFIX = "com.skills."
 
@@ -212,7 +212,7 @@ def _extract_name_and_project(label: str, plist_data: dict[str, Any]) -> tuple[s
     elif label.startswith(MAINTAIN_PREFIX):
         # Label format: com.skills.<name>
         name = label.removeprefix(MAINTAIN_PREFIX)
-        project = "rivendell"
+        project = PROJECT_DIR.name
     else:
         name = label
         project = "unknown"

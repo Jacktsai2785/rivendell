@@ -1,0 +1,46 @@
+# Learnings
+
+## 2026-03-18 — Repo rename breaks all agents and dashboard if not done systematically
+
+- **Category**: best_practice
+- **Context**: Renamed repo from `skills-test` to `rivendell`. Hardcoded repo name strings were scattered across LaunchAgent plists, agent cron scripts, dashboard lib, and projects.json. Dashboard also had a venv with stale absolute-path shebangs.
+- **What breaks if rename is done manually without scanning**:
+  - LaunchAgent plists (`~/Library/LaunchAgents/com.sk.agent.skills-test.*`) still point to old path → agents silently fail to run
+  - Dashboard plists (`com.sk.dashboard.api/web.plist`) still point to old path → dashboard can't restart after reboot
+  - `bin/sk-*-cron` scripts record runs under old project name → dashboard shows no history
+  - `dashboard/lib/agents.py` still labels live agents as old project → dashboard UI shows wrong project
+  - venv shebangs in `dashboard-next/api/.venv/bin/*` embed absolute paths → pip/uvicorn break after move
+  - `~/.claude/projects.json` still points to old path → Claude Code can't find project
+- **Resolution protocol** (must follow in order):
+  1. `launchctl unload` all affected agents
+  2. Rename/move the folder
+  3. `grep -r "old-name" ~/Library/LaunchAgents/ ~/Documents/Projects/<repo>/bin/ ~/Documents/Projects/<repo>/dashboard/` to find all references
+  4. Update all plist files (Label + ProgramArguments + log paths)
+  5. Update all cron scripts (`_sk_exec_record_run` project arg)
+  6. Update `dashboard/lib/agents.py` project fallback
+  7. Update `~/.claude/projects.json`
+  8. Delete and recreate venv (shebangs are not relocatable)
+  9. `launchctl load` new plists
+  10. Rename GitHub repo last (redirect keeps old URL working)
+- **Rule**: When user asks to rename a repo/project, automatically scan ALL of the above locations before touching anything, present a complete change list, then execute in the correct order.
+
+## 2026-03-18 — Never hardcode repo/project name in scripts; derive it dynamically
+
+- **Category**: best_practice
+- **Context**: After renaming `skills-test` → `rivendell`, cron scripts and `agents.py` still had the project name hardcoded as string literals. User also deploys the skills pack to multiple machines where the folder name may differ.
+- **Root cause**: Using `"rivendell"` (or any literal name) instead of deriving from the repo path at runtime.
+- **Fix pattern**:
+  - Shell scripts: `PROJECT_NAME="$(basename "$REPO_DIR")"` then use `"$PROJECT_NAME"` everywhere
+  - Python: `PROJECT_DIR.name` (since `PROJECT_DIR = Path(__file__).parent.parent.parent`)
+  - Corollary: `REPO_DIR` / `PROJECT_DIR` itself must also be derived dynamically (`dirname "$0"` / `Path(__file__)`) — never hardcoded absolute path
+- **What should NOT be hardcoded**: project name in `_sk_exec_record_run`, agent label prefix, DB query filters, dashboard project fallback
+- **What is unavoidably machine-specific**: LaunchAgent plists (launchd requires absolute paths) — these must be generated per-machine via an install/setup script, not committed as static files
+- **Rule**: Any string that would change on rename or cross-machine deploy must be derived at runtime, not written as a literal.
+
+## 2026-03-17 — g0v PCC API brief.type is NOT the procurement method
+
+- **Category**: knowledge_gap
+- **Context**: Building tender-scraper skill, assumed `brief.type` from g0v API (`pcc-api.openfun.app/api/listbydate`) would contain the procurement method (招標方式) like "公開徵求"
+- **Reality**: `brief.type` is always `"公開招標公告"` for all public tenders. The actual procurement method (公開招標 / 公開徵求 / 限制性招標) is only available in the **detail API** at `招標資料.招標方式`
+- **Impact**: Cannot filter by 招標方式 at listing level — must fetch detail for each tender first, then filter. This significantly increases API calls needed per scrape run.
+- **Resolution**: Updated scraper.md workflow to fetch-then-filter pattern at Phase 3
