@@ -150,9 +150,9 @@ agent_errors=""
 agent_pass=0
 agent_fail=0
 
-# Check all skills-test agents via launchctl
+# Check all rivendell agents via launchctl
 for agent_name in maintain harvest tester; do
-  label="com.sk.agent.skills-test.${agent_name}"
+  label="com.sk.agent.rivendell.${agent_name}"
   plist_path="$HOME/Library/LaunchAgents/${label}.plist"
 
   if ! launchctl list "$label" &>/dev/null; then
@@ -189,7 +189,7 @@ import sqlite3, sys
 conn = sqlite3.connect('$db_path')
 cur = conn.execute(
     'SELECT finished_at FROM agent_runs WHERE agent_name=? AND project=? ORDER BY id DESC LIMIT 1',
-    ('$agent_name', 'skills-test'))
+    ('$agent_name', 'rivendell'))
 row = cur.fetchone()
 print(row[0] if row else '')
 conn.close()
@@ -252,7 +252,7 @@ cat >> "$REPORT" <<EOF
 EOF
 
 # Record run to dashboard DB
-_sk_exec_record_run "skills-test" "tester" "$start_epoch" "$end_epoch" \
+_sk_exec_record_run "rivendell" "tester" "$start_epoch" "$end_epoch" \
   "$total_fail" "" "" "" "" "" ""
 
 echo "[$(date '+%Y-%m-%d %H:%M')] Test complete: $status ($total_pass pass, $total_fail fail, $total_warn warn). Report: $REPORT"

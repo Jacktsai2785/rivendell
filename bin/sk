@@ -2597,7 +2597,7 @@ cmd_audit() {
         [ ! -d "$proj_dir" ] && continue
         local proj_name
         proj_name="$(basename "$proj_dir")"
-        [ "$proj_name" = "skills-test" ] && continue
+        [ "$proj_name" = "rivendell" ] && continue
 
         # --- Tech stack detection ---
         local techs=""

@@ -212,7 +212,7 @@ def _extract_name_and_project(label: str, plist_data: dict[str, Any]) -> tuple[s
     elif label.startswith(MAINTAIN_PREFIX):
         # Label format: com.skills.<name>
         name = label.removeprefix(MAINTAIN_PREFIX)
-        project = "skills-test"
+        project = "rivendell"
     else:
         name = label
         project = "unknown"

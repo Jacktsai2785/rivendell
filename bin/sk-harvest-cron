@@ -119,7 +119,7 @@ claude -p "$PROMPT" \
 end_epoch=$(date +%s)
 
 # --- Record run to dashboard DB ---
-_sk_exec_record_run "skills-test" "harvest" "$start_epoch" "$end_epoch" \
+_sk_exec_record_run "rivendell" "harvest" "$start_epoch" "$end_epoch" \
   "$run_exit" "" "" "" "" "" ""
 
 # --- Update state ---

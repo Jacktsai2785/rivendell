@@ -21,7 +21,7 @@ start_epoch=$(date +%s)
 
 end_epoch=$(date +%s)
 
-_sk_exec_record_run "skills-test" "maintain" "$start_epoch" "$end_epoch" \
+_sk_exec_record_run "rivendell" "maintain" "$start_epoch" "$end_epoch" \
   "$run_exit" "" "" "" "" "" ""
 
 exit "$run_exit"
