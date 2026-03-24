@@ -377,12 +377,12 @@ export default function AgentDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      {/* Back link */}
+      {/* Back link — go to project page if agent has a project */}
       <Link
-        href="/agents"
+        href={agent.project ? `/projects/${encodeURIComponent(agent.project)}` : "/agents"}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
       >
-        <ArrowLeft size={16} /> 返回 Agent 列表
+        <ArrowLeft size={16} /> {agent.project ? `返回 ${agent.project}` : "返回 Agent 列表"}
       </Link>
 
       {/* Header */}
