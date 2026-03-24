@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# sk-agent-doctor — diagnose and auto-heal failing launchd agents.
+#
+# Reads agents.conf, checks exit codes, reads stderr logs, and applies
+# known fixes. Reports what it fixed and what needs manual attention.
+#
+# Usage:
+#   ./bin/sk-agent-doctor            # diagnose + heal
+#   ./bin/sk-agent-doctor --check    # diagnose only (no changes)
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CONF="$REPO_DIR/agents/agents.conf"
+PROJECTS_DIR="$HOME/Documents/Projects"
+LAUNCH_DIR="$HOME/Library/LaunchAgents"
+CHECK_ONLY=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --check) CHECK_ONLY=true ;;
+  esac
+done
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Counters (use temp file to survive subshell)
+COUNTER_FILE=$(mktemp)
+echo "0 0 0" > "$COUNTER_FILE"
+trap "rm -f '$COUNTER_FILE'" EXIT
+
+inc_fixed()    { awk '{print $1, $2+1, $3}' "$COUNTER_FILE" > "${COUNTER_FILE}.tmp" && mv "${COUNTER_FILE}.tmp" "$COUNTER_FILE"; }
+inc_unfixable(){ awk '{print $1, $2, $3+1}' "$COUNTER_FILE" > "${COUNTER_FILE}.tmp" && mv "${COUNTER_FILE}.tmp" "$COUNTER_FILE"; }
+inc_healthy()  { awk '{print $1+1, $2, $3}' "$COUNTER_FILE" > "${COUNTER_FILE}.tmp" && mv "${COUNTER_FILE}.tmp" "$COUNTER_FILE"; }
+
+log() { echo -e "$1"; }
+fix_applied() { log "${GREEN}  ✓ FIX${NC}: $1"; inc_fixed; }
+needs_manual() { log "${RED}  ✗ MANUAL${NC}: $1"; inc_unfixable; }
+
+# Snapshot launchctl list once (avoid repeated calls)
+LAUNCHCTL_SNAPSHOT=$(launchctl list 2>/dev/null)
+
+get_exit_status() {
+  local label="$1"
+  echo "$LAUNCHCTL_SNAPSHOT" | awk -v l="$label" '$3 == l {print $2}'
+}
+
+is_loaded() {
+  local label="$1"
+  echo "$LAUNCHCTL_SNAPSHOT" | awk -v l="$label" '$3 == l {found=1} END {exit !found}'
+}
+
+# ─── Known fix functions ───
+
+fix_path_reload() {
+  local label="$1"
+  if $CHECK_ONLY; then
+    log "${YELLOW}  → Would re-run sk-setup-agents to fix PATH${NC}"
+    inc_unfixable
+    return
+  fi
+  bash "$REPO_DIR/bin/sk-setup-agents" > /dev/null 2>&1
+  fix_applied "Regenerated plists with updated PATH"
+}
+
+fix_port_in_use() {
+  local label="$1" port="$2"
+  local pids
+  pids=$(lsof -ti :"$port" 2>/dev/null || true)
+  if [ -n "$pids" ]; then
+    if $CHECK_ONLY; then
+      log "${YELLOW}  → Would kill PID(s) $pids on port $port and restart${NC}"
+      inc_unfixable
+      return
+    fi
+    echo "$pids" | xargs kill -TERM 2>/dev/null || true
+    sleep 2
+    local plist="$LAUNCH_DIR/${label}.plist"
+    launchctl unload "$plist" 2>/dev/null || true
+    launchctl load "$plist" 2>/dev/null || true
+    fix_applied "Killed stale process on port $port, restarted $label"
+  fi
+}
+
+fix_stale_build_cache() {
+  local project_dir="$1"
+  local cache_dir="$project_dir/dashboard-next/.next"
+  if [ -d "$cache_dir" ]; then
+    if $CHECK_ONLY; then
+      log "${YELLOW}  → Would remove stale .next build cache${NC}"
+      inc_unfixable
+      return
+    fi
+    rm -rf "$cache_dir"
+    fix_applied "Removed stale .next build cache"
+  fi
+}
+
+fix_missing_module() {
+  local module="$1"
+  local pkg="$module"
+  case "$module" in
+    yaml) pkg="PyYAML" ;;
+    cv2)  pkg="opencv-python" ;;
+    PIL)  pkg="Pillow" ;;
+    bs4)  pkg="beautifulsoup4" ;;
+    dotenv) pkg="python-dotenv" ;;
+  esac
+
+  if $CHECK_ONLY; then
+    log "${YELLOW}  → Would install: pip3 install $pkg${NC}"
+    inc_unfixable
+    return
+  fi
+  pip3 install "$pkg" > /dev/null 2>&1 && \
+    fix_applied "Installed missing Python module: $pkg" || \
+    needs_manual "Failed to install $pkg"
+}
+
+# ─── Diagnosis engine ───
+
+diagnose_and_heal() {
+  local label="$1" project_rel="$2" log_dir_rel="$3"
+  local project_dir="$PROJECTS_DIR/$project_rel"
+  local log_dir="$project_dir/$log_dir_rel"
+  local log_name="${label##*.}"
+  local stderr_log="$log_dir/${log_name}-stderr.log"
+  local stdout_log="$log_dir/${log_name}-stdout.log"
+
+  # Get exit status from snapshot
+  local exit_status
+  exit_status=$(get_exit_status "$label")
+
+  if [ -z "$exit_status" ] || [ "$exit_status" = "0" ] || [ "$exit_status" = "-" ]; then
+    inc_healthy
+    return
+  fi
+
+  log "${RED}[$label]${NC} exit=$exit_status"
+
+  # Read recent stderr + stdout
+  local stderr="" stdout=""
+  [ -f "$stderr_log" ] && stderr=$(tail -30 "$stderr_log" 2>/dev/null || true)
+  [ -f "$stdout_log" ] && stdout=$(tail -30 "$stdout_log" 2>/dev/null || true)
+  local combined="$stderr$stdout"
+
+  local diagnosed=false
+
+  # ── Pattern: Operation not permitted (TCC/FDA) ──
+  if echo "$stderr" | grep -q "Operation not permitted"; then
+    needs_manual "TCC/FDA issue — grant Full Disk Access to ~/.local/bin/sk-agent-run"
+    log "       System Settings → Privacy & Security → Full Disk Access"
+    diagnosed=true
+  fi
+
+  # ── Pattern: command not found (PATH issue) ──
+  if echo "$stderr" | grep -q "command not found"; then
+    local missing_cmd
+    missing_cmd=$(echo "$stderr" | grep "command not found" | tail -1 | sed 's/.*: \(.*\): command not found/\1/')
+    log "  Diagnosis: '$missing_cmd' not in PATH"
+    fix_path_reload "$label"
+    diagnosed=true
+  fi
+
+  # ── Pattern: No module named (Python import error) ──
+  if echo "$combined" | grep -q "No module named"; then
+    local missing_module
+    missing_module=$(echo "$combined" | grep "No module named" | tail -1 | sed "s/.*No module named '\([^']*\)'.*/\1/" | sed 's/\..*//')
+    log "  Diagnosis: Python module '$missing_module' not installed"
+    fix_missing_module "$missing_module"
+    diagnosed=true
+  fi
+
+  # ── Pattern: EADDRINUSE or "address already in use" (port conflict) ──
+  if echo "$combined" | grep -qi "EADDRINUSE\|address already in use"; then
+    local port
+    # Match: "port 3000", ":3000)", ", 8000)" (uvicorn format)
+    port=$(echo "$combined" | grep -i "address already in use\|EADDRINUSE" | grep -oE '[0-9]{4,5}' | head -1 || true)
+    if [ -n "$port" ]; then
+      log "  Diagnosis: port $port already in use"
+      fix_port_in_use "$label" "$port"
+    else
+      needs_manual "Port conflict detected but couldn't extract port number"
+    fi
+    diagnosed=true
+  fi
+
+  # ── Pattern: OAuth token expired ──
+  if echo "$combined" | grep -qi "OAuth token has expired\|authentication_error\|authentication_failed"; then
+    needs_manual "OAuth token expired — run: claude login"
+    diagnosed=true
+  fi
+
+  # ── Pattern: ENOTEMPTY (.next build cache) ──
+  if echo "$combined" | grep -q "ENOTEMPTY.*\.next"; then
+    log "  Diagnosis: stale .next build cache"
+    fix_stale_build_cache "$project_dir"
+    diagnosed=true
+  fi
+
+  # ── Pattern: Push failed (git) ──
+  if echo "$combined" | grep -qi "Push failed\|push.*rejected\|failed to push"; then
+    needs_manual "Git push failed — check remote permissions or conflicts"
+    diagnosed=true
+  fi
+
+  # ── Pattern: API connection error ──
+  if echo "$combined" | grep -qi "ENOTFOUND\|Unable to connect to API\|ConnectionRefused"; then
+    needs_manual "API unreachable — check network or API endpoint"
+    diagnosed=true
+  fi
+
+  # ── Pattern: error_max_turns (Claude ran out of turns) ──
+  if echo "$combined" | grep -q "error_max_turns"; then
+    needs_manual "Claude hit max turns — simplify prompt or increase --max-turns"
+    diagnosed=true
+  fi
+
+  # ── Undiagnosed ──
+  if ! $diagnosed; then
+    log "  ${YELLOW}Unknown failure${NC}. Recent stderr:"
+    if [ -n "$stderr" ]; then
+      echo "$stderr" | tail -5 | sed 's/^/    /'
+    else
+      log "    (stderr empty — check $stdout_log)"
+    fi
+    needs_manual "Unknown error — investigate logs manually"
+  fi
+
+  echo ""
+}
+
+# ─── Main ───
+
+log "${CYAN}sk-agent-doctor${NC} — $(date '+%Y-%m-%d %H:%M')"
+$CHECK_ONLY && log "(check-only mode — no changes will be made)"
+echo ""
+
+while IFS='|' read -r label project_rel script sched_type sched_val log_dir_rel extra_args; do
+  # Skip comments and blank lines
+  [[ "$label" =~ ^[[:space:]]*# ]] && continue
+  [[ -z "$(echo "$label" | xargs)" ]] && continue
+
+  label="$(echo "$label" | xargs)"
+  project_rel="$(echo "$project_rel" | xargs)"
+  log_dir_rel="$(echo "$log_dir_rel" | xargs)"
+
+  # Check if loaded
+  if ! is_loaded "$label"; then
+    log "${YELLOW}[$label]${NC} not loaded — skipping"
+    echo ""
+    continue
+  fi
+
+  diagnose_and_heal "$label" "$project_rel" "$log_dir_rel"
+done < "$CONF"
+
+# ─── Summary ───
+read healthy fixed unfixable < "$COUNTER_FILE"
+
+echo "─────────────────────────────"
+log "Healthy: ${GREEN}$healthy${NC}  Fixed: ${GREEN}$fixed${NC}  Manual: ${RED}$unfixable${NC}"
+
+if [ "$unfixable" -gt 0 ]; then
+  exit 1
+fi
+exit 0

@@ -258,6 +258,12 @@ _sk_exec_record_run "$PROJECT_NAME" "tester" "$start_epoch" "$end_epoch" \
 
 echo "[$(date '+%Y-%m-%d %H:%M')] Test complete: $status ($total_pass pass, $total_fail fail, $total_warn warn). Report: $REPORT"
 
+# ─── Auto-heal: run doctor if agent health checks found failures ───
+if [ "$agent_fail" -gt 0 ] && [ -x "$REPO_DIR/bin/sk-agent-doctor" ]; then
+  echo "[$(date '+%Y-%m-%d %H:%M')] Agent failures detected — running sk-agent-doctor..."
+  "$REPO_DIR/bin/sk-agent-doctor" 2>&1 | tee -a "$REPORT_DIR/doctor-${TODAY}.log" || true
+fi
+
 # Exit with failure count (0 = success)
 [ "$total_fail" -gt 0 ] && exit 1
 exit 0

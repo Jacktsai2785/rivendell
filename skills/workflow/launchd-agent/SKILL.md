@@ -315,6 +315,28 @@ After running `sk-setup-agents`:
 
 Without FDA, agents accessing `~/Documents/` will fail with "Operation not permitted" (exit 126).
 
+### 4. Auto-Heal Script (`sk-agent-doctor`)
+
+Diagnoses failing agents by reading stderr/stdout logs and applies known fixes:
+
+| Pattern | Auto-Fix |
+|---------|----------|
+| `command not found` | Re-run `sk-setup-agents` (regenerate PATH) |
+| `No module named 'X'` | `pip3 install X` (with name mapping) |
+| `EADDRINUSE` / `address already in use` | Kill stale process, restart agent |
+| `ENOTEMPTY .next` | Remove stale build cache |
+| `Operation not permitted` | Report: grant FDA (manual) |
+| `OAuth token has expired` | Report: `claude login` (manual) |
+| `Push failed` | Report: check git remote (manual) |
+| `ENOTFOUND` / API unreachable | Report: check network (manual) |
+
+```bash
+./bin/sk-agent-doctor            # diagnose + auto-fix
+./bin/sk-agent-doctor --check    # diagnose only (dry run)
+```
+
+Integrates with `sk-tester-cron` — tester auto-triggers doctor when agent health check fails.
+
 ### Debugging the Fleet
 
 ```bash
