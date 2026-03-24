@@ -168,6 +168,21 @@ export interface CollaborationData {
   resolution_rate: number;
 }
 
+export interface IssueItem {
+  source: "agent" | "learnings" | "skill" | "env";
+  severity: "error" | "warning" | "info";
+  title: string;
+  detail: string;
+  label: string;
+}
+
+export interface IssuesData {
+  total: number;
+  errors: number;
+  warnings: number;
+  issues: IssueItem[];
+}
+
 export interface SkillInfo {
   name: string;
   category: string;

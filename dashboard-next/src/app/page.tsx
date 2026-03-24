@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch, type OverviewData, type AgentInfo } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
-import CollaborationFlow from "@/components/CollaborationFlow";
+import PendingIssues from "@/components/PendingIssues";
 
 function AgentStatusRow({ agent }: { agent: AgentInfo }) {
   let status: string;
@@ -148,8 +148,8 @@ export default function OverviewPage() {
         )}
       </section>
 
-      {/* Collaboration flow */}
-      <CollaborationFlow />
+      {/* Pending issues */}
+      <PendingIssues />
     </div>
   );
 }
