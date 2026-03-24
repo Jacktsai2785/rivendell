@@ -33,6 +33,15 @@ Commands:
   maintain            Nightly maintenance: permissions sync, deploy check, agent health, audit
   sync                Show Google Drive import status for re-import
   agent               Manage automated agents (list/start/stop/status/log/create)
+
+Deploy & Infrastructure:
+  profile             Manage deployment profiles (list/show/set/current)
+  bootstrap <profile> Full setup: clone repos, env, docker up, skills, agents
+  up [--profile <p>]  Docker compose up for active/specified profile
+  down                Docker compose down
+  status              Show all services + agents + skills health
+  env [project]       Check/generate .env from .env.example
+  update [--rebuild]  Pull all repos + optional Docker rebuild
   help                Show this help message
 
 Categories: meta, workflow, quality, git, frontend, backend, docs
@@ -2996,6 +3005,478 @@ print(f'_{L[\"pricing\"]}_')
   echo -e "  Report:          $report"
 }
 
+# ═══════════════════════════════════════════════════════════════
+# Deploy & Infrastructure Commands
+# ═══════════════════════════════════════════════════════════════
+
+PROFILES_CONF="$REPO_DIR/profiles/profiles.conf"
+COMPOSE_FILE="$REPO_DIR/docker-compose.yml"
+ACTIVE_PROFILE_FILE="$REPO_DIR/.active-profile"
+ENV_SHARED_FILE="$REPO_DIR/.env.shared"
+PROJECTS_DIR="$(cd "$REPO_DIR/.." && pwd)"
+
+# Parse profiles.conf — output: type|field1|field2|...
+# Usage: parse_profile "dev-full"
+parse_profile() {
+  local name="$1"
+  local in_section=false
+  while IFS= read -r line; do
+    # Strip comments and blank lines
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line// }" ]] && continue
+    # Section header
+    if [[ "$line" =~ ^\[([a-zA-Z0-9_-]+)\] ]]; then
+      if [ "${BASH_REMATCH[1]}" = "$name" ]; then
+        in_section=true
+      else
+        $in_section && break
+      fi
+      continue
+    fi
+    $in_section || continue
+    # Parse pipe-delimited fields, trim whitespace
+    local type="" f1="" f2="" f3="" f4=""
+    IFS='|' read -r type f1 f2 f3 f4 <<< "$line"
+    type="$(echo "$type" | xargs)"
+    f1="$(echo "$f1" | xargs)"
+    f2="$(echo "$f2" | xargs)"
+    f3="$(echo "$f3" | xargs)"
+    f4="$(echo "$f4" | xargs)"
+    echo "${type}|${f1}|${f2}|${f3}|${f4}"
+  done < "$PROFILES_CONF"
+}
+
+# List all profile names
+list_profiles() {
+  grep -oP '(?<=^\[)[a-zA-Z0-9_-]+(?=\])' "$PROFILES_CONF" 2>/dev/null || \
+    sed -n 's/^\[\([a-zA-Z0-9_-]*\)\]/\1/p' "$PROFILES_CONF"
+}
+
+get_active_profile() {
+  if [ -f "$ACTIVE_PROFILE_FILE" ]; then
+    cat "$ACTIVE_PROFILE_FILE"
+  else
+    echo ""
+  fi
+}
+
+# Get compose profile flags for a given profile name
+get_compose_profiles() {
+  local name="$1"
+  parse_profile "$name" | while IFS='|' read -r type f1 f2 f3 f4; do
+    [ "$type" = "project" ] && echo "$f2"
+  done | sort -u
+}
+
+cmd_profile() {
+  local subcmd="${1:-list}"
+  case "$subcmd" in
+    list)
+      echo -e "${CYAN}Available profiles:${NC}"
+      echo ""
+      local active
+      active="$(get_active_profile)"
+      while IFS= read -r name; do
+        local desc=""
+        desc="$(parse_profile "$name" | grep '^option|description|' | head -1 | cut -d'|' -f3)"
+        if [ "$name" = "$active" ]; then
+          echo -e "  ${GREEN}* $name${NC}  $desc"
+        else
+          echo -e "    $name  $desc"
+        fi
+      done < <(list_profiles)
+      ;;
+    show)
+      local name="${2:?Usage: sk profile show <name>}"
+      echo -e "${CYAN}Profile: $name${NC}"
+      echo ""
+      echo -e "${YELLOW}Projects:${NC}"
+      parse_profile "$name" | while IFS='|' read -r type f1 f2 f3 f4; do
+        case "$type" in
+          project)
+            if [ "$f1" = "." ]; then
+              echo -e "  rivendell ($f2)"
+            else
+              echo -e "  $f3  ← $f1  [compose: $f2]"
+            fi
+            ;;
+          agents)
+            echo -e "  ${CYAN}agent:${NC} $f1"
+            ;;
+          option)
+            echo -e "  ${YELLOW}$f1:${NC} $f2"
+            ;;
+        esac
+      done
+      ;;
+    set)
+      local name="${2:?Usage: sk profile set <name>}"
+      # Validate profile exists
+      if ! list_profiles | grep -qx "$name"; then
+        echo -e "${RED}Error:${NC} Profile '$name' not found."
+        echo "Available: $(list_profiles | tr '\n' ' ')"
+        exit 1
+      fi
+      echo "$name" > "$ACTIVE_PROFILE_FILE"
+      echo -e "${GREEN}Active profile set to:${NC} $name"
+      ;;
+    current)
+      local active
+      active="$(get_active_profile)"
+      if [ -z "$active" ]; then
+        echo "No active profile. Run: sk profile set <name>"
+      else
+        echo "$active"
+      fi
+      ;;
+    *)
+      echo "Usage: sk profile <list|show|set|current> [name]"
+      ;;
+  esac
+}
+
+cmd_up() {
+  local profile_name=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --profile) profile_name="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  if [ -z "$profile_name" ]; then
+    profile_name="$(get_active_profile)"
+  fi
+  if [ -z "$profile_name" ]; then
+    echo -e "${RED}Error:${NC} No profile specified. Use --profile <name> or run: sk profile set <name>"
+    exit 1
+  fi
+
+  echo -e "${CYAN}Starting services for profile:${NC} $profile_name"
+
+  local flags=""
+  while IFS= read -r p; do
+    [ -n "$p" ] && flags="$flags --profile $p"
+  done < <(get_compose_profiles "$profile_name")
+
+  echo -e "Compose profiles:${YELLOW}$flags${NC}"
+  PROJECTS_DIR="$PROJECTS_DIR" docker compose -f "$COMPOSE_FILE" $flags up -d --build
+}
+
+cmd_down() {
+  local profile_name
+  profile_name="$(get_active_profile)"
+
+  if [ -n "$profile_name" ]; then
+    local flags=""
+    while IFS= read -r p; do
+      [ -n "$p" ] && flags="$flags --profile $p"
+    done < <(get_compose_profiles "$profile_name")
+    PROJECTS_DIR="$PROJECTS_DIR" docker compose -f "$COMPOSE_FILE" $flags down
+  else
+    docker compose -f "$COMPOSE_FILE" down
+  fi
+}
+
+cmd_status() {
+  echo -e "${CYAN}=== Service Status ===${NC}"
+  echo ""
+
+  # Docker containers
+  if command -v docker &>/dev/null; then
+    local containers
+    containers="$(docker ps --filter "name=sk-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)"
+    if [ -n "$containers" ]; then
+      echo -e "${YELLOW}Docker services:${NC}"
+      echo "$containers"
+    else
+      echo -e "${YELLOW}Docker:${NC} No sk- containers running"
+    fi
+  else
+    echo -e "${YELLOW}Docker:${NC} not installed"
+  fi
+
+  echo ""
+
+  # Active profile
+  local active
+  active="$(get_active_profile)"
+  echo -e "${YELLOW}Active profile:${NC} ${active:-<none>}"
+
+  echo ""
+
+  # Launchd agents (macOS only)
+  if [ "$(uname)" = "Darwin" ]; then
+    echo -e "${YELLOW}Launchd agents:${NC}"
+    launchctl list 2>/dev/null | grep "com.sk" | while read -r pid status label; do
+      if [ "$pid" != "-" ] && [ "$pid" != "0" ]; then
+        echo -e "  ${GREEN}running${NC}  $label (pid=$pid)"
+      elif [ "$status" = "0" ]; then
+        echo -e "  ${YELLOW}idle${NC}     $label"
+      else
+        echo -e "  ${RED}error${NC}    $label (exit=$status)"
+      fi
+    done
+  fi
+
+  echo ""
+
+  # Skills deployment
+  local total deployed
+  total="$(find "$SKILLS_DIR" -name "SKILL.md" -maxdepth 3 2>/dev/null | wc -l | tr -d ' ')"
+  deployed="$(find "$DEPLOY_TARGET" -maxdepth 1 -type l 2>/dev/null | wc -l | tr -d ' ')"
+  echo -e "${YELLOW}Skills:${NC} $deployed/$total deployed"
+}
+
+cmd_env() {
+  local target_project="${1:-}"
+
+  # Collect projects from active profile (or all if no profile)
+  local profile_name
+  profile_name="$(get_active_profile)"
+
+  if [ -z "$profile_name" ] && [ -z "$target_project" ]; then
+    echo -e "${RED}Error:${NC} No active profile. Specify a project or run: sk profile set <name>"
+    exit 1
+  fi
+
+  _check_env_for_dir() {
+    local dir="$1" name="$2"
+    local example="$dir/.env.example"
+    local actual="$dir/.env"
+
+    if [ ! -f "$example" ]; then
+      echo -e "  ${YELLOW}skip${NC}  $name (no .env.example)"
+      return
+    fi
+
+    if [ ! -f "$actual" ]; then
+      echo -e "  ${RED}missing${NC}  $name/.env"
+      echo -n "  Copy from .env.example? [Y/n] "
+      read -r ans
+      if [ "${ans:-y}" != "n" ]; then
+        cp "$example" "$actual"
+        echo -e "  ${GREEN}created${NC} $actual"
+        # Apply shared env if available
+        if [ -f "$ENV_SHARED_FILE" ]; then
+          while IFS='=' read -r key val; do
+            [[ "$key" =~ ^[[:space:]]*# ]] && continue
+            [ -z "$key" ] && continue
+            if grep -q "^${key}=" "$actual"; then
+              sed -i '' "s|^${key}=.*|${key}=${val}|" "$actual"
+              echo -e "  ${GREEN}shared${NC}  $key (from .env.shared)"
+            fi
+          done < "$ENV_SHARED_FILE"
+        fi
+        # Warn about empty required keys
+        grep -E '^[A-Z_]+=($|your_|changeme|TODO)' "$actual" 2>/dev/null | while IFS='=' read -r key _; do
+          echo -e "  ${RED}required${NC}  $key needs a value"
+        done
+      fi
+    else
+      # Check for new keys in example not in actual
+      local missing=0
+      while IFS='=' read -r key _; do
+        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        [ -z "$key" ] && continue
+        if ! grep -q "^${key}=" "$actual"; then
+          echo -e "  ${YELLOW}new key${NC}  $name: $key (in .env.example but not in .env)"
+          missing=$((missing + 1))
+        fi
+      done < "$example"
+      if [ "$missing" -eq 0 ]; then
+        echo -e "  ${GREEN}ok${NC}  $name"
+      fi
+    fi
+  }
+
+  echo -e "${CYAN}Checking .env files:${NC}"
+  echo ""
+
+  if [ -n "$target_project" ]; then
+    local dir="$PROJECTS_DIR/$target_project"
+    _check_env_for_dir "$dir" "$target_project"
+  else
+    parse_profile "$profile_name" | while IFS='|' read -r type f1 f2 f3 f4; do
+      [ "$type" = "project" ] || continue
+      [ "$f1" = "." ] && continue  # rivendell itself has no .env
+      local dir="$PROJECTS_DIR/$f3"
+      _check_env_for_dir "$dir" "$f3"
+    done
+  fi
+}
+
+cmd_update() {
+  local rebuild=false
+  [ "${1:-}" = "--rebuild" ] && rebuild=true
+
+  local profile_name
+  profile_name="$(get_active_profile)"
+  if [ -z "$profile_name" ]; then
+    echo -e "${RED}Error:${NC} No active profile. Run: sk profile set <name>"
+    exit 1
+  fi
+
+  echo -e "${CYAN}Updating repos for profile:${NC} $profile_name"
+  echo ""
+
+  # Pull rivendell
+  echo -e "${YELLOW}rivendell${NC}"
+  git -C "$REPO_DIR" pull --ff-only 2>&1 | sed 's/^/  /'
+  echo ""
+
+  # Pull each project
+  parse_profile "$profile_name" | while IFS='|' read -r type f1 f2 f3 f4; do
+    [ "$type" = "project" ] || continue
+    [ "$f1" = "." ] && continue
+    local dir="$PROJECTS_DIR/$f3"
+    if [ -d "$dir/.git" ]; then
+      echo -e "${YELLOW}$f3${NC}"
+      git -C "$dir" pull --ff-only 2>&1 | sed 's/^/  /'
+    else
+      echo -e "${RED}$f3${NC}: not cloned"
+    fi
+    echo ""
+  done
+
+  # Rebuild if requested
+  if $rebuild; then
+    echo -e "${CYAN}Rebuilding Docker images...${NC}"
+    cmd_up --profile "$profile_name"
+  fi
+
+  # macOS: re-deploy skills
+  if [ "$(uname)" = "Darwin" ]; then
+    echo -e "${CYAN}Re-deploying skills...${NC}"
+    cmd_deploy
+  fi
+}
+
+cmd_bootstrap() {
+  local profile_name="${1:?Usage: sk bootstrap <profile>}"
+  local dry_run=false
+  [ "${2:-}" = "--dry-run" ] && dry_run=true
+
+  # Validate profile
+  if ! list_profiles | grep -qx "$profile_name"; then
+    echo -e "${RED}Error:${NC} Unknown profile '$profile_name'"
+    echo "Available profiles:"
+    list_profiles | sed 's/^/  /'
+    exit 1
+  fi
+
+  echo -e "${CYAN}╔══════════════════════════════════════╗${NC}"
+  echo -e "${CYAN}║  Rivendell Bootstrap: $profile_name${NC}"
+  echo -e "${CYAN}╚══════════════════════════════════════╝${NC}"
+  echo ""
+
+  # Step 1: Pre-flight
+  echo -e "${YELLOW}[1/6] Pre-flight checks${NC}"
+  local missing=""
+  command -v git &>/dev/null || missing="$missing git"
+  command -v docker &>/dev/null || missing="$missing docker"
+  docker compose version &>/dev/null 2>&1 || missing="$missing docker-compose"
+  if [ -n "$missing" ]; then
+    echo -e "${RED}Missing:${NC}$missing"
+    echo "Install these tools and re-run."
+    $dry_run || exit 1
+  else
+    echo -e "  ${GREEN}ok${NC}  git, docker, docker compose"
+  fi
+  echo ""
+
+  # Step 2: Clone projects
+  echo -e "${YELLOW}[2/6] Cloning/updating projects${NC}"
+  local clone_count=0 pull_count=0
+  parse_profile "$profile_name" | while IFS='|' read -r type f1 f2 f3 f4; do
+    [ "$type" = "project" ] || continue
+    [ "$f1" = "." ] && continue
+    local dir="$PROJECTS_DIR/$f3"
+    if [ -d "$dir" ]; then
+      echo -e "  ${GREEN}pull${NC}  $f3"
+      $dry_run || git -C "$dir" pull --ff-only 2>&1 | sed 's/^/    /'
+    else
+      echo -e "  ${GREEN}clone${NC}  $f3 ← $f1"
+      $dry_run || git clone "$f1" "$dir" 2>&1 | sed 's/^/    /'
+    fi
+  done
+  echo ""
+
+  # Set active profile early so cmd_env can use it
+  echo "$profile_name" > "$ACTIVE_PROFILE_FILE"
+
+  # Step 3: Environment setup
+  echo -e "${YELLOW}[3/6] Environment setup${NC}"
+  if ! $dry_run; then
+    cmd_env
+  else
+    echo "  (dry-run: skipping .env setup)"
+  fi
+  echo ""
+
+  # Step 4: Docker build & up
+  echo -e "${YELLOW}[4/6] Docker services${NC}"
+  local flags=""
+  while IFS= read -r p; do
+    [ -n "$p" ] && flags="$flags --profile $p"
+  done < <(get_compose_profiles "$profile_name")
+  echo -e "  Compose profiles:${YELLOW}$flags${NC}"
+  if ! $dry_run; then
+    PROJECTS_DIR="$PROJECTS_DIR" docker compose -f "$COMPOSE_FILE" $flags up -d --build 2>&1 | sed 's/^/  /'
+  else
+    echo "  (dry-run: would run docker compose$flags up -d --build)"
+  fi
+  echo ""
+
+  # Step 5: macOS-only (skills + agents)
+  if [ "$(uname)" = "Darwin" ]; then
+    echo -e "${YELLOW}[5/6] Skills & agents (macOS)${NC}"
+    if ! $dry_run; then
+      cmd_deploy
+      # Run agent setup if profile has agents
+      local has_agents=false
+      parse_profile "$profile_name" | grep -q '^agents|' && has_agents=true
+      if $has_agents && [ -x "$REPO_DIR/bin/sk-setup-agents" ]; then
+        echo ""
+        echo -e "  Setting up launchd agents..."
+        "$REPO_DIR/bin/sk-setup-agents" 2>&1 | sed 's/^/  /'
+      fi
+    else
+      echo "  (dry-run: would deploy skills + setup agents)"
+    fi
+  else
+    echo -e "${YELLOW}[5/6] Skills (Linux — no launchd)${NC}"
+    if ! $dry_run; then
+      cmd_deploy
+    fi
+  fi
+  echo ""
+
+  # Step 6: Set active profile + summary
+  echo -e "${YELLOW}[6/6] Summary${NC}"
+  if ! $dry_run; then
+    echo "$profile_name" > "$ACTIVE_PROFILE_FILE"
+  fi
+  echo -e "  Active profile: ${GREEN}$profile_name${NC}"
+  echo ""
+  echo -e "  ${CYAN}Service URLs:${NC}"
+  # Print URLs based on compose profiles
+  while IFS= read -r p; do
+    case "$p" in
+      dashboard)  echo "    Dashboard:  http://localhost:3000 (API: :8000)" ;;
+      news-stock) echo "    News/Stock: http://localhost:3001 (API: :8001)" ;;
+      sales)      echo "    Sales:      http://localhost:3002 (API: :8002)" ;;
+      nexus)      echo "    Nexus:      http://localhost:3003 (API: :8003)" ;;
+      marketing)  echo "    Marketing:  http://localhost:3004" ;;
+    esac
+  done < <(get_compose_profiles "$profile_name")
+  echo ""
+  echo -e "  ${CYAN}Next steps:${NC}"
+  echo "    sk status          Check service health"
+  echo "    sk env             Verify .env files"
+  echo "    sk down            Stop all services"
+  echo "    sk update          Pull latest + rebuild"
+}
+
 # Main dispatch
 case "${1:-help}" in
   deploy)     cmd_deploy ;;
@@ -3011,6 +3492,13 @@ case "${1:-help}" in
   maintain)   cmd_maintain ;;
   agent)      shift; cmd_agent "$@" ;;
   sync)       cmd_sync ;;
+  profile)    shift; cmd_profile "$@" ;;
+  bootstrap)  shift; cmd_bootstrap "$@" ;;
+  up)         shift; cmd_up "$@" ;;
+  down)       cmd_down ;;
+  status)     cmd_status ;;
+  env)        cmd_env "${2:-}" ;;
+  update)     cmd_update "${2:-}" ;;
   help|--help|-h) usage ;;
   *)
     echo -e "${RED}Unknown command:${NC} $1"

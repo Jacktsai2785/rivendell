@@ -12,3 +12,8 @@ logs/
 data/cost-ledger.jsonl
 dashboard-next/api/.venv/
 node_modules/
+
+# Deploy system
+.active-profile
+.env
+.env.shared

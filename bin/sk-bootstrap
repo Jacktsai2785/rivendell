@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# sk-bootstrap — Standalone first-run script for new machines.
+# Usage:
+#   curl -fsSL https://raw.githubusercontent.com/manibari/rivendell/main/bin/sk-bootstrap | bash -s -- <profile>
+#
+# What it does:
+#   1. Clones rivendell to ~/Documents/Projects/rivendell (if not present)
+#   2. Delegates to ./bin/sk bootstrap <profile>
+set -euo pipefail
+
+PROJECTS_DIR="$HOME/Documents/Projects"
+RIVENDELL_DIR="$PROJECTS_DIR/rivendell"
+RIVENDELL_REPO="https://github.com/manibari/rivendell.git"
+
+PROFILE="${1:-}"
+
+if [ -z "$PROFILE" ]; then
+  echo "Usage: sk-bootstrap <profile>"
+  echo ""
+  echo "Available profiles: dev-full, server-stock, server-sales, server-all, minimal"
+  echo ""
+  echo "Examples:"
+  echo "  # Full dev setup (macOS)"
+  echo "  curl -fsSL https://raw.githubusercontent.com/manibari/rivendell/main/bin/sk-bootstrap | bash -s -- dev-full"
+  echo ""
+  echo "  # Stock server only (Linux)"
+  echo "  curl -fsSL https://raw.githubusercontent.com/manibari/rivendell/main/bin/sk-bootstrap | bash -s -- server-stock"
+  exit 1
+fi
+
+# Pre-flight: git + docker
+for cmd in git docker; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "Error: $cmd is not installed."
+    exit 1
+  fi
+done
+
+# Ensure projects directory exists
+mkdir -p "$PROJECTS_DIR"
+
+# Clone or update rivendell
+if [ -d "$RIVENDELL_DIR/.git" ]; then
+  echo "Updating rivendell..."
+  git -C "$RIVENDELL_DIR" pull --ff-only
+else
+  echo "Cloning rivendell..."
+  git clone "$RIVENDELL_REPO" "$RIVENDELL_DIR"
+fi
+
+# Delegate to sk bootstrap
+exec "$RIVENDELL_DIR/bin/sk" bootstrap "$PROFILE"
