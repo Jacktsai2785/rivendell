@@ -3,17 +3,19 @@ name: LaunchD Agent
 description: >
   Create, configure, debug, and manage macOS launchd agents (LaunchAgents plist files).
   Covers plist generation, scheduling with StartCalendarInterval, launchctl lifecycle
-  (load/unload/start/list), log configuration, and troubleshooting common issues.
+  (load/unload/start/list), log configuration, troubleshooting common issues, and
+  portable multi-agent fleet management with declarative config + bootstrap script.
   TRIGGER when: user asks to create a scheduled task on macOS, mentions plist/launchctl/LaunchAgent,
-  wants to set up cron-like automation on Mac, asks about launchd scheduling, or is debugging
-  why a scheduled agent isn't running. Also trigger when user says "排程", "定時執行", or "自動化任務".
+  wants to set up cron-like automation on Mac, asks about launchd scheduling, is debugging
+  why a scheduled agent isn't running, or wants to make launchd agents portable across machines.
+  Also trigger when user says "排程", "定時執行", "自動化任務", or "引繼".
   DO NOT TRIGGER when: user is working on Linux (use cron/systemd), building CI pipelines
   (use ci-pipeline), or deploying to cloud (use deploy).
 when_to_use: >
   When creating or managing scheduled tasks on macOS via launchd.
-version: 1.0.0
-tags: [workflow, macos, launchd, scheduling, automation]
-languages: [bash, python]
+version: 2.0.0
+tags: [workflow, macos, launchd, scheduling, automation, portability]
+languages: [bash, python, c]
 ---
 
 # LaunchD Agent Management
@@ -208,3 +210,134 @@ with open(plist_path, "wb") as f:
 4. **User agents only** — `~/Library/LaunchAgents/` runs as the current user and only while logged in. For system-wide agents that run at boot, use `/Library/LaunchDaemons/` (requires root).
 
 5. **Log rotation** — launchd doesn't rotate logs. Use dated log paths (e.g., `agent-$(date +%F).log`) or set up a separate rotation mechanism.
+
+6. **TCC / Full Disk Access** — launchd agents accessing `~/Documents/`, `~/Desktop/`, or `~/Downloads/` need the executable to have Full Disk Access (FDA). `/bin/bash` does NOT have FDA by default. See the Portable Fleet Pattern below for the solution.
+
+---
+
+## Portable Multi-Agent Fleet Pattern
+
+When managing multiple launchd agents across machines, hardcoded absolute paths make plists non-portable. This pattern solves it with three components:
+
+### Architecture
+
+```
+project/
+├── agents/
+│   ├── agents.conf          # Declarative agent definitions
+│   └── sk-agent-run.c       # Compiled launcher (gets FDA)
+└── bin/
+    └── sk-setup-agents      # Bootstrap: detect PATH → compile → generate plists → load
+```
+
+New machine setup: `./bin/sk-setup-agents` → grant FDA → done.
+
+### 1. Declarative Config (`agents.conf`)
+
+All agents defined in one file — no plist editing needed:
+
+```
+# LABEL | PROJECT_REL | SCRIPT | SCHEDULE_TYPE | SCHEDULE_VALUE | LOG_DIR | EXTRA_ARGS
+#
+# SCHEDULE_TYPE: interval | calendar | calendar_multi | keepalive
+# SCHEDULE_VALUE:
+#   interval       → seconds (28800 = 8h)
+#   calendar       → H:MM or W:H:MM (W=weekday 0-6)
+#   calendar_multi → W1:H:MM,W2:H:MM
+#   keepalive      → - (always running)
+
+com.example.daily-task   | my-project | scripts/task.sh   | calendar       | 7:30         | logs
+com.example.weekly-task  | my-project | scripts/weekly.sh | calendar       | 0:10:00      | logs | weekly
+com.example.twice-weekly | my-project | scripts/scrape.sh | calendar_multi | 1:8:00,4:8:00 | logs
+com.example.web-server   | my-project | scripts/start.sh  | keepalive      | -            | logs
+```
+
+### 2. Compiled Launcher (`sk-agent-run.c`)
+
+A tiny C program that `cd`s into the project dir and execs the script. Compiled during setup so it can receive FDA — `/bin/bash` cannot.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int main(int argc, char *argv[]) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: sk-agent-run <project_dir> <script> [args...]\n");
+        return 1;
+    }
+    if (chdir(argv[1]) != 0) { perror("chdir"); return 1; }
+
+    int new_argc = argc - 1;
+    char **new_argv = malloc((new_argc + 1) * sizeof(char *));
+    new_argv[0] = "/bin/bash";
+    for (int i = 2; i < argc; i++) new_argv[i - 1] = argv[i];
+    new_argv[new_argc] = NULL;
+
+    execv("/bin/bash", new_argv);
+    perror("execv"); return 1;
+}
+```
+
+Why not just a shell script? macOS TCC blocks `/bin/bash` from accessing `~/Documents/` when launched by launchd. A compiled binary can be granted FDA individually.
+
+### 3. Bootstrap Script (`sk-setup-agents`)
+
+Key responsibilities:
+1. **Auto-detect PATH** — scans for conda, homebrew, npm global, ~/.local/bin
+2. **Compile launcher** — `cc -O2 -o ~/.local/bin/sk-agent-run agents/sk-agent-run.c`
+3. **Generate plists** — reads agents.conf, expands `$HOME`-relative paths
+4. **Load into launchd** — unload-then-load each agent
+
+```bash
+# PATH detection pattern — finds tools regardless of install location
+detect_path() {
+  local parts="/usr/local/bin:/usr/bin:/bin"
+  [ -d "/opt/homebrew/bin" ] && parts="/opt/homebrew/bin:$parts"
+  for conda_bin in "$HOME/miniconda3/bin" "$HOME/anaconda3/bin" \
+    "/opt/homebrew/Caskroom/miniconda/base/bin"; do
+    [ -d "$conda_bin" ] && { parts="$conda_bin:$parts"; break; }
+  done
+  local npm_bin="$(npm config get prefix 2>/dev/null)/bin"
+  [ -d "$npm_bin" ] && parts="$parts:$npm_bin"
+  parts="$parts:$HOME/.local/bin"
+  echo "$parts"
+}
+```
+
+### FDA Setup (one-time per machine)
+
+After running `sk-setup-agents`:
+
+1. Open **System Settings → Privacy & Security → Full Disk Access**
+2. Click **+**, navigate to `~/.local/bin/sk-agent-run`
+3. Toggle ON
+
+Without FDA, agents accessing `~/Documents/` will fail with "Operation not permitted" (exit 126).
+
+### Debugging the Fleet
+
+```bash
+# All agents at a glance
+launchctl list | grep com.sk | awk '{printf "%-50s exit=%s pid=%s\n", $3, $2, $1}'
+
+# Common exit codes
+#   0   = success
+#   1   = script error (check stderr log)
+#   126 = permission denied (grant FDA)
+#   127 = command not found (check PATH in plist)
+#   256 = script exited 1 (launchd multiplies by 256)
+
+# Reload a single agent after config change
+launchctl unload ~/Library/LaunchAgents/com.example.plist
+launchctl load ~/Library/LaunchAgents/com.example.plist
+
+# Reload all
+./bin/sk-setup-agents
+
+# Unload all
+./bin/sk-setup-agents --unload
+
+# Preview without installing
+./bin/sk-setup-agents --dry-run
+```

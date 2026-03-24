@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Launcher for launchd agents — cd into project dir, then exec the script.
+# Usage: sk-agent-run <project_dir> <script> [args...]
+set -euo pipefail
+
+if [ $# -lt 2 ]; then
+  echo "Usage: sk-agent-run <project_dir> <script> [args...]" >&2
+  exit 1
+fi
+
+project_dir="$1"; shift
+script="$1"; shift
+
+cd "$project_dir"
+exec bash "$script" "$@"

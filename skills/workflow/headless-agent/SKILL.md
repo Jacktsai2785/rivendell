@@ -382,3 +382,11 @@ This skill provides the infrastructure layer. Combine with domain-specific skill
 - Investment research skill for financial analysis agents
 - Systematic debugging skill for automated bug triage agents
 - Any custom skill that defines the agent's domain knowledge and workflow
+
+## Portability
+
+Hardcoded paths in launchd plists break when moving to a new machine. For managing multiple agents portably, see the **Portable Multi-Agent Fleet Pattern** in the `launchd-agent` skill, which provides:
+- Declarative `agents.conf` — all agents in one file
+- Auto-detect PATH (conda, homebrew, npm)
+- Compiled C launcher with FDA for `~/Documents/` access
+- One-command bootstrap: `./bin/sk-setup-agents`
