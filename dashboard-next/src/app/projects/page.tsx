@@ -10,7 +10,8 @@ import {
   type ProjectInfo,
 } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
-import { Pencil, Trash2, Plus, X, FolderOpen } from "lucide-react";
+import { Pencil, Trash2, Plus, X, FolderOpen, ChevronRight } from "lucide-react";
+import Link from "next/link";
 
 function ProjectCard({
   project,
@@ -61,10 +62,14 @@ function ProjectCard({
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <Link
+          href={`/projects/${encodeURIComponent(project.name)}`}
+          className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400"
+        >
           <FolderOpen size={18} className="text-blue-500" />
           <h3 className="text-base font-semibold">{project.name}</h3>
-        </div>
+          <ChevronRight size={16} className="text-zinc-300" />
+        </Link>
         <span
           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
             project.agent_count_loaded > 0
