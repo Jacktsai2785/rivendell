@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+# sk-autoresearch — Autonomous iteration loop for Claude Code agents.
+#
+# Core loop: modify → verify → keep/discard → repeat
+#
+# Usage:
+#   sk-autoresearch <config.yml> [goal-name]
+#   sk-autoresearch autoresearch.yml keyword-coverage
+#   sk-autoresearch autoresearch.yml  # runs first goal
+#
+# Config format: see skills/workflow/autoresearch/SKILL.md
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Source exec-lib
+if [ -f "$REPO_DIR/bin/sk-exec-lib" ]; then
+  export SK_EXEC_REPO_DIR="$REPO_DIR"
+  source "$REPO_DIR/bin/sk-exec-lib"
+fi
+
+# ─── Args ───
+CONFIG="${1:?Usage: sk-autoresearch <config.yml> [goal-name]}"
+GOAL_NAME="${2:-}"
+
+if [ ! -f "$CONFIG" ]; then
+  echo "Error: config file not found: $CONFIG" >&2
+  exit 1
+fi
+
+# ─── Parse config with Python ───
+read_config() {
+  python3 -c "
+import yaml, json, sys
+with open('$CONFIG') as f:
+    cfg = yaml.safe_load(f)
+goals = cfg.get('goals', [])
+name = '$GOAL_NAME'
+if name:
+    goal = next((g for g in goals if g['name'] == name), None)
+else:
+    goal = goals[0] if goals else None
+if not goal:
+    print('ERROR: goal not found', file=sys.stderr)
+    sys.exit(1)
+print(json.dumps(goal))
+"
+}
+
+GOAL_JSON=$(read_config)
+if [ $? -ne 0 ]; then
+  echo "Error: failed to parse config" >&2
+  exit 1
+fi
+
+# Extract fields
+NAME=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g['name'])")
+DESCRIPTION=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('description',''))")
+SCOPE=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('scope','.'))")
+METRIC_CMD=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g['metric_cmd'])")
+DIRECTION=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('direction','higher'))")
+VERIFY_CMD=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('verify_cmd',''))")
+MAX_ITER=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('max_iterations',20))")
+COOLDOWN=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('cooldown_secs',30))")
+PROMPT=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('prompt','Improve the metric.'))")
+STALE_LIMIT=$(echo "$GOAL_JSON" | python3 -c "import json,sys; g=json.load(sys.stdin); print(g.get('stale_limit',5))")
+
+PROJECT_DIR="$(cd "$(dirname "$CONFIG")" && pwd)"
+PROJECT_NAME="$(basename "$PROJECT_DIR")"
+TODAY="$(date '+%Y-%m-%d')"
+NOW="$(date '+%Y-%m-%d_%H%M')"
+LOG_DIR="$PROJECT_DIR/reports"
+LOG_FILE="$LOG_DIR/autoresearch-${NAME}-${TODAY}.log"
+
+mkdir -p "$LOG_DIR"
+
+# ─── Helpers ───
+log() { echo "[$NOW] $1" | tee -a "$LOG_FILE"; }
+get_metric() {
+  local val
+  val=$(cd "$PROJECT_DIR" && eval "$METRIC_CMD" 2>/dev/null | tail -1 | grep -oE '[0-9]+\.?[0-9]*' | head -1)
+  echo "${val:-0}"
+}
+
+is_better() {
+  local old="$1" new="$2"
+  python3 -c "
+old, new, d = float('$old'), float('$new'), '$DIRECTION'
+if d == 'higher':
+    exit(0 if new > old else 1)
+else:
+    exit(0 if new < old else 1)
+"
+}
+
+# ─── Banner ───
+log "═══════════════════════════════════════════════"
+log "  autoresearch: $NAME"
+log "  $DESCRIPTION"
+log "  direction=$DIRECTION  max_iter=$MAX_ITER  stale_limit=$STALE_LIMIT"
+log "═══════════════════════════════════════════════"
+
+# ─── Setup: create branch ───
+cd "$PROJECT_DIR"
+BRANCH="autoresearch/${NAME}/${TODAY}"
+ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH" 2>/dev/null || true
+
+# ─── Baseline ───
+log "[baseline] Running metric command..."
+BASELINE=$(get_metric)
+BEST="$BASELINE"
+log "[baseline] Initial metric: $BASELINE"
+
+# ─── Iteration history (for context in prompt) ───
+HISTORY=""
+KEPT=0
+DISCARDED=0
+STALE=0
+
+start_epoch=$(date +%s)
+
+# ─── Main loop ───
+for i in $(seq 1 "$MAX_ITER"); do
+  log ""
+  log "[iter $i/$MAX_ITER] Starting iteration..."
+
+  ITER_PROMPT="You are an autonomous researcher optimizing: $NAME
+Goal: $DESCRIPTION
+Metric: $METRIC_CMD (${DIRECTION} is better)
+Current best: $BEST (baseline: $BASELINE)
+Scope: only modify files matching: $SCOPE
+
+$PROMPT
+
+Recent iteration history:
+$HISTORY
+
+Instructions:
+- Make ONE focused change to improve the metric
+- Do NOT make multiple unrelated changes
+- Explain what you changed and why
+- The verify command will run after your changes: $VERIFY_CMD"
+
+  # Run Claude
+  log "[iter $i/$MAX_ITER] Running Claude..."
+  claude -p "$ITER_PROMPT" \
+    --output-format text \
+    > "$LOG_DIR/autoresearch-${NAME}-iter${i}.md" \
+    2>> "$LOG_FILE" \
+    && claude_exit=0 || claude_exit=$?
+
+  if [ "$claude_exit" -ne 0 ]; then
+    log "[iter $i/$MAX_ITER] Claude failed (exit $claude_exit). Stopping."
+    break
+  fi
+
+  # Verify
+  if [ -n "$VERIFY_CMD" ]; then
+    log "[iter $i/$MAX_ITER] Running verify..."
+    cd "$PROJECT_DIR"
+    eval "$VERIFY_CMD" >> "$LOG_FILE" 2>&1 || true
+  fi
+
+  # Measure
+  NEW_METRIC=$(get_metric)
+  log "[iter $i/$MAX_ITER] Metric: $BEST → $NEW_METRIC"
+
+  # Compare
+  if is_better "$BEST" "$NEW_METRIC"; then
+    # KEEP
+    log "[iter $i/$MAX_ITER] ✓ IMPROVED. Keeping changes."
+    cd "$PROJECT_DIR"
+    git add -A
+    git commit -m "autoresearch($NAME): iter $i — $BEST → $NEW_METRIC" --no-verify 2>/dev/null || true
+    BEST="$NEW_METRIC"
+    KEPT=$((KEPT + 1))
+    STALE=0
+    HISTORY="$HISTORY
+[iter $i] ✓ KEPT: $BEST → $NEW_METRIC"
+  else
+    # DISCARD
+    log "[iter $i/$MAX_ITER] ✗ No improvement ($NEW_METRIC). Discarding."
+    cd "$PROJECT_DIR"
+    git checkout -- . 2>/dev/null || true
+    git clean -fd 2>/dev/null || true
+    DISCARDED=$((DISCARDED + 1))
+    STALE=$((STALE + 1))
+    HISTORY="$HISTORY
+[iter $i] ✗ DISCARDED: tried but got $NEW_METRIC (best=$BEST)"
+  fi
+
+  # Stale check
+  if [ "$STALE" -ge "$STALE_LIMIT" ]; then
+    log "[iter $i/$MAX_ITER] No improvement for $STALE_LIMIT iterations. Stopping."
+    break
+  fi
+
+  # Cooldown
+  if [ "$i" -lt "$MAX_ITER" ]; then
+    log "[iter $i/$MAX_ITER] Cooling down ${COOLDOWN}s..."
+    sleep "$COOLDOWN"
+  fi
+done
+
+end_epoch=$(date +%s)
+elapsed=$(( end_epoch - start_epoch ))
+
+# ─── Summary ───
+log ""
+log "═══════════════════════════════════════════════"
+log "  SUMMARY: $NAME"
+log "  Baseline: $BASELINE → Best: $BEST"
+log "  Iterations: $((KEPT + DISCARDED)) (kept=$KEPT, discarded=$DISCARDED)"
+log "  Duration: ${elapsed}s"
+log "  Branch: $BRANCH"
+log "═══════════════════════════════════════════════"
+
+# Record to dashboard DB
+if type _sk_exec_record_run &>/dev/null; then
+  _sk_exec_record_run "$PROJECT_NAME" "autoresearch-${NAME}" \
+    "$start_epoch" "$end_epoch" "0" "" "" "" "" "$BRANCH" ""
+fi
+
+# Checkout back to original branch (leave autoresearch branch for review)
+git checkout "$ORIGINAL_BRANCH" 2>/dev/null || true
+
+log "Done. Review changes: git log $BRANCH"

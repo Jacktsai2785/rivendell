@@ -379,9 +379,12 @@ sk agent commit research-agent --project news_stock       # Commit accumulated o
 ## Integration with Other Skills
 
 This skill provides the infrastructure layer. Combine with domain-specific skills for the agent's actual task:
+- **autoresearch** skill for autonomous iteration loops (modify → verify → keep/discard)
 - Investment research skill for financial analysis agents
 - Systematic debugging skill for automated bug triage agents
 - Any custom skill that defines the agent's domain knowledge and workflow
+
+When building a new headless agent, always ask: **does this task have a measurable metric?** If yes, consider wrapping it in an autoresearch loop (`sk-autoresearch`) instead of a one-shot runner. The autoresearch pattern turns any agent from "run once and report" into "iterate until optimal."
 
 ## Dashboard Integration
 
