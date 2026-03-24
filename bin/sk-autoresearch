@@ -180,11 +180,12 @@ Instructions:
     HISTORY="$HISTORY
 [iter $i] ✓ KEPT: $BEST → $NEW_METRIC"
   else
-    # DISCARD
+    # DISCARD — only revert scope files, not the entire repo
     log "[iter $i/$MAX_ITER] ✗ No improvement ($NEW_METRIC). Discarding."
     cd "$PROJECT_DIR"
+    # Revert only tracked changes (safe — doesn't touch untracked files)
     git checkout -- . 2>/dev/null || true
-    git clean -fd 2>/dev/null || true
+    # Do NOT run git clean — it destroys untracked files from other agents
     DISCARDED=$((DISCARDED + 1))
     STALE=$((STALE + 1))
     HISTORY="$HISTORY
