@@ -1,8 +1,8 @@
 ---
 name: tender-scraper
-description: "Automated government tender scraper — fetches public tender listings from Taiwan's government procurement portal (via g0v API), filters for open tenders within bidding period, writes/archives case files, and regenerates INDEX.md. Fully local, no DB dependency."
-tags: [automation, tenders, scraping, sales-enablement, local]
-version: 1
+description: "Automated government tender scraper — fetches public tender listings from Taiwan's government procurement portal (via g0v API), filters by data-driven keywords (keywords.yml with auto-discovery), writes/archives case files, and regenerates INDEX.md. Includes network resilience (retry with exponential backoff), keyword analysis for candidate discovery, and dashboard observability. Fully local, no DB dependency."
+tags: [automation, tenders, scraping, sales-enablement, local, keyword-discovery, resilience]
+version: 2.0.0
 source: manual
 user_invocable: true
 when_to_use: "TRIGGER when: user says /tender-scraper, 'scrape tenders', '更新標案', '爬標案', or this skill is invoked by a headless agent on schedule. DO NOT TRIGGER when: user is manually researching a single tender."
@@ -62,15 +62,87 @@ Regenerate INDEX.md + by-category/*.md
 
 Read [scraper.md](scraper.md) for the complete scraping workflow.
 
-### Quick Reference
+### Pipeline Overview (6+1 Steps)
 
-1. **Fetch** — WebFetch g0v API for today's listings (paginate all pages)
-2. **Dedup** — Glob `materials/tenders/cases/*.md`, read frontmatter, match by `job_number`
-3. **Detail + Filter** — For new tenders, fetch detail API; keep only `招標資料.招標方式 == "公開徵求"`
-4. **Screenshot Parse** — Playwright captures tender page screenshots → AI vision extracts scope, qualification, evaluation method
-5. **Create** — New tenders → write `cases/{job_number}-{slug}.md` with frontmatter + parsed detail
-6. **Archive** — Deadline passed → move to `cases/archived/`, set status: archived
-7. **Regenerate** — Rebuild `INDEX.md` and `by-category/*.md` from all active case files
+| Step | Name | Description |
+|------|------|-------------|
+| 1 | **Wait for network** | DNS resolution check; block until connectivity confirmed |
+| 2 | **Fetch listings** | WebFetch g0v API for today's listings (paginate all pages); retry with exponential backoff on 429 |
+| 3 | **Filter by keywords** | Match listings against active keyword categories loaded from `keywords.yml` |
+| 4 | **Fetch detail + create case files** | For matching tenders, fetch detail API → write `cases/{job_number}-{slug}.md` with frontmatter + parsed detail |
+| 5 | **Auto-enrich** | Playwright screenshots + AI vision extract scope, qualification, evaluation method for matching tenders |
+| 6 | **Archive + regenerate** | Move past-deadline tenders to `cases/archived/`, regenerate `INDEX.md` and `by-category/*.md` |
+| 7 (post-scrape) | **Keyword analysis** | Analyze unmatched tenders to discover new keyword candidates; populate `candidates:` in `keywords.yml` |
+
+```
+[Step 1] Network wait
+    ↓
+[Step 2] Fetch listings (g0v API, retry/backoff)
+    ↓
+[Step 3] Filter by keywords (keywords.yml)
+    ↓
+[Step 4] Fetch detail + create case files
+    ↓
+[Step 5] Auto-enrich matching tenders
+    ↓
+[Step 6] Archive past-deadline + regenerate INDEX.md
+    ↓
+[Step 7] Keyword analysis → discover new candidates
+```
+
+## Keyword Management
+
+Keyword matching is **data-driven** via `keywords.yml` — no hardcoded keyword lists in code.
+
+### keywords.yml Structure
+
+```yaml
+active:
+  資訊服務:
+    - 資訊系統
+    - 軟體開發
+  auto_discovered:          # promoted from candidates
+    - 資料治理
+candidates:                 # auto-populated by analyzer
+  數位轉型:
+    count: 12
+    days: 4
+    sample_titles:
+      - "XX機關數位轉型計畫"
+rejected:                   # won't be suggested again
+  - AR
+  - VR
+```
+
+### Matching Rules
+
+- **`active:`** — categories and their keywords used for tender matching in Step 3
+- **`candidates:`** — auto-populated by the keyword analyzer (Step 7) with `count` and `sample_titles`
+- **`rejected:`** — keywords that will never be suggested again
+
+### Auto-Promotion
+
+When a candidate meets **both** thresholds, it is automatically promoted to the `auto_discovered` category under `active:`:
+- Appearance count >= 10
+- Seen across >= 3 distinct days
+
+### False Positive Avoidance
+
+Short English abbreviations (`AR`, `VR`, `BI`, `API`) are auto-rejected — they generate too many false positives in Chinese tender titles. Use compound forms instead (e.g., `API介接`, `VR體驗`).
+
+## Observability
+
+- **exec-lib** writes run metadata to the dashboard DB on each execution
+- Progress logging uses **`[step N/5]`** prefix format for structured parsing
+- Dashboard renders a timeline view from plain Python log output — no special log framework needed
+
+## Resilience
+
+| Mechanism | Detail |
+|-----------|--------|
+| **Network wait** | Step 1 performs DNS resolution check; scraper blocks until connectivity is confirmed |
+| **Retry with backoff** | HTTP 429 (rate limit) triggers exponential backoff with jitter; configurable max retries |
+| **DNS check** | Resolves `pcc-api.openfun.app` before attempting API calls to fail fast on network issues |
 
 ## Case File Format
 
@@ -141,3 +213,4 @@ See [scraper.md](scraper.md) Phase 3.5 for detailed workflow.
 - `materials/tenders/screenshots/` — Ephemeral screenshots for AI parsing
 - `materials/tenders/INDEX.md` — Auto-generated active summary
 - `materials/tenders/by-category/*.md` — Per-category views
+- `materials/tenders/keywords.yml` — Keyword configuration (active, candidates, rejected)

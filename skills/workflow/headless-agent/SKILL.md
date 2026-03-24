@@ -383,6 +383,42 @@ This skill provides the infrastructure layer. Combine with domain-specific skill
 - Systematic debugging skill for automated bug triage agents
 - Any custom skill that defines the agent's domain knowledge and workflow
 
+## Dashboard Integration
+
+### exec-lib for Run Recording
+
+To record execution history to the dashboard DB, source `sk-exec-lib` from rivendell and call `_sk_exec_record_run` at the end of your runner script.
+
+```bash
+# Must export BEFORE sourcing — not inline
+export SK_EXEC_REPO_DIR="$HOME/Documents/Projects/rivendell"
+
+# Guard so the script still works without rivendell installed
+if [ -f "$SK_EXEC_REPO_DIR/bin/sk-exec-lib" ]; then
+  source "$SK_EXEC_REPO_DIR/bin/sk-exec-lib"
+fi
+
+# After the agent run completes:
+_sk_exec_record_run "project" "agent-name" "$start_epoch" "$end_epoch" "$run_exit" ...
+```
+
+Key points:
+- `SK_EXEC_REPO_DIR` **must be exported** before the `source` line — an inline `VAR=x source ...` does not propagate to the library's functions.
+- The `if [ -f ... ]` guard ensures the script degrades gracefully on machines where rivendell is not checked out.
+- Call `_sk_exec_record_run` with positional args: project name, agent name, start/end epoch timestamps, exit code, and any extra metadata fields.
+
+### Dashboard Log Discovery
+
+The dashboard API reads the `StandardOutPath` value from each agent's launchd plist to locate log files. If your agent writes logs to a non-standard directory (somewhere other than `reports/`), no code changes are needed — the dashboard resolves the path from the plist automatically. Just ensure your plist's `StandardOutPath` points to the correct log file.
+
+### Live Monitoring
+
+The `/live` endpoint polls the agent's stdout log for real-time output. For non-Claude agents (Python scripts, etc.), plain text logging works out of the box.
+
+Tips for better visibility:
+- Use `[step N/M]` progress prefixes in your log lines — the dashboard renders these as a progress indicator.
+- The `/timeline` endpoint auto-converts Python logging format (`YYYY-MM-DD HH:MM:SS LEVEL message`) into timeline events, so standard `logging.info(...)` output works without any adapter.
+
 ## Portability
 
 Hardcoded paths in launchd plists break when moving to a new machine. For managing multiple agents portably, see the **Portable Multi-Agent Fleet Pattern** in the `launchd-agent` skill, which provides:

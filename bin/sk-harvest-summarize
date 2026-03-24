@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Pre-summarize Claude Code sessions into compact digests for harvest.
+
+Reads JSONL session files, extracts key signals, and outputs a compact
+summary (~10 lines per session instead of ~50 lines of raw tool calls).
+
+Usage:
+    sk-harvest-summarize <session1.jsonl> [session2.jsonl ...]
+
+Output: structured summary to stdout, one section per session.
+"""
+
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+
+def summarize_session(path: str) -> dict:
+    """Extract key signals from a session JSONL file."""
+    tools = Counter()
+    user_intents: list[str] = []
+    skills_used: set[str] = set()
+    files_touched: set[str] = set()
+    total_messages = 0
+    total_cost = 0.0
+    model = ""
+
+    try:
+        with open(path) as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+                # Result event — has cost/model info
+                if e.get("type") == "result":
+                    total_cost += e.get("total_cost_usd", 0)
+                    mu = e.get("modelUsage", {})
+                    if mu:
+                        model = next(iter(mu.keys()), model)
+                    continue
+
+                msg = e.get("message", {})
+                role = msg.get("role", "")
+
+                if role == "user":
+                    total_messages += 1
+                    content = msg.get("content", "")
+                    # Extract user intent (first 120 chars of text messages)
+                    if isinstance(content, str) and len(content) > 10:
+                        user_intents.append(content[:120])
+                    elif isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                text = block.get("text", "")
+                                if len(text) > 10:
+                                    user_intents.append(text[:120])
+
+                elif role == "assistant":
+                    content = msg.get("content", [])
+                    if isinstance(content, list):
+                        for block in content:
+                            if not isinstance(block, dict):
+                                continue
+                            if block.get("type") == "tool_use":
+                                name = block.get("name", "")
+                                tools[name] += 1
+                                inp = block.get("input", {})
+                                if isinstance(inp, dict):
+                                    # Track files
+                                    fp = inp.get("file_path", "")
+                                    if fp:
+                                        files_touched.add(Path(fp).name)
+                                    # Track skills
+                                    if name == "Skill":
+                                        skills_used.add(inp.get("skill_name", ""))
+    except Exception:
+        pass
+
+    return {
+        "path": path,
+        "project": Path(path).parent.name,
+        "messages": total_messages,
+        "cost_usd": round(total_cost, 4),
+        "model": model.split("[")[0] if model else "",
+        "tools": dict(tools.most_common(8)),
+        "user_intents": user_intents[:5],  # first 5 intents only
+        "skills_used": sorted(skills_used) if skills_used else [],
+        "files_touched": sorted(files_touched)[:10],
+    }
+
+
+def format_summary(summaries: list[dict]) -> str:
+    """Format summaries into compact text for the harvest prompt."""
+    lines = []
+    total_msgs = sum(s["messages"] for s in summaries)
+    total_cost = sum(s["cost_usd"] for s in summaries)
+    projects = sorted(set(s["project"] for s in summaries))
+
+    lines.append(f"Sessions: {len(summaries)} | Messages: ~{total_msgs} | Cost: ${total_cost:.2f}")
+    lines.append(f"Projects: {', '.join(projects)}")
+    lines.append("")
+
+    # Aggregate tool usage across all sessions
+    all_tools: Counter = Counter()
+    for s in summaries:
+        all_tools.update(s["tools"])
+    lines.append("Top tools: " + ", ".join(f"{t}({c})" for t, c in all_tools.most_common(10)))
+
+    # Aggregate skills used
+    all_skills: set[str] = set()
+    for s in summaries:
+        all_skills.update(s["skills_used"])
+    if all_skills:
+        lines.append(f"Skills invoked: {', '.join(sorted(all_skills))}")
+    lines.append("")
+
+    # Per-session digest (compact: 2-3 lines each)
+    for i, s in enumerate(summaries, 1):
+        intents = " → ".join(s["user_intents"][:3]) if s["user_intents"] else "(no text)"
+        tools_str = ", ".join(f"{t}({c})" for t, c in sorted(s["tools"].items(), key=lambda x: -x[1])[:5])
+        files_str = ", ".join(s["files_touched"][:5]) if s["files_touched"] else ""
+
+        lines.append(f"[{i}] {s['project']} | {s['messages']} msgs | ${s['cost_usd']}")
+        lines.append(f"    Intent: {intents}")
+        lines.append(f"    Tools: {tools_str}")
+        if files_str:
+            lines.append(f"    Files: {files_str}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: sk-harvest-summarize <session1.jsonl> [session2.jsonl ...]", file=sys.stderr)
+        sys.exit(1)
+
+    summaries = []
+    for path in sys.argv[1:]:
+        s = summarize_session(path)
+        if s["messages"] > 0:
+            summaries.append(s)
+
+    print(format_summary(summaries))

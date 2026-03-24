@@ -307,19 +307,33 @@ export default function AgentDetailPage() {
   function startLiveMode() {
     setLiveMode(true);
     setLiveLines([]);
-    liveOffset.current = 0;
+    setLiveRunning(true);
 
-    // Trigger the agent
-    apiPost("/api/agents/start", { label })
-      .then(() => {
-        // Start polling after a short delay
-        setTimeout(pollLive, 1500);
+    // Snapshot current log size BEFORE triggering, so we only show new output
+    apiFetch<{
+      running: boolean;
+      log_size: number;
+      log_lines: string[];
+    }>(`/api/agents/${encodeURIComponent(label)}/live?offset=999999`)
+      .then((snap) => {
+        // Start from end of existing log (skip old output)
+        liveOffset.current = snap.log_size;
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      .catch(() => {
+        liveOffset.current = 0;
+      })
+      .finally(() => {
+        // Trigger the agent, then start polling immediately
+        apiPost("/api/agents/start", { label })
+          .then(() => pollLive())
+          .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      });
   }
 
   function pollLive() {
     if (liveRef.current) clearInterval(liveRef.current);
+    let idleTicks = 0; // count polls with no new output after process ends
+
     liveRef.current = setInterval(async () => {
       try {
         const data = await apiFetch<{
@@ -333,18 +347,23 @@ export default function AgentDetailPage() {
         if (data.log_lines.length > 0) {
           setLiveLines((prev) => [...prev, ...data.log_lines]);
           liveOffset.current = data.log_size;
+          idleTicks = 0;
         }
 
-        // Stop polling when no longer running
-        if (!data.running && liveOffset.current > 0) {
-          if (liveRef.current) clearInterval(liveRef.current);
-          liveRef.current = null;
-          load(); // Refresh run history
+        // Stop when: not running + got some output + no new lines for 2 ticks
+        // This handles fast processes that finish before first poll
+        if (!data.running) {
+          idleTicks++;
+          if (idleTicks >= 2) {
+            if (liveRef.current) clearInterval(liveRef.current);
+            liveRef.current = null;
+            load(); // Refresh run history
+          }
         }
       } catch {
         // ignore polling errors
       }
-    }, 2000);
+    }, 1000); // poll every 1s (was 2s) for faster feedback
   }
 
   // Cleanup polling on unmount
@@ -486,10 +505,12 @@ export default function AgentDetailPage() {
               關閉
             </button>
           </div>
-          <pre className="max-h-80 overflow-auto p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+          <pre className="max-h-96 overflow-auto p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">
             {liveLines.length > 0
               ? liveLines.join("\n")
-              : "等待輸出..."}
+              : liveRunning
+                ? "等待輸出..."
+                : "執行完成（無新輸出）"}
           </pre>
         </div>
       )}

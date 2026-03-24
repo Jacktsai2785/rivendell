@@ -10,3 +10,5 @@ dashboard/data/*.db-shm
 __pycache__/
 logs/
 data/cost-ledger.jsonl
+dashboard-next/api/.venv/
+node_modules/

@@ -172,3 +172,46 @@ def scrape_tabs(url: str, tab_labels: list[str]) -> dict[str, str]:
 - Cannot handle sites requiring login (inform user)
 - Playwright must be installed: `pip install playwright && playwright install chromium`
 - Each browser launch takes ~1-2 seconds overhead
+
+## Network Resilience
+
+### Wait for Network
+
+launchd agents may start before WiFi/DNS is ready. Use a network check before launching any scraper pipeline:
+
+```python
+import socket, time
+
+def wait_for_network(host: str, max_wait: int = 120) -> bool:
+    for attempt in range(max_wait // 10):
+        try:
+            socket.getaddrinfo(host, 443)
+            return True
+        except socket.gaierror:
+            time.sleep(10)
+    return False
+```
+
+### Retry with Backoff
+
+Handle 429 rate limits and transient errors:
+
+```python
+def fetch_with_retry(url, params, max_retries=3):
+    for attempt in range(max_retries):
+        resp = requests.get(url, params=params, timeout=15)
+        if resp.status_code == 429:
+            wait = 2 ** (attempt + 2)  # 4s, 8s, 16s
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp
+    return None
+```
+
+### Common Pitfalls
+
+- g0v PCC API rate limits aggressively (~6 requests before 429)
+- DNS resolution fails in launchd before network is up
+- Always check network before starting scraper pipeline
+- Short English keyword matching (AR, VR, BI) causes false positives in government tender titles

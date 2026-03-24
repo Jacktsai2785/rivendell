@@ -19,6 +19,10 @@ const EVENT_ICONS: Record<string, string> = {
   auto_push: "🚀",
   qa_gate_failed: "❌",
   path_filter_rejected: "🚫",
+  log: "📋",
+  log_error: "🔴",
+  log_warn: "🟡",
+  log_header: "📌",
 };
 
 function InlineTimeline({
@@ -102,6 +106,26 @@ function InlineTimeline({
                   )}
                   {ev.type === "auto_push" && (
                     <span className="text-amber-600">Push: {ev.detail}</span>
+                  )}
+                  {ev.type === "log" && (
+                    <span className="text-zinc-600 dark:text-zinc-400">
+                      {ev.text}
+                    </span>
+                  )}
+                  {ev.type === "log_error" && (
+                    <span className="font-medium text-red-600 dark:text-red-400">
+                      {ev.text}
+                    </span>
+                  )}
+                  {ev.type === "log_warn" && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      {ev.text}
+                    </span>
+                  )}
+                  {ev.type === "log_header" && (
+                    <span className="font-semibold text-zinc-700 dark:text-zinc-200">
+                      {ev.text}
+                    </span>
                   )}
                 </span>
               </button>

@@ -554,6 +554,91 @@ def api_agent_files(agent_label: str) -> list[dict[str, Any]]:
     return files[:30]
 
 
+def _plain_log_timeline(agent, wd: str, started_at: str | None) -> list[dict[str, Any]]:
+    """Fallback: convert plain log files to timeline events for non-Claude agents."""
+    import re as _re
+    from datetime import datetime
+
+    # Find the log file — check plist StandardOutPath dir for dated logs
+    log_dir = Path(wd) / "reports"
+    if agent.plist_path:
+        try:
+            import plistlib
+            with open(agent.plist_path, "rb") as pf:
+                pdata = plistlib.load(pf)
+            sop = pdata.get("StandardOutPath")
+            if sop:
+                log_dir = Path(sop).parent
+        except Exception:
+            pass
+
+    if not log_dir.is_dir():
+        return []
+
+    # Find dated log file matching started_at
+    run_date = ""
+    if started_at:
+        try:
+            run_date = datetime.fromisoformat(started_at).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    # Search for: scraper-YYYY-MM-DD.log, agent-name-YYYY-MM-DD.log, etc.
+    log_file = None
+    name = agent.name
+    for pattern in [f"scraper-{run_date}.log", f"{name}-{run_date}.log", f"{name}.log"]:
+        candidate = log_dir / pattern
+        if candidate.is_file():
+            log_file = candidate
+            break
+
+    if not log_file:
+        # Try any log file modified around started_at
+        if started_at:
+            try:
+                target_ts = datetime.fromisoformat(started_at).timestamp()
+                logs = [f for f in log_dir.glob("*.log")
+                        if f.is_file() and abs(f.stat().st_mtime - target_ts) < 300]
+                if logs:
+                    log_file = max(logs, key=lambda f: f.stat().st_mtime)
+            except ValueError:
+                pass
+
+    if not log_file:
+        return []
+
+    # Parse log lines into events
+    events = []
+    content = log_file.read_text(errors="replace")
+    for line in content.splitlines():
+        line = _re.sub(r'\033\[[0-9;]*m', '', line).strip()
+        if not line:
+            continue
+
+        # Extract timestamp from Python logging format: "2026-03-24 12:41:04,748 INFO ..."
+        ts = ""
+        text = line
+        ts_match = _re.match(r'^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),?\d*\s+(\w+)\s+(.*)', line)
+        if ts_match:
+            ts = ts_match.group(1).replace(" ", "T")
+            level = ts_match.group(2)
+            text = ts_match.group(3)
+
+            # Color-code by level
+            if level == "ERROR":
+                events.append({"ts": ts, "type": "log_error", "text": text})
+            elif level == "WARNING":
+                events.append({"ts": ts, "type": "log_warn", "text": text})
+            else:
+                events.append({"ts": ts, "type": "log", "text": text})
+        elif line.startswith("==="):
+            events.append({"ts": "", "type": "log_header", "text": line.strip("= ")})
+        else:
+            events.append({"ts": ts, "type": "log", "text": text})
+
+    return events
+
+
 @app.get("/api/agents/{agent_label}/timeline", tags=["Agents"])
 def api_agent_timeline(
     agent_label: str,
@@ -596,7 +681,8 @@ def api_agent_timeline(
     )
 
     if not jsonl_files:
-        return []
+        # Fallback: convert plain log to timeline events for non-Claude agents
+        return _plain_log_timeline(agent, wd, started_at)
 
     # Match by started_at timestamp if provided
     target = None

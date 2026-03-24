@@ -49,3 +49,28 @@
 - **Reality**: `brief.type` is always `"公開招標公告"` for all public tenders. The actual procurement method (公開招標 / 公開徵求 / 限制性招標) is only available in the **detail API** at `招標資料.招標方式`
 - **Impact**: Cannot filter by 招標方式 at listing level — must fetch detail for each tender first, then filter. This significantly increases API calls needed per scrape run.
 - **Resolution**: Updated scraper.md workflow to fetch-then-filter pattern at Phase 3
+
+## 2026-03-24 — settings.local.json corrupted by one-time Bash permissions
+
+- **Category**: best_practice
+- **Context**: `.claude/settings.local.json` had accumulated ~50 one-time Bash commands as permission entries (git commit, python3 -c, find, etc.), plus missing commas in the array, making the file invalid JSON. Claude Code silently skipped the file.
+- **Learning**: Periodically audit `settings.local.json` — one-time Bash approvals get saved as permanent permission patterns. Clean out entries that aren't reusable glob patterns (like `Bash(npm *)`) and keep only intentional permissions.
+
+## 2026-03-24 — macOS TCC blocks /bin/bash from ~/Documents/ in launchd
+
+- **Category**: knowledge_gap
+- **Context**: Replacing compiled sk-agent-run binary with shell script caused "Operation not permitted" (exit 126) for all launchd agents accessing ~/Documents/
+- **Learning**: macOS TCC (Transparency, Consent, and Control) protects ~/Documents/, ~/Desktop/, ~/Downloads/. When launchd spawns `/bin/bash`, it has no Full Disk Access. A compiled binary can be granted FDA individually. Shell scripts cannot.
+- **Resolution**: Keep a compiled C launcher (`agents/sk-agent-run.c`), compile during setup, grant FDA once per machine.
+
+## 2026-03-24 — Cross-project exec-lib sourcing needs export
+
+- **Category**: best_practice
+- **Context**: `SK_EXEC_REPO_DIR="$VAL" source exec-lib` worked during sourcing but the variable wasn't available when functions were called later under `set -u`
+- **Learning**: Use `export SK_EXEC_REPO_DIR=...` before `source`, not inline `VAR=val source file`. The inline form may not persist for later function calls.
+
+## 2026-03-24 — Dashboard must discover log paths from plist, not assume reports/
+
+- **Category**: best_practice
+- **Context**: Dashboard `/live` and `/files` only searched `reports/` but sales agents log to `materials/tenders/`, `materials/subsidies/`, etc.
+- **Learning**: Read plist `StandardOutPath` to find correct log location. Added plist-based log discovery to `/live`, `/files`, `/file` endpoints.

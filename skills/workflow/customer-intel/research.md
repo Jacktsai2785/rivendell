@@ -125,7 +125,7 @@ WebSearch: "[industry] trends challenges 2026"
 Output the report to terminal AND save to file:
 
 ```
-~/Documents/Projects/reports/customer-intel/[company_name]_[YYYY-MM-DD].md
+~/Documents/Projects/sales-assistant/reports/customer-intel/[company_name]_[YYYY-MM-DD].md
 ```
 
 Create the directory if it doesn't exist.

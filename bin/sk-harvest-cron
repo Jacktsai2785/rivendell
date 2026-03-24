@@ -11,87 +11,61 @@ NOW="$(date '+%Y-%m-%d_%H%M')"
 TODAY="$(date '+%Y-%m-%d')"
 PROJECTS_DIR="$HOME/.claude/projects"
 STATE_FILE="$REPORT_DIR/.harvest-state"
-MIN_SESSIONS=3  # minimum new sessions to trigger a harvest
+HARVESTED_FILE="$REPORT_DIR/.harvest-done"  # tracks already-harvested session paths
+MIN_SESSIONS=3
 
 mkdir -p "$REPORT_DIR"
+touch "$HARVESTED_FILE"
 
 # Source exec lib for _sk_exec_record_run
 source "$REPO_DIR/bin/sk-exec-lib"
 
-# --- Determine time window: since last harvest or 24h, whichever is shorter ---
+# --- Find new sessions (not yet harvested) ---
+# 1. Find JSONL files modified since last harvest (or 24h)
+# 2. Exclude subagent sessions (noise)
+# 3. Exclude already-harvested sessions
 if [ -f "$STATE_FILE" ]; then
-    last_run=$(cat "$STATE_FILE")
-    # Find sessions modified after last harvest
-    recent_sessions=$(find "$PROJECTS_DIR" -name "*.jsonl" -newer "$STATE_FILE" 2>/dev/null | head -30)
+    candidates=$(find "$PROJECTS_DIR" -name "*.jsonl" -newer "$STATE_FILE" \
+        -not -path "*/subagents/*" 2>/dev/null | sort -t/ -k6 || true)
 else
-    # First run: look at last 24 hours
-    recent_sessions=$(find "$PROJECTS_DIR" -name "*.jsonl" -mtime -1 2>/dev/null | head -30)
+    candidates=$(find "$PROJECTS_DIR" -name "*.jsonl" -mtime -1 \
+        -not -path "*/subagents/*" 2>/dev/null | sort -t/ -k6 || true)
 fi
 
+# Filter out already-harvested sessions
+recent_sessions=""
 session_count=0
-if [ -n "$recent_sessions" ]; then
-    session_count=$(echo "$recent_sessions" | wc -l | tr -d ' ')
-fi
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if ! grep -qFx "$f" "$HARVESTED_FILE" 2>/dev/null; then
+        recent_sessions+="$f"$'\n'
+        session_count=$((session_count + 1))
+    fi
+    # Cap at 30 sessions per harvest
+    [ "$session_count" -ge 30 ] && break
+done <<< "$candidates"
 
-# --- Check if enough sessions to justify a harvest ---
+# Trim trailing newline
+recent_sessions=$(echo "$recent_sessions" | sed '/^$/d')
+
+# --- Check if enough NEW sessions to justify a harvest ---
 if [ "$session_count" -lt "$MIN_SESSIONS" ]; then
     echo "[$NOW] Only $session_count new session(s) since last harvest (need $MIN_SESSIONS). Skipping."
     exit 0
 fi
 
-# --- Count unique messages to gauge session depth ---
-total_messages=$(python3 -c "
-import json, sys
-count = 0
-for path in sys.argv[1:]:
-    try:
-        with open(path) as f:
-            for line in f:
-                try:
-                    e = json.loads(line)
-                    if e.get('message', {}).get('usage'):
-                        count += 1
-                except: pass
-    except: pass
-print(count)
-" $recent_sessions)
+# --- Pre-summarize sessions (single Python process, compact output) ---
+SESSION_SUMMARY=$(echo "$recent_sessions" | xargs python3 "$REPO_DIR/bin/sk-harvest-summarize" 2>/dev/null)
+total_messages=$(echo "$SESSION_SUMMARY" | head -1 | grep -oE 'Messages: ~[0-9]+' | grep -oE '[0-9]+' || echo "0")
 
 echo "[$NOW] Found $session_count session(s) with ~$total_messages messages. Running harvest..."
-
-# --- Build project list ---
-project_list=$(echo "$recent_sessions" | xargs -I{} dirname {} | xargs -I{} basename {} | sort -u | tr '\n' ', ')
 
 # --- Build prompt ---
 PROMPT="You are reviewing recent Claude Code sessions to identify reusable patterns that could become skills.
 
-Session stats: ${session_count} sessions, ~${total_messages} messages, across projects: ${project_list}
+Here is a pre-summarized digest of ${session_count} recent sessions:
 
-Here are the session summaries:
-
-$(for f in $recent_sessions; do
-    echo "=== $(basename $(dirname "$f"))/$(basename "$f") ==="
-    python3 -c "
-import json, sys
-with open('$f') as fh:
-    for line in fh:
-        try:
-            e = json.loads(line)
-            msg = e.get('message', {})
-            role = msg.get('role', '')
-            if role == 'user':
-                content = msg.get('content', '')
-                if isinstance(content, str) and len(content) > 20:
-                    print(f'USER: {content[:200]}')
-            elif role == 'assistant':
-                content = msg.get('content', [])
-                if isinstance(content, list):
-                    for c in content:
-                        if isinstance(c, dict) and c.get('type') == 'tool_use':
-                            print(f'TOOL: {c.get(\"name\", \"?\")} → {str(c.get(\"input\", {}))[:150]}')
-        except: pass
-" 2>/dev/null | tail -50
-    echo ""
-done)
+${SESSION_SUMMARY}
 
 Analyze these sessions and identify:
 1. Repeated multi-step workflows (same sequence of tools used across sessions)
@@ -111,9 +85,12 @@ Write the report in Traditional Chinese (繁體中文)."
 # --- Run Claude in headless mode ---
 start_epoch=$(date +%s)
 
+# Use timestamped report name to avoid overwriting previous runs
+REPORT_FILE="$REPORT_DIR/harvest-${TODAY}.md"
+
 claude -p "$PROMPT" \
     --output-format text \
-    > "$REPORT_DIR/harvest-${TODAY}.md" \
+    > "$REPORT_FILE" \
     2> "$REPORT_DIR/harvest-${TODAY}-error.log" \
     && run_exit=0 || run_exit=$?
 
@@ -123,7 +100,12 @@ end_epoch=$(date +%s)
 _sk_exec_record_run "$PROJECT_NAME" "harvest" "$start_epoch" "$end_epoch" \
   "$run_exit" "" "" "" "" "" ""
 
-# --- Update state ---
+# --- Mark sessions as harvested (only on success) ---
+if [ "$run_exit" -eq 0 ]; then
+    echo "$recent_sessions" >> "$HARVESTED_FILE"
+fi
+
+# --- Update state timestamp ---
 date '+%Y-%m-%d %H:%M:%S' > "$STATE_FILE"
 
-echo "[$NOW] Harvest complete ($session_count sessions, ~$total_messages msgs). Report: $REPORT_DIR/harvest-${TODAY}.md"
+echo "[$NOW] Harvest complete ($session_count sessions, ~$total_messages msgs). Report: $REPORT_FILE"
