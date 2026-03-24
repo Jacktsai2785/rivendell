@@ -152,7 +152,7 @@ agent_pass=0
 agent_fail=0
 
 # Check all project agents via launchctl
-for agent_name in maintain harvest tester; do
+for agent_name in maintain harvest tester doctor; do
   label="com.sk.agent.${PROJECT_NAME}.${agent_name}"
   plist_path="$HOME/Library/LaunchAgents/${label}.plist"
 
