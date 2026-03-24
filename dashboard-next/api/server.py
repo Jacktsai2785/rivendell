@@ -408,10 +408,30 @@ def api_agent_live(agent_label: str, offset: int = 0) -> dict[str, Any]:
     log_lines: list[str] = []
     log_size = 0
     if wd:
-        reports_dir = Path(wd) / "reports"
-        # Look for stdout log
-        stdout_log = reports_dir / f"{agent.name}-stdout.log"
-        if stdout_log.is_file():
+        # Search multiple candidate log paths
+        wd_path = Path(wd)
+        candidates = [
+            wd_path / "reports" / f"{agent.name}-stdout.log",
+        ]
+        # Also check plist StandardOutPath (handles agents with non-standard log dirs)
+        if agent.plist_path:
+            try:
+                import plistlib
+                with open(agent.plist_path, "rb") as pf:
+                    pdata = plistlib.load(pf)
+                sop = pdata.get("StandardOutPath")
+                if sop:
+                    candidates.insert(0, Path(sop))
+            except Exception:
+                pass
+
+        stdout_log = None
+        for c in candidates:
+            if c.is_file():
+                stdout_log = c
+                break
+
+        if stdout_log:
             content = stdout_log.read_text(errors="replace")
             # Strip ANSI
             content = _re.sub(r'\033\[[0-9;]*m', '', content)
@@ -485,32 +505,52 @@ def api_agent_files(agent_label: str) -> list[dict[str, Any]]:
     if not wd:
         return []
 
+    # Determine log directory: prefer plist StandardOutPath dir, fallback to reports/
     reports_dir = Path(wd) / "reports"
-    if not reports_dir.is_dir():
-        return []
+    log_dirs = [reports_dir]
+    if agent.plist_path:
+        try:
+            import plistlib
+            with open(agent.plist_path, "rb") as pf:
+                pdata = plistlib.load(pf)
+            sop = pdata.get("StandardOutPath")
+            if sop:
+                plist_log_dir = Path(sop).parent
+                if plist_log_dir != reports_dir and plist_log_dir.is_dir():
+                    log_dirs.insert(0, plist_log_dir)
+        except Exception:
+            pass
 
     # Match files by agent name prefix or known output patterns
     name = agent.name
     files = []
-    for f in sorted(reports_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
-        if not f.is_file():
+    seen_names: set[str] = set()
+    for log_dir in log_dirs:
+        if not log_dir.is_dir():
             continue
-        fname = f.name
-        # Match: agent-name*.log, agent-name*.md, agent-name*.jsonl,
-        #        stdout/stderr logs, daily/weekly reports
-        if (fname.startswith(name)
-            or fname.startswith(f"{name}-stdout")
-            or fname.startswith(f"{name}-stderr")
-            or (name.endswith("-daily") and fname.startswith("daily-"))
-            or (name.endswith("-weekly") and fname.startswith("weekly-"))):
-            stat = f.stat()
-            files.append({
-                "name": fname,
-                "path": str(f),
-                "size": stat.st_size,
-                "modified": stat.st_mtime,
-                "type": f.suffix.lstrip("."),
-            })
+        for f in sorted(log_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+            if not f.is_file():
+                continue
+            fname = f.name
+            if fname in seen_names:
+                continue
+            # Match: agent-name*.log, agent-name*.md, agent-name*.jsonl,
+            #        stdout/stderr logs, scraper-* logs, daily/weekly reports
+            if (fname.startswith(name)
+                or fname.startswith(f"{name}-stdout")
+                or fname.startswith(f"{name}-stderr")
+                or fname.startswith("scraper-")
+                or (name.endswith("-daily") and fname.startswith("daily-"))
+                or (name.endswith("-weekly") and fname.startswith("weekly-"))):
+                seen_names.add(fname)
+                stat = f.stat()
+                files.append({
+                    "name": fname,
+                    "path": str(f),
+                    "size": stat.st_size,
+                    "modified": stat.st_mtime,
+                    "type": f.suffix.lstrip("."),
+                })
     return files[:30]
 
 
@@ -727,11 +767,11 @@ def api_agent_file(agent_label: str, path: str = "") -> dict[str, Any]:
         raise HTTPException(404, "Agent working directory unknown")
 
     file_path = Path(path)
-    reports_dir = Path(wd) / "reports"
+    wd_path = Path(wd)
 
-    # Security: only allow reading from the agent's reports directory
+    # Security: allow reading from the agent's working directory tree
     try:
-        file_path.resolve().relative_to(reports_dir.resolve())
+        file_path.resolve().relative_to(wd_path.resolve())
     except ValueError:
         raise HTTPException(403, "Access denied")
 
