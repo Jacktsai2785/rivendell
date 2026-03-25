@@ -247,6 +247,11 @@ while IFS='|' read -r label project_rel script sched_type sched_val log_dir_rel 
 
   label="$(echo "$label" | xargs)"
   project_rel="$(echo "$project_rel" | xargs)"
+
+  # Skip self — doctor's exit 1 means "issues found", not a real failure
+  if [[ "$label" == *".doctor" ]]; then
+    continue
+  fi
   log_dir_rel="$(echo "$log_dir_rel" | xargs)"
 
   # Check if loaded
