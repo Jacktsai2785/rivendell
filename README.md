@@ -7,11 +7,11 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 ```
 skills/
 ├── meta/       # Claude Code 自身管理工具 (12)
-├── workflow/   # 工作流程與規劃 (18)
+├── workflow/   # 工作流程與規劃 (19)
 ├── quality/    # 程式品質、審查、除錯、測試 (9)
-├── git/        # Git/GitHub 操作 (1)
+├── git/        # Git/GitHub 操作 (2)
 ├── frontend/   # 前端設計、iOS、測試 (5)
-├── backend/    # 後端服務 (5)
+├── backend/    # 後端服務 (6)
 └── docs/       # 文件處理與 MCP 建置 (6)
 ```
 
@@ -45,7 +45,7 @@ cd ~/any-project && claude
 | `./bin/sk agent <cmd>` | Manage automated agents: `list`, `start`, `stop`, `status`, `log`, `create` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (56 skills)
+## Skills Catalog (68 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -84,6 +84,7 @@ cd ~/any-project && claude
 | **customer-intel** | `/customer-intel` 或自動 | B2B 客戶情蒐：公司名 → WebSearch + Playwright → 結構化報告（概覽、管理層、財務、競爭、痛點、策略建議） |
 | **tender-scraper** | `/tender-scraper` 或自動 | 自動爬取政府標案（g0v API）、data-driven 關鍵字篩選（keywords.yml + 自動發現）、網路韌性（retry/backoff）、歸檔過期、生成索引、dashboard 可觀測性 |
 | **keyword-discovery** | 自動 | 自動分析爬蟲未匹配項目，發現新關鍵字候選詞，高信心詞自動升級至 active 列表 |
+| **candidate-analysis** | `/candidate-analysis` 或自動 | 面試候選人管理：PDF 履歷解析、GitHub repo 程式品質分析、候選人 profile markdown 產出 |
 | **agent-observability** | 自動 | 讓 script-based agent 在 sk-dashboard 可見：exec-lib 執行歷史、progress logging、log discovery 三層整合指南 |
 | **settings-audit** | 自動 | 審查清理 .claude/settings.local.json — 移除無效 permissions、修正 JSON 語法、偵測一次性指令誤存為永久權限 |
 
@@ -106,6 +107,7 @@ cd ~/any-project && claude
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
 | **review-pr** | `/review-pr` | 用 `gh` CLI 分析 PR diff，結構化 feedback + approve/reject 建議 |
+| **repo-rename** | `/repo-rename` | Repo 改名時全系統審計引用（plist、Claude 設定、腳本、兄弟 repo），產出遷移清單並執行 |
 
 ### frontend/ — 前端設計、iOS、測試
 
@@ -126,6 +128,7 @@ cd ~/any-project && claude
 | **sqlite-to-postgres** | 自動 | SQLite → PostgreSQL/Supabase 遷移指南：語法差異、schema 轉換、資料遷移、驗證 |
 | **tw-company-lookup** | `/tw-company-lookup` 或自動 | 用 Playwright 查詢經濟部 findbiz.nat.gov.tw：公司基本資料、董監事、工廠、歷史變更 |
 | **web-scraper** | 自動 | Playwright headless 爬蟲 fallback：WebFetch 被擋時用，支援截圖、表單互動、tab 導覽 |
+| **doc-to-structured-data** | 自動 | 非結構化技術文件（.doc/.pdf 測試計畫、規格書、datasheet）→ 結構化 CSV/JSON，含格式偵測、欄位對映、驗證 |
 
 ### docs/ — 文件處理與 MCP 建置
 
