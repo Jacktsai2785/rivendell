@@ -1099,6 +1099,15 @@ def api_skills() -> list[dict[str, Any]]:
     ]
 
 
+@app.get("/api/skills/{name}", tags=["Skills"])
+def api_skill_content(name: str) -> dict[str, Any]:
+    """Return the raw SKILL.md content for a single skill."""
+    skill_md = Path.home() / ".claude" / "skills" / name / "SKILL.md"
+    if not skill_md.is_file():
+        raise HTTPException(404, f"Skill '{name}' not found")
+    return {"name": name, "content": skill_md.read_text(encoding="utf-8")}
+
+
 # ── Harvest ──────────────────────────────────────────────────────────
 
 HARVEST_DECISIONS_FILE = Path(__file__).resolve().parent.parent.parent / "reports" / ".harvest-decisions.json"
