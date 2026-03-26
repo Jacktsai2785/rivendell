@@ -357,6 +357,23 @@ export default function AgentDetailPage() {
           if (idleTicks >= 2) {
             if (liveRef.current) clearInterval(liveRef.current);
             liveRef.current = null;
+
+            // If we never got new output (fast process finished before first poll),
+            // fetch the last 30 lines so the user sees something
+            setLiveLines((prev) => {
+              if (prev.length === 0 && data.log_size > 0) {
+                const tailOffset = Math.max(0, data.log_size - 30);
+                apiFetch<{ log_lines: string[] }>(
+                  `/api/agents/${encodeURIComponent(label)}/live?offset=${tailOffset}`
+                ).then((tail) => {
+                  if (tail.log_lines.length > 0) {
+                    setLiveLines(tail.log_lines);
+                  }
+                }).catch(() => {});
+              }
+              return prev;
+            });
+
             load(); // Refresh run history
           }
         }
