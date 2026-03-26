@@ -8,8 +8,8 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 skills/
 ├── meta/       # Claude Code 自身管理工具 (12)
 ├── workflow/   # 工作流程與規劃 (19)
-├── quality/    # 程式品質、審查、除錯、測試 (9)
-├── git/        # Git/GitHub 操作 (2)
+├── quality/    # 程式品質、審查、除錯、測試 (10)
+├── git/        # Git/GitHub 操作 (3)
 ├── frontend/   # 前端設計、iOS、測試 (5)
 ├── backend/    # 後端服務 (6)
 └── docs/       # 文件處理與 MCP 建置 (6)
@@ -45,7 +45,7 @@ cd ~/any-project && claude
 | `./bin/sk agent <cmd>` | Manage automated agents: `list`, `start`, `stop`, `status`, `log`, `create` |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (68 skills)
+## Skills Catalog (70 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -99,6 +99,7 @@ cd ~/any-project && claude
 | **post-change-qa** | 自動 | 程式碼修改後自動重啟前後端、跑測試、Playwright 截圖驗證 |
 | **de-slopify** | 自動 | 移除 AI 生成「廢文」痕跡，讓文本讀起來像人寫的 |
 | **destructive-command-guard** | Hook (PreToolUse) | 在執行前攔截危險指令（rm -rf、git reset --hard、force push） |
+| **protect-secrets** | Hook (PreToolUse) | 攔截讀取/修改 .env、private keys、credentials 等敏感檔案 |
 | **qa-auto** | `/qa-auto` | 從 QA 計畫或 diff 自動產生測試程式碼、執行測試、報告覆蓋率缺口 |
 | **qa-planner** | `/qa-planner` | 分析程式碼變更產生結構化 QA 計畫：影響分析、測試案例、風險評估 |
 
@@ -108,6 +109,7 @@ cd ~/any-project && claude
 |-------|---------|------|
 | **review-pr** | `/review-pr` | 用 `gh` CLI 分析 PR diff，結構化 feedback + approve/reject 建議 |
 | **repo-rename** | `/repo-rename` | Repo 改名時全系統審計引用（plist、Claude 設定、腳本、兄弟 repo），產出遷移清單並執行 |
+| **auto-stage** | Hook (PostToolUse) | 檔案編輯/建立後自動 git add，跳過 .env 和 node_modules |
 
 ### frontend/ — 前端設計、iOS、測試
 
