@@ -1099,6 +1099,233 @@ def api_skills() -> list[dict[str, Any]]:
     ]
 
 
+# ── Harvest ──────────────────────────────────────────────────────────
+
+HARVEST_DECISIONS_FILE = Path(__file__).resolve().parent.parent.parent / "reports" / ".harvest-decisions.json"
+
+
+def _load_harvest_decisions() -> dict[str, str]:
+    """Load user decisions {candidate_key: "accepted"|"dismissed"}."""
+    if HARVEST_DECISIONS_FILE.exists():
+        import json
+        return json.loads(HARVEST_DECISIONS_FILE.read_text())
+    return {}
+
+
+def _save_harvest_decisions(decisions: dict[str, str]) -> None:
+    import json
+    HARVEST_DECISIONS_FILE.write_text(json.dumps(decisions, indent=2, ensure_ascii=False))
+
+
+def _parse_harvest_reports() -> list[dict[str, Any]]:
+    """Parse all harvest-*.md reports and extract skill candidates."""
+    import re
+
+    reports_dir = Path(__file__).resolve().parent.parent.parent / "reports"
+    candidates: list[dict[str, Any]] = []
+
+    for md_file in sorted(reports_dir.glob("harvest-*.md")):
+        # Extract date from filename
+        m = re.search(r"harvest-(\d{4}-\d{2}-\d{2})", md_file.name)
+        if not m:
+            continue
+        report_date = m.group(1)
+        content = md_file.read_text()
+
+        # Split into sections by ### headers
+        sections = re.split(r"^### ", content, flags=re.MULTILINE)
+
+        for section in sections[1:]:
+            lines = section.strip().splitlines()
+            if not lines:
+                continue
+            heading = lines[0].strip()
+
+            # Determine strength from heading
+            strength = ""
+            heading_lower = heading.lower()
+            # Skip non-candidate sections
+            if "結論" in heading_lower or "重複模式" in heading_lower or "跨 session" in heading_lower:
+                continue
+            if "strong" in heading_lower or "強烈" in heading_lower:
+                strength = "strong"
+            elif "moderate" in heading_lower or "中等" in heading_lower:
+                strength = "moderate"
+            elif "weak" in heading_lower or "不建議" in heading_lower:
+                strength = "weak"
+            else:
+                continue  # Not a candidate section
+            # Skip "無" entries like "Strong — 無"
+            if re.search(r"[—–-]\s*無", heading):
+                continue
+
+            # Check for sub-candidates (#### headers within this section)
+            body = "\n".join(lines[1:])
+
+            # Check for table-format candidates (| 名稱 | 用途 | ... |)
+            if re.search(r"^\|\s*名稱\s*\|", body, re.MULTILINE):
+                for row in body.splitlines():
+                    row = row.strip()
+                    if not row.startswith("|") or row.startswith("|--") or "名稱" in row:
+                        continue
+                    cols = [c.strip() for c in row.split("|")[1:-1]]
+                    if len(cols) >= 2 and cols[0]:
+                        candidates.append({
+                            "key": f"{report_date}:{cols[0]}",
+                            "name": cols[0],
+                            "strength": strength,
+                            "purpose": cols[1] if len(cols) > 1 else "",
+                            "trigger": "",
+                            "category": "",
+                            "reasoning": cols[2] if len(cols) > 2 else "",
+                            "conclusion": "",
+                            "report_date": report_date,
+                        })
+                continue
+
+            sub_sections = re.split(r"^#### ", body, flags=re.MULTILINE)
+
+            if len(sub_sections) > 1:
+                # Multiple candidates under one strength heading
+                for sub in sub_sections[1:]:
+                    candidate = _parse_candidate_section(sub, strength, report_date)
+                    if candidate:
+                        candidates.append(candidate)
+            else:
+                # Single candidate in this ### section
+                candidate = _parse_candidate_section(
+                    heading + "\n" + body, strength, report_date
+                )
+                if candidate:
+                    candidates.append(candidate)
+
+    return candidates
+
+
+def _parse_candidate_section(text: str, strength: str, report_date: str) -> dict[str, Any] | None:
+    """Parse a single candidate section into structured data."""
+    import re
+
+    lines = text.strip().splitlines()
+    if not lines:
+        return None
+
+    # Extract name from heading — look for backtick-wrapped name or parenthesized name
+    heading = lines[0].strip()
+    # Clean emoji/markers
+    heading = re.sub(r"^[✅🟡🔴⚪\s]+", "", heading).strip()
+
+    # Skip meta-headings that aren't actual candidates
+    skip_patterns = ["排除的候選", "不建立原因", "觀察到但不建議"]
+    if any(p in heading for p in skip_patterns):
+        return None
+
+    body = "\n".join(lines[1:])
+
+    # Check body for **名稱** table row (table-format candidates)
+    name_from_table = re.search(r"\*\*名稱\*\*[：:|\s]*`([^`]+)`", body)
+
+    # Extract name — prefer backtick in heading, then table, then heading text
+    name_match = re.search(r"`([^`]+)`", heading)
+    if name_match:
+        name = name_match.group(1)
+    elif name_from_table:
+        name = name_from_table.group(1)
+    else:
+        name = re.sub(r"^(Strong|Moderate|Weak|強烈建議建立|中等|不建議獨立 skill)[：:\s—–-]*", "", heading, flags=re.IGNORECASE).strip()
+        name = re.split(r"\s*[—–(（]", name)[0].strip()
+
+    if not name or len(name) > 80 or name == "無":
+        return None
+
+    # Extract fields — support both "**用途**: text" and "| **用途** | text |" formats
+    def _extract(field_names: list[str]) -> str:
+        for fn in field_names:
+            # Inline format: **field**: value
+            m = re.search(rf"\*\*{fn}\*\*[：:|\s]+(.+?)(?:\s*\|?\s*$)", body, re.MULTILINE)
+            if m:
+                val = m.group(1).strip().strip("|").strip()
+                if val:
+                    return val
+        return ""
+
+    purpose = _extract(["目的", "用途"])
+    trigger = _extract(["觸發條件", "觸發"])
+    category = _extract(["建議分類", "分類"]).strip("`")
+
+    # Extract reasoning
+    reasoning = ""
+    reason_match = re.search(r"\*\*理由\*\*[：:]\s*\n?((?:[\s\S]*?)(?=\n\*\*|\n---|\n###|\Z))", body)
+    if reason_match:
+        reasoning = reason_match.group(1).strip()
+        # Truncate to first 300 chars
+        if len(reasoning) > 300:
+            reasoning = reasoning[:300] + "..."
+
+    # Extract conclusion
+    conclusion = ""
+    concl_match = re.search(r"\*\*結論\*\*[：:]\s*(.+)", body)
+    if concl_match:
+        conclusion = concl_match.group(1).strip()
+
+    # Build unique key
+    key = f"{report_date}:{name}"
+
+    return {
+        "key": key,
+        "name": name,
+        "strength": strength,
+        "purpose": purpose,
+        "trigger": trigger,
+        "category": category,
+        "reasoning": reasoning,
+        "conclusion": conclusion,
+        "report_date": report_date,
+    }
+
+
+@app.get("/api/harvest", tags=["Overview"])
+def api_harvest() -> dict[str, Any]:
+    """Return all skill candidates from harvest reports with user decisions."""
+    candidates = _parse_harvest_reports()
+    decisions = _load_harvest_decisions()
+
+    for c in candidates:
+        c["decision"] = decisions.get(c["key"], "pending")
+
+    # Stats
+    pending = [c for c in candidates if c["decision"] == "pending"]
+    accepted = [c for c in candidates if c["decision"] == "accepted"]
+    dismissed = [c for c in candidates if c["decision"] == "dismissed"]
+
+    return {
+        "total": len(candidates),
+        "pending_count": len(pending),
+        "accepted_count": len(accepted),
+        "dismissed_count": len(dismissed),
+        "candidates": candidates,
+    }
+
+
+class HarvestDecision(BaseModel):
+    key: str
+    decision: str  # "accepted" | "dismissed" | "pending"
+
+
+@app.post("/api/harvest/decide", tags=["Overview"])
+def api_harvest_decide(body: HarvestDecision) -> dict[str, Any]:
+    """Record user decision on a skill candidate."""
+    if body.decision not in ("accepted", "dismissed", "pending"):
+        raise HTTPException(400, "decision must be accepted, dismissed, or pending")
+    decisions = _load_harvest_decisions()
+    if body.decision == "pending":
+        decisions.pop(body.key, None)
+    else:
+        decisions[body.key] = body.decision
+    _save_harvest_decisions(decisions)
+    return {"ok": True, "key": body.key, "decision": body.decision}
+
+
 # ── Issues ───────────────────────────────────────────────────────────
 
 @app.get("/api/issues", tags=["Overview"])

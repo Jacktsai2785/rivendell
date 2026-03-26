@@ -225,6 +225,29 @@ export interface AgentFileContent {
   size: number;
 }
 
+// ── Harvest ──────────────────────────────────────────────────────────
+
+export interface HarvestCandidate {
+  key: string;
+  name: string;
+  strength: "strong" | "moderate" | "weak";
+  purpose: string;
+  trigger: string;
+  category: string;
+  reasoning: string;
+  conclusion: string;
+  report_date: string;
+  decision: "pending" | "accepted" | "dismissed";
+}
+
+export interface HarvestData {
+  total: number;
+  pending_count: number;
+  accepted_count: number;
+  dismissed_count: number;
+  candidates: HarvestCandidate[];
+}
+
 export interface TimelineEvent {
   ts: string;
   type: "tool" | "text" | "thinking" | "result" | "auto_commit" | "auto_push" | string;

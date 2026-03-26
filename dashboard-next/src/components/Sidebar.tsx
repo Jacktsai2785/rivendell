@@ -9,6 +9,7 @@ import {
   Bot,
   Coins,
   Sparkles,
+  Wheat,
 } from "lucide-react";
 import { apiFetch, type ProjectsData, type AgentsData } from "@/lib/api";
 
@@ -25,6 +26,7 @@ const NAV: NavItem[] = [
   { href: "/agents", label: "Agent 管理", icon: Bot, indent: true },
   { href: "/tokens", label: "Token 用量", icon: Coins, indent: true },
   { href: "/skills", label: "Skill 總覽", icon: Sparkles },
+  { href: "/harvest", label: "Skill Harvest", icon: Wheat },
 ];
 
 interface RunningAgent {
