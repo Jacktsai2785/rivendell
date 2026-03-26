@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { AgentInfo, AgentRun } from "@/lib/api";
 import { apiFetch, apiPost } from "@/lib/api";
 import RunHistory from "./RunHistory";
@@ -14,14 +14,41 @@ import {
   RefreshCw,
   Shield,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
 
 function StatusBadge({ agent }: { agent: AgentInfo }) {
   if (!agent.installed) return <span className="text-zinc-400">⚪ 未安裝</span>;
+  if (agent.pid !== null) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-green-600">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+        </span>
+        執行中
+      </span>
+    );
+  }
   if (agent.exit_code !== null && agent.exit_code !== 0)
     return <span className="text-red-500">🔴 Exit {agent.exit_code}</span>;
   if (agent.loaded) return <span className="text-green-600">🟢 已載入</span>;
   return <span className="text-red-500">🔴 未載入</span>;
+}
+
+function ActivityIndicator({ activity }: { activity: AgentInfo["current_activity"] }) {
+  if (!activity) return null;
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs dark:bg-blue-900/20">
+      <Loader2 size={14} className="animate-spin text-blue-500" />
+      <span className="font-medium text-blue-700 dark:text-blue-400">{activity.label}</span>
+      {activity.detail && (
+        <span className="min-w-0 truncate font-mono text-blue-600/70 dark:text-blue-400/60">
+          {activity.detail}
+        </span>
+      )}
+    </div>
+  );
 }
 
 export default function AgentCard({
@@ -37,6 +64,36 @@ export default function AgentCard({
   const [runs, setRuns] = useState<AgentRun[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [justStarted, setJustStarted] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-poll after starting an agent until it appears as running or finishes
+  useEffect(() => {
+    if (justStarted) {
+      pollRef.current = setInterval(() => {
+        onRefresh();
+      }, 2000);
+      // Stop polling after 60s max
+      const timeout = setTimeout(() => {
+        setJustStarted(false);
+      }, 60000);
+      return () => {
+        if (pollRef.current) clearInterval(pollRef.current);
+        clearTimeout(timeout);
+      };
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [justStarted, onRefresh]);
+
+  // Clear justStarted once agent is detected as running
+  useEffect(() => {
+    if (justStarted && agent.pid !== null) {
+      setJustStarted(false);
+      setToast(null);
+    }
+  }, [justStarted, agent.pid]);
 
   async function action(path: string, body: Record<string, unknown>, successMsg?: string) {
     setBusy(true);
@@ -46,8 +103,24 @@ export default function AgentCard({
       await apiPost(path, body);
       if (successMsg) {
         setToast(successMsg);
-        setTimeout(() => setToast(null), 3000);
+        setTimeout(() => setToast(null), 5000);
       }
+      onRefresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleStart() {
+    setBusy(true);
+    setError(null);
+    setToast(null);
+    try {
+      await apiPost("/api/agents/start", { label: agent.label });
+      setToast("已觸發，等待啟動中...");
+      setJustStarted(true);
       onRefresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -73,8 +146,14 @@ export default function AgentCard({
     }
   }
 
+  const isRunning = agent.pid !== null;
+
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className={`rounded-lg border p-5 ${
+      isRunning
+        ? "border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-900/10"
+        : "border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900"
+    }`}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -95,6 +174,17 @@ export default function AgentCard({
           <span className="text-zinc-500">排程：{agent.schedule_display}</span>
         </div>
       </div>
+
+      {/* Activity indicator — shown when running */}
+      {isRunning && <ActivityIndicator activity={agent.current_activity} />}
+
+      {/* Starting indicator — shown after click before PID appears */}
+      {justStarted && !isRunning && (
+        <div className="mt-2 flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs dark:bg-amber-900/20">
+          <Loader2 size={14} className="animate-spin text-amber-500" />
+          <span className="text-amber-700 dark:text-amber-400">已觸發，等待啟動中...</span>
+        </div>
+      )}
 
       {/* Tags row */}
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
@@ -145,11 +235,16 @@ export default function AgentCard({
         )}
         {agent.installed && (
           <button
-            disabled={busy}
-            onClick={() => action("/api/agents/start", { label: agent.label }, `已觸發 ${agent.name}，背景執行中...`)}
+            disabled={busy || isRunning}
+            onClick={handleStart}
             className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
-            <RefreshCw size={14} /> 立即執行
+            {isRunning ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {isRunning ? "執行中..." : "立即執行"}
           </button>
         )}
       </div>
@@ -157,7 +252,7 @@ export default function AgentCard({
       {error && (
         <p className="mt-2 text-xs text-red-500">{error}</p>
       )}
-      {toast && (
+      {toast && !justStarted && (
         <p className="mt-2 text-xs text-green-600 dark:text-green-400">{toast}</p>
       )}
 

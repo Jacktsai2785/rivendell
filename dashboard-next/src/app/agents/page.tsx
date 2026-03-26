@@ -15,7 +15,11 @@ export default function AgentsPage() {
       .catch((e) => setErr(e.message));
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 5000);
+    return () => clearInterval(id);
+  }, [load]);
 
   if (err) return <p className="text-red-500">Error: {err}</p>;
   if (!data) return <p className="text-zinc-400">載入中...</p>;
