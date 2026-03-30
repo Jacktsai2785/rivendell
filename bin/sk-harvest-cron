@@ -55,7 +55,7 @@ if [ "$session_count" -lt "$MIN_SESSIONS" ]; then
 fi
 
 # --- Pre-summarize sessions (single Python process, compact output) ---
-SESSION_SUMMARY=$(echo "$recent_sessions" | xargs python3 "$REPO_DIR/bin/sk-harvest-summarize" 2>/dev/null)
+SESSION_SUMMARY=$(echo "$recent_sessions" | xargs python3 "$REPO_DIR/bin/sk-harvest-summarize" 2>/dev/null) || SESSION_SUMMARY=""
 total_messages=$(echo "$SESSION_SUMMARY" | head -1 | grep -oE 'Messages: ~[0-9]+' | grep -oE '[0-9]+' || echo "0")
 
 echo "[$NOW] Found $session_count session(s) with ~$total_messages messages. Running harvest..."
@@ -90,6 +90,7 @@ REPORT_FILE="$REPORT_DIR/harvest-${TODAY}.md"
 
 claude -p "$PROMPT" \
     --output-format text \
+    < /dev/null \
     > "$REPORT_FILE" \
     2> "$REPORT_DIR/harvest-${TODAY}-error.log" \
     && run_exit=0 || run_exit=$?
@@ -109,3 +110,5 @@ fi
 date '+%Y-%m-%d %H:%M:%S' > "$STATE_FILE"
 
 echo "[$NOW] Harvest complete ($session_count sessions, ~$total_messages msgs). Report: $REPORT_FILE"
+
+exit "$run_exit"

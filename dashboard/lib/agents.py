@@ -251,7 +251,9 @@ def _check_loaded(label: str) -> tuple[bool, int | None, int | None]:
             if "LastExitStatus" in stripped:
                 val = stripped.split("=")[-1].strip().rstrip(";").strip()
                 try:
-                    exit_code = int(val)
+                    raw = int(val)
+                    # LastExitStatus is POSIX wait() status: exit_code << 8
+                    exit_code = raw >> 8
                 except ValueError:
                     pass
         return True, pid, exit_code

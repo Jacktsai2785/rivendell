@@ -2690,7 +2690,7 @@ cmd_audit() {
         local git_status="" dirty=0 unpushed=0
         if [ -d "$proj_dir/.git" ]; then
           dirty="$(git -C "$proj_dir" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
-          unpushed="$(git -C "$proj_dir" log --oneline '@{upstream}..HEAD' 2>/dev/null | wc -l | tr -d ' ')"
+          unpushed="$(git -C "$proj_dir" log --oneline '@{upstream}..HEAD' 2>/dev/null | wc -l | tr -d ' ')" || unpushed=0
           if [ "$dirty" -gt 0 ] && [ "$unpushed" -gt 0 ]; then
             git_status="${dirty} dirty, ${unpushed} unpushed"
           elif [ "$dirty" -gt 0 ]; then
