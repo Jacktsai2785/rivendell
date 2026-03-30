@@ -49,29 +49,54 @@ Code Change Complete
 
 ## Step 1: Detect Project Stack
 
-Read the project's config to determine the server commands and test runner.
+**MANDATORY: Always read the project's own config files first. Never guess ports.**
 
-### Detection Order
+### Detection Order (must follow this order, stop when found)
 
-1. **CLAUDE.md / AGENTS.md** — look for documented run commands first (highest priority)
+**Step 1a — Read AGENTS.md / CLAUDE.md (REQUIRED)**
+
+Before doing anything else, read `AGENTS.md` (or `.claude/CLAUDE.md`) in the project root and extract:
+- Backend port (look for `--port XXXX`, `Port | XXXX`, `localhost:XXXX`)
+- Frontend port (look for `npm run dev`, `nuxt dev --port`, `next dev` port config)
+- Start commands
+
+```bash
+# Always run this first
+grep -E "port|Port|uvicorn|npm run dev|nuxt dev" AGENTS.md 2>/dev/null | head -20
+```
+
+**Step 1b — Verify against actual config files**
+
+Cross-check against actual configs to catch outdated AGENTS.md:
+```bash
+grep -E "port|PORT|dev" package.json web/package.json frontend/package.json 2>/dev/null | head -5
+grep -E "localhost:[0-9]+" nuxt.config.ts next.config.ts vite.config.ts 2>/dev/null | head -5
+```
+
+**Step 1c — Fallback: Known Project Profiles (may be outdated — verify before use)**
+
+Only use if AGENTS.md and config files have no port info:
+
+| Project | Backend port | Frontend port | Source |
+|---------|-------------|---------------|--------|
+| **sales-assistant** | 8002 | 3002 | AGENTS.md + `next.config.ts` proxy |
+| **news_stock** | 8001 | 3001 | `web/package.json` (`nuxt dev --port 3001`) + `nuxt.config.ts` proxy to :8001 |
+| **nexus-ai-company** | 8000 | 3000 | `docker-compose.yml` + `frontend/vite.config.ts` |
+| **RTK** | — | 3000 (pnpm dev) | monorepo |
+| **Marketing-Pal** | — | 3000 | web only |
+| **Family-Fiscal** | 8010 | 3010 | `backend/restart.sh` + `frontend/package.json` (`next dev -p 3010`) |
+| **MingOS** | 8501 (Streamlit) | — | — |
+
+⚠️ **This table goes stale. Always verify from AGENTS.md or config files first.**
+
+**Step 1d — Detect test runner**
+
 2. **package.json** — `scripts.dev`, `scripts.start`, `scripts.test`
 3. **pyproject.toml / requirements.txt** — FastAPI, Streamlit, pytest
 4. **Makefile** — `dev`, `start`, `test` targets
 5. **scripts/** directory — `start_*.sh`, `stop_*.sh`, `ensure-dev-servers.sh`
 
-### Known Project Profiles
-
-| Project | Backend | Frontend | Tests |
-|---------|---------|----------|-------|
-| **sales-assistant** | `uvicorn backend.main:app --reload --port 8000` | `cd frontend && npm run dev` (3000) | `./tests/run_qa.sh` |
-| **news_stock** | `uvicorn api.main:app --reload --port 8000` | `cd web && npm run dev` (3000) | pytest if available |
-| **nexus-ai-company** | `uvicorn app.main:app --reload --port 8000` | `cd frontend && npm run dev` (5173) | `pytest` + `cd frontend && npm test` |
-| **RTK** | `pnpm dev` (monorepo) | included in pnpm dev (3000) | `pnpm test` |
-| **Marketing-Pal** | — | `cd web && npm run dev` (3000) | xcodebuild test (iOS) |
-| **MingOS** | `streamlit run app.py` (8501) | — | — |
-| **TailTrack** | — | xcodebuild (iOS) | xcodebuild test |
-
-If the project is not in this table, detect from config files. If no server is detected, skip restart steps.
+If no server is detected, skip restart steps.
 
 ## Step 2: Restart Backend
 

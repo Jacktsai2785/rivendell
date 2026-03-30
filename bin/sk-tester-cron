@@ -123,6 +123,10 @@ if [ -d "$dashboard_dir" ] && [ -f "$dashboard_dir/package.json" ]; then
   if [ "$build_exit" -eq 0 ]; then
     echo "**Result:** BUILD SUCCESS" >> "$REPORT"
     total_pass=$((total_pass + 1))
+  elif echo "$build_output" | grep -qE "Failed to fetch.*(Google Fonts|Geist)|next/font.*error.*fetch"; then
+    # Google Fonts network errors are environmental, not code bugs — treat as WARN
+    echo "**Result:** BUILD WARN (Google Fonts network unavailable — flaky environment, not a code error)" >> "$REPORT"
+    total_warn=$((total_warn + 1))
   else
     echo "**Result:** BUILD FAILED (exit $build_exit)" >> "$REPORT"
     echo "" >> "$REPORT"
@@ -162,18 +166,26 @@ for agent_name in maintain harvest tester doctor; do
     continue
   fi
 
-  # Check exit code — launchctl list <label> shows exit status
+  # Check exit code — launchctl list <label> returns LastExitStatus as raw POSIX
+  # wait() value (exit_code << 8), so decode it before comparing
   exit_status=$(launchctl list "$label" 2>/dev/null | awk '/\"LastExitStatus\"/ {print $3}' | tr -d ';' || true)
   if [ -z "$exit_status" ]; then
     # Try alternate format: launchctl list output for the label
     exit_status=$(launchctl list | grep "$label" | awk '{print $2}' || true)
   fi
 
-  if [ "$exit_status" = "126" ]; then
+  # Decode raw POSIX wait() value: actual_exit = raw >> 8
+  if [[ "$exit_status" =~ ^[0-9]+$ ]] && [ "$exit_status" -gt 255 ]; then
+    decoded_exit=$(( exit_status >> 8 ))
+  else
+    decoded_exit="$exit_status"
+  fi
+
+  if [ "$decoded_exit" = "126" ]; then
     agent_errors+="| \`$agent_name\` | Exit 126 (permission/PATH issue) | FAIL |\n"
     agent_fail=$((agent_fail + 1))
-  elif [ -n "$exit_status" ] && [ "$exit_status" != "0" ] && [ "$exit_status" != "-" ]; then
-    agent_errors+="| \`$agent_name\` | Last exit code: $exit_status | WARN |\n"
+  elif [ -n "$decoded_exit" ] && [ "$decoded_exit" != "0" ] && [ "$decoded_exit" != "-" ]; then
+    agent_errors+="| \`$agent_name\` | Last exit code: $decoded_exit | WARN |\n"
     total_warn=$((total_warn + 1))
     agent_pass=$((agent_pass + 1))
   else
