@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, type SkillInfo } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Treemap,
   PieChart,
@@ -17,13 +19,14 @@ import {
 const CATEGORY_COLORS: Record<string, string> = {
   基礎建設: "#3b82f6",
   品質: "#10b981",
-  研究: "#8b5cf6",
-  開發流程: "#f59e0b",
-  辦公: "#ec4899",
-  部署: "#06b6d4",
-  安全: "#ef4444",
-  外部整合: "#f97316",
+  工作流: "#f59e0b",
+  整合: "#f97316",
   商業: "#6366f1",
+  前端: "#ec4899",
+  後端: "#06b6d4",
+  文件: "#8b5cf6",
+  Git: "#ef4444",
+  人資: "#14b8a6",
 };
 
 const UNCATEGORIZED_COLOR = "#a1a1aa";
@@ -115,7 +118,11 @@ function SkillModal({
 
   useEffect(() => {
     apiFetch<{ name: string; content: string }>(`/api/skills/${encodeURIComponent(name)}`)
-      .then((d) => setContent(d.content))
+      .then((d) => {
+        // Strip YAML frontmatter
+        const stripped = d.content.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "");
+        setContent(stripped.trim());
+      })
       .catch((e) => setError(e.message));
   }, [name]);
 
@@ -153,9 +160,11 @@ function SkillModal({
           <p className="text-sm text-zinc-400">載入中...</p>
         )}
         {content && (
-          <pre className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-700 dark:text-zinc-300">
-            {content}
-          </pre>
+          <div className="prose prose-sm prose-zinc max-w-none dark:prose-invert prose-pre:bg-zinc-100 prose-pre:text-xs dark:prose-pre:bg-zinc-800">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {content}
+            </ReactMarkdown>
+          </div>
         )}
       </div>
     </div>
