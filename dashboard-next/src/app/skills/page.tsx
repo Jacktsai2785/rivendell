@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { apiFetch, type SkillInfo } from "@/lib/api";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { apiFetch, type SkillInfo, type SkillUsage } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   Treemap,
   PieChart,
@@ -104,87 +103,22 @@ function TreemapContent(props: {
   );
 }
 
-// ── Skill detail modal ───────────────────────────────────────────────
-
-function SkillModal({
-  name,
-  onClose,
-}: {
-  name: string;
-  onClose: () => void;
-}) {
-  const [content, setContent] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiFetch<{ name: string; content: string }>(`/api/skills/${encodeURIComponent(name)}`)
-      .then((d) => {
-        // Strip YAML frontmatter
-        const stripped = d.content.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "");
-        setContent(stripped.trim());
-      })
-      .catch((e) => setError(e.message));
-  }, [name]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-[80vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">{name}</h2>
-          <button
-            onClick={onClose}
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        {error && <p className="text-sm text-red-500">Error: {error}</p>}
-        {!content && !error && (
-          <p className="text-sm text-zinc-400">載入中...</p>
-        )}
-        {content && (
-          <div className="prose prose-sm prose-zinc max-w-none dark:prose-invert prose-pre:bg-zinc-100 prose-pre:text-xs dark:prose-pre:bg-zinc-800">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {content}
-            </ReactMarkdown>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default function SkillsPage() {
   const [skills, setSkills] = useState<SkillInfo[] | null>(null);
+  const [usage, setUsage] = useState<SkillUsage>({});
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
-  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-
-  const openSkill = useCallback((name: string) => setSelectedSkill(name), []);
-  const closeSkill = useCallback(() => setSelectedSkill(null), []);
 
   useEffect(() => {
     apiFetch<SkillInfo[]>("/api/skills")
       .then(setSkills)
       .catch((e) => setErr(e.message));
+    // Load usage in background — non-blocking
+    apiFetch<SkillUsage>("/api/skills/usage")
+      .then(setUsage)
+      .catch(() => {});
   }, []);
 
   // ── Derived data ─────────────────────────────────────────────────
@@ -381,38 +315,44 @@ export default function SkillsPage() {
               </span>
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {catSkills.map((skill) => (
-                <button
-                  key={skill.name}
-                  type="button"
-                  onClick={() => openSkill(skill.name)}
-                  className="cursor-pointer rounded-lg border border-zinc-200 bg-white text-left transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-                  style={{
-                    borderLeftWidth: 3,
-                    borderLeftColor: categoryColor(category),
-                  }}
-                >
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-semibold">{skill.name}</h3>
-                      <LifecycleBadge lifecycle={skill.lifecycle} />
-                    </div>
-                    {skill.summary && (
-                      <p className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
-                        {skill.summary}
-                      </p>
-                    )}
-                    <div className="mt-3 flex items-center gap-3 text-xs text-zinc-400">
-                      <span>{skill.line_count} lines</span>
-                      {skill.invocable && (
-                        <span className="rounded bg-green-100 px-1.5 py-0.5 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                          invocable
-                        </span>
+              {catSkills.map((skill) => {
+                const skillUsage = usage[skill.name] ?? [];
+                const uses30 = skillUsage.reduce((s, d) => s + d.count, 0);
+                return (
+                  <Link
+                    key={skill.name}
+                    href={`/skills/${encodeURIComponent(skill.name)}`}
+                    className="rounded-lg border border-zinc-200 bg-white transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                    style={{
+                      borderLeftWidth: 3,
+                      borderLeftColor: categoryColor(category),
+                    }}
+                  >
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-semibold">{skill.name}</h3>
+                        <LifecycleBadge lifecycle={skill.lifecycle} />
+                      </div>
+                      {skill.summary && (
+                        <p className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                          {skill.summary}
+                        </p>
                       )}
+                      <div className="mt-3 flex items-center gap-3 text-xs text-zinc-400">
+                        <span>{skill.line_count} lines</span>
+                        {uses30 > 0 && (
+                          <span className="text-blue-500">{uses30}× / 30d</span>
+                        )}
+                        {skill.invocable && (
+                          <span className="rounded bg-green-100 px-1.5 py-0.5 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                            invocable
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           </section>
         ))}
@@ -420,11 +360,6 @@ export default function SkillsPage() {
 
       {filtered.length === 0 && (
         <p className="mt-4 text-sm text-zinc-500">沒有符合條件的 skill</p>
-      )}
-
-      {/* Skill detail modal */}
-      {selectedSkill && (
-        <SkillModal name={selectedSkill} onClose={closeSkill} />
       )}
     </div>
   );

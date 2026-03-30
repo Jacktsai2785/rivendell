@@ -1099,13 +1099,101 @@ def api_skills() -> list[dict[str, Any]]:
     ]
 
 
+# Cache for skill usage scan (recompute at most every 10 min)
+_usage_cache: dict[str, Any] = {}
+
+
+def _parse_skill_usage() -> dict[str, list[dict[str, Any]]]:
+    """Scan Claude Code session JSONL files and count skill Read tool calls by date."""
+    import json as _json
+    import time as _time
+
+    cache_ts: float = _usage_cache.get("ts", 0.0)
+    if _time.time() - cache_ts < 600 and "data" in _usage_cache:
+        return _usage_cache["data"]  # type: ignore[return-value]
+
+    raw: dict[str, dict[str, int]] = {}  # {skill_name: {date: count}}
+    projects_dir = Path.home() / ".claude" / "projects"
+
+    if projects_dir.exists():
+        for jsonl_file in projects_dir.rglob("*.jsonl"):
+            try:
+                with open(jsonl_file, encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            obj = _json.loads(line)
+                        except Exception:
+                            continue
+                        timestamp = obj.get("timestamp", "")
+                        if not timestamp:
+                            continue
+                        date = str(timestamp)[:10]
+                        msg = obj.get("message", {})
+                        content = msg.get("content", [])
+                        if not isinstance(content, list):
+                            continue
+                        for item in content:
+                            if not isinstance(item, dict):
+                                continue
+                            if item.get("type") != "tool_use" or item.get("name") != "Read":
+                                continue
+                            file_path = item.get("input", {}).get("file_path", "")
+                            if not str(file_path).endswith("SKILL.md"):
+                                continue
+                            parts = str(file_path).replace("\\", "/").split("/")
+                            try:
+                                idx = parts.index("SKILL.md")
+                                skill_name = parts[idx - 1] if idx > 0 else None
+                            except ValueError:
+                                skill_name = None
+                            if not skill_name:
+                                continue
+                            if skill_name not in raw:
+                                raw[skill_name] = {}
+                            raw[skill_name][date] = raw[skill_name].get(date, 0) + 1
+            except Exception:
+                continue
+
+    result: dict[str, list[dict[str, Any]]] = {
+        name: sorted(
+            [{"date": d, "count": c} for d, c in daily.items()],
+            key=lambda x: x["date"],
+        )
+        for name, daily in raw.items()
+    }
+    _usage_cache["data"] = result
+    _usage_cache["ts"] = _time.time()
+    return result
+
+
+@app.get("/api/skills/usage", tags=["Skills"])
+def api_skills_usage() -> dict[str, Any]:
+    """Return per-skill SKILL.md read counts from Claude Code session JSONL files."""
+    return _parse_skill_usage()
+
+
 @app.get("/api/skills/{name}", tags=["Skills"])
 def api_skill_content(name: str) -> dict[str, Any]:
-    """Return the raw SKILL.md content for a single skill."""
+    """Return SKILL.md content + metadata for a single skill."""
     skill_md = Path.home() / ".claude" / "skills" / name / "SKILL.md"
     if not skill_md.is_file():
         raise HTTPException(404, f"Skill '{name}' not found")
-    return {"name": name, "content": skill_md.read_text(encoding="utf-8")}
+    content = skill_md.read_text(encoding="utf-8")
+    meta: dict[str, Any] = {}
+    for s in list_skills():
+        if s.name == name:
+            meta = {
+                "category": s.category,
+                "summary": s.summary,
+                "line_count": s.line_count,
+                "invocable": s.invocable,
+                "lifecycle": s.lifecycle,
+            }
+            break
+    return {"name": name, "content": content, **meta}
 
 
 # ── Harvest ──────────────────────────────────────────────────────────

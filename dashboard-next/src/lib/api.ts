@@ -192,6 +192,17 @@ export interface SkillInfo {
   lifecycle: string;
 }
 
+export interface SkillDetail extends SkillInfo {
+  content: string;
+}
+
+export interface SkillUsageDay {
+  date: string;
+  count: number;
+}
+
+export type SkillUsage = Record<string, SkillUsageDay[]>;
+
 // ── Projects ──────────────────────────────────────────────────────────
 
 export interface ProjectInfo {
