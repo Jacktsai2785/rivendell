@@ -1104,7 +1104,12 @@ _usage_cache: dict[str, Any] = {}
 
 
 def _parse_skill_usage() -> dict[str, list[dict[str, Any]]]:
-    """Scan Claude Code session JSONL files and count skill Read tool calls by date."""
+    """Scan Claude Code session JSONL files.
+
+    Counts two signals per skill per day:
+    - ``Read`` tool calls where file_path ends with SKILL.md (auto-triggered skills)
+    - ``Skill`` tool calls with ``skill`` input matching the skill name (manual /skill invocations)
+    """
     import json as _json
     import time as _time
 
@@ -1114,6 +1119,11 @@ def _parse_skill_usage() -> dict[str, list[dict[str, Any]]]:
 
     raw: dict[str, dict[str, int]] = {}  # {skill_name: {date: count}}
     projects_dir = Path.home() / ".claude" / "projects"
+
+    def _add(skill_name: str, date: str) -> None:
+        if skill_name not in raw:
+            raw[skill_name] = {}
+        raw[skill_name][date] = raw[skill_name].get(date, 0) + 1
 
     if projects_dir.exists():
         for jsonl_file in projects_dir.rglob("*.jsonl"):
@@ -1138,22 +1148,30 @@ def _parse_skill_usage() -> dict[str, list[dict[str, Any]]]:
                         for item in content:
                             if not isinstance(item, dict):
                                 continue
-                            if item.get("type") != "tool_use" or item.get("name") != "Read":
+                            if item.get("type") != "tool_use":
                                 continue
-                            file_path = item.get("input", {}).get("file_path", "")
-                            if not str(file_path).endswith("SKILL.md"):
-                                continue
-                            parts = str(file_path).replace("\\", "/").split("/")
-                            try:
-                                idx = parts.index("SKILL.md")
-                                skill_name = parts[idx - 1] if idx > 0 else None
-                            except ValueError:
-                                skill_name = None
-                            if not skill_name:
-                                continue
-                            if skill_name not in raw:
-                                raw[skill_name] = {}
-                            raw[skill_name][date] = raw[skill_name].get(date, 0) + 1
+                            tool_name = item.get("name", "")
+                            inp = item.get("input", {})
+
+                            if tool_name == "Read":
+                                # Auto-triggered: Claude reads SKILL.md
+                                file_path = str(inp.get("file_path", ""))
+                                if not file_path.endswith("SKILL.md"):
+                                    continue
+                                parts = file_path.replace("\\", "/").split("/")
+                                try:
+                                    idx = parts.index("SKILL.md")
+                                    skill_name = parts[idx - 1] if idx > 0 else None
+                                except ValueError:
+                                    skill_name = None
+                                if skill_name:
+                                    _add(skill_name, date)
+
+                            elif tool_name == "Skill":
+                                # Manual /skill-name invocation
+                                skill_name = str(inp.get("skill", "")).strip()
+                                if skill_name:
+                                    _add(skill_name, date)
             except Exception:
                 continue
 
