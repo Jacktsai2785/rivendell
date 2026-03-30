@@ -11,6 +11,10 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
 } from "recharts";
 
 // ── Category colors ──────────────────────────────────────────────────
@@ -192,6 +196,18 @@ export default function SkillsPage() {
     }));
   }, [skills]);
 
+  // Top skills by total usage (all time)
+  const topSkills = useMemo(() => {
+    return Object.entries(usage)
+      .map(([name, days]) => ({
+        name,
+        count: days.reduce((s, d) => s + d.count, 0),
+      }))
+      .filter((s) => s.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+  }, [usage]);
+
   // Metrics
   const metrics = useMemo(() => {
     if (!skills) return null;
@@ -276,6 +292,34 @@ export default function SkillsPage() {
           </div>
         </div>
       </div>
+
+      {/* Top skills usage chart */}
+      {topSkills.length > 0 && (
+        <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-3 text-sm font-semibold">最常使用（累計呼叫次數）</h2>
+          <div style={{ height: topSkills.length * 28 + 16 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={topSkills}
+                layout="vertical"
+                margin={{ top: 0, right: 48, left: 0, bottom: 0 }}
+              >
+                <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={160}
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip formatter={(v) => [v, "呼叫次數"]} />
+                <Bar dataKey="count" fill="#3b82f6" radius={[0, 3, 3, 0]} label={{ position: "right", fontSize: 10, fill: "#71717a" }} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Search + filter */}
       <div className="mt-6 flex flex-wrap gap-3">
