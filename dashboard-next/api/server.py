@@ -1321,18 +1321,165 @@ class HarvestDecision(BaseModel):
     decision: str  # "accepted" | "dismissed" | "pending"
 
 
+_CATEGORY_DIRS = {
+    "backend": "backend",
+    "frontend": "frontend",
+    "workflow": "workflow",
+    "quality": "quality",
+    "meta": "meta",
+    "git": "git",
+    "docs": "docs",
+}
+
+
+def _slugify(name: str) -> str:
+    """Convert skill name to filesystem-safe slug."""
+    import re
+    slug = name.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s_]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def _generate_skill_md(candidate: dict[str, Any]) -> str:
+    """Generate SKILL.md content from a harvest candidate."""
+    name = candidate.get("name", "unknown")
+    purpose = candidate.get("purpose", "")
+    trigger = candidate.get("trigger", "")
+    category = candidate.get("category", "workflow")
+    reasoning = candidate.get("reasoning", "")
+
+    # Build description — truncate if too long
+    description = purpose[:200] if purpose else f"{name} skill"
+
+    # Build when_to_use from trigger
+    when_to_use = trigger[:200] if trigger else f"when working with {name}"
+
+    # Build tags from category
+    tags = [category] if category else ["workflow"]
+
+    lines = [
+        "---",
+        f"name: {name}",
+        "description: >",
+        f"  {description}",
+        f"  TRIGGER when: {when_to_use}",
+        f"when_to_use: {when_to_use}",
+        "version: 1.0.0",
+        f"tags: [{', '.join(tags)}]",
+        "languages: all",
+        "source: harvest-auto",
+        "---",
+        "",
+        f"# {name}",
+        "",
+        "## Overview",
+        "",
+        purpose or f"Auto-generated skill from session harvest.",
+        "",
+    ]
+
+    if trigger:
+        lines += [
+            "## When to Use",
+            "",
+            trigger,
+            "",
+        ]
+
+    if reasoning:
+        lines += [
+            "## Background",
+            "",
+            "From session harvest analysis:",
+            "",
+            reasoning,
+            "",
+        ]
+
+    lines += [
+        "## TODO",
+        "",
+        "This skill was auto-generated from a harvest candidate.",
+        "Fill in the implementation details, patterns, and examples.",
+        "",
+    ]
+
+    return "\n".join(lines)
+
+
+def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Create skill directory + SKILL.md + deploy symlink. Returns result dict."""
+    import re
+
+    name = candidate.get("name", "")
+    if not name:
+        return {"created": False, "error": "no name"}
+
+    slug = _slugify(name)
+    category = candidate.get("category", "workflow")
+    cat_dir = _CATEGORY_DIRS.get(category, "workflow")
+
+    repo_dir = Path(__file__).resolve().parent.parent.parent
+    skill_dir = repo_dir / "skills" / cat_dir / slug
+    deploy_target = Path.home() / ".claude" / "skills" / slug
+
+    # Check if already exists
+    if skill_dir.exists():
+        return {
+            "created": False,
+            "already_exists": True,
+            "skill_path": str(skill_dir),
+            "deploy_path": str(deploy_target),
+        }
+
+    # Create skill directory + SKILL.md
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_md = skill_dir / "SKILL.md"
+    skill_md.write_text(_generate_skill_md(candidate))
+
+    # Deploy symlink
+    deploy_target.parent.mkdir(parents=True, exist_ok=True)
+    if not deploy_target.exists() and not deploy_target.is_symlink():
+        deploy_target.symlink_to(skill_dir)
+        deployed = True
+    else:
+        deployed = False
+
+    return {
+        "created": True,
+        "skill_path": str(skill_dir),
+        "deploy_path": str(deploy_target) if deployed else None,
+        "deployed": deployed,
+        "slug": slug,
+        "category": cat_dir,
+    }
+
+
 @app.post("/api/harvest/decide", tags=["Overview"])
 def api_harvest_decide(body: HarvestDecision) -> dict[str, Any]:
-    """Record user decision on a skill candidate."""
+    """Record user decision on a skill candidate. Auto-creates skill when accepted."""
     if body.decision not in ("accepted", "dismissed", "pending"):
         raise HTTPException(400, "decision must be accepted, dismissed, or pending")
+
     decisions = _load_harvest_decisions()
     if body.decision == "pending":
         decisions.pop(body.key, None)
     else:
         decisions[body.key] = body.decision
     _save_harvest_decisions(decisions)
-    return {"ok": True, "key": body.key, "decision": body.decision}
+
+    result: dict[str, Any] = {"ok": True, "key": body.key, "decision": body.decision}
+
+    # Auto-create skill when accepted
+    if body.decision == "accepted":
+        candidates = _parse_harvest_reports()
+        candidate = next((c for c in candidates if c["key"] == body.key), None)
+        if candidate:
+            result["skill_created"] = _auto_create_skill(candidate)
+
+    return result
 
 
 # ── Issues ───────────────────────────────────────────────────────────

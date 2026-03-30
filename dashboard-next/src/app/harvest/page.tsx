@@ -194,8 +194,26 @@ export default function HarvestPage() {
   useEffect(load, [load]);
 
   async function handleDecide(key: string, decision: string) {
-    await apiPost("/api/harvest/decide", { key, decision });
+    const result = await apiPost<{
+      ok: boolean;
+      skill_created?: { created: boolean; already_exists?: boolean; skill_path?: string; slug?: string };
+    }>("/api/harvest/decide", { key, decision });
+    if (decision === "accepted" && result.skill_created?.created) {
+      const slug = result.skill_created.slug ?? key.split(":")[1];
+      toast(`✅ Skill 已建立：${slug}`);
+    } else if (decision === "accepted" && result.skill_created?.already_exists) {
+      toast(`ℹ️ Skill 已存在`);
+    }
     load();
+  }
+
+  function toast(msg: string) {
+    const el = document.createElement("div");
+    el.className =
+      "fixed bottom-4 right-4 z-50 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900";
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
   }
 
   if (err) return <p className="text-red-500">Error: {err}</p>;
