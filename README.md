@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (73 skills)
+## Skills Catalog (65 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -99,17 +99,12 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
-| **code-reviewer** | `/code-reviewer` | Code review 專注 performance、correctness、maintainability |
 | **de-slopify** | 自動 | 移除 AI 生成「廢文」痕跡，讓文本讀起來像人寫的 |
-| **destructive-command-guard** | Hook (PreToolUse) | 在執行前攔截危險指令（rm -rf、git reset --hard、force push） |
 | **large-file-refactor** | 自動 | Systematically split large single-file components (500+ lines) into modular |
-| **post-change-qa** | 自動 | 程式碼修改後自動重啟前後端、跑測試、Playwright 截圖驗證 |
 | **protect-secrets** | Hook (PreToolUse) | 攔截讀取/修改 .env、private keys、credentials 等敏感檔案 |
 | **qa-auto** | `/qa-auto` | 從 QA 計畫或 diff 自動產生測試程式碼、執行測試、報告覆蓋率缺口 |
 | **qa-planner** | `/qa-planner` | 分析程式碼變更產生結構化 QA 計畫：影響分析、測試案例、風險評估 |
 | **qa-testing** | 自動 | 跨框架測試指導：pytest / Vitest / Swift Testing 的策略、mock 模式、模板 |
-| **security-review** | 自動 | 深度安全審查：OWASP Top 10、input validation、auth、CSRF、XSS |
-| **systematic-debugging** | 自動 | 四階段除錯框架：根因調查 → 模式分析 → 假設測試 → 實作修復 |
 
 ### git/ — Git/GitHub
 
@@ -117,7 +112,6 @@ cd ~/any-project && claude
 |-------|---------|------|
 | **auto-stage** | Hook (PostToolUse) | 檔案編輯/建立後自動 git add，跳過 .env 和 node_modules |
 | **repo-rename** | `/repo-rename` | Repo 改名時全系統審計引用（plist、Claude 設定、腳本、兄弟 repo），產出遷移清單並執行 |
-| **review-pr** | `/review-pr` | 用 `gh` CLI 分析 PR diff，結構化 feedback + approve/reject 建議 |
 
 ### frontend/ — 前端設計、iOS、測試
 
@@ -127,7 +121,6 @@ cd ~/any-project && claude
 | **ios-integration** | 自動 | iOS 系統整合：App Extensions、Deep Links、Universal Links、App Groups、權限、地圖 |
 | **swiftui-patterns** | 自動 | SwiftUI iOS 17+ 架構模式：@Observable、MVVM、strict concurrency、NavigationStack |
 | **ui-ux-pro-max** | `/ui-ux-pro-max` 或自動 | UI/UX 資料庫搜尋 — 97 色票、57 字體配對、50+ 風格、25 圖表類型，含 Python CLI |
-| **webapp-testing** | 自動 | Playwright 驅動的 web app 測試、截圖、browser log 檢查 |
 
 ### backend/ — 後端服務
 
@@ -143,7 +136,6 @@ cd ~/any-project && claude
 | **tunnel-proxy-deploy** | 自動 | Deploy FastAPI + Next.js behind Cloudflare Tunnel. |
 | **tw-company-lookup** | `/tw-company-lookup` 或自動 | 用 Playwright 查詢經濟部 findbiz.nat.gov.tw：公司基本資料、董監事、工廠、歷史變更 |
 | **vector-search-setup** | 自動 | Set up a vector search knowledge base in a FastAPI project from scratch. |
-| **web-scraper** | 自動 | Playwright headless 爬蟲 fallback：WebFetch 被擋時用，支援截圖、表單互動、tab 導覽 |
 
 ### docs/ — 文件處理與 MCP 建置
 
