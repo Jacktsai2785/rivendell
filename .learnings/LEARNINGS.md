@@ -63,6 +63,13 @@
 - **Learning**: macOS TCC (Transparency, Consent, and Control) protects ~/Documents/, ~/Desktop/, ~/Downloads/. When launchd spawns `/bin/bash`, it has no Full Disk Access. A compiled binary can be granted FDA individually. Shell scripts cannot.
 - **Resolution**: Keep a compiled C launcher (`agents/sk-agent-run.c`), compile during setup, grant FDA once per machine.
 
+## 2026-03-24 — Autoresearch discard must NOT use git clean
+
+- **Category**: best_practice
+- **Context**: `sk-autoresearch` discard step used `git checkout -- . && git clean -fd`. The `git clean -fd` deleted untracked files from other agents (subsidy data, client projections, tender cases) that were never committed.
+- **Learning**: In multi-agent repos, NEVER use `git clean` for discard. Only `git checkout -- .` to revert tracked modifications. Untracked files belong to other agents' output.
+- **Also learned**: Autoresearch metric commands must be local and deterministic — never depend on external API calls (rate limits make results non-reproducible).
+
 ## 2026-03-24 — Cross-project exec-lib sourcing needs export
 
 - **Category**: best_practice

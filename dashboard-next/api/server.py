@@ -1710,3 +1710,102 @@ def api_issues() -> dict[str, Any]:
         "warnings": sum(1 for i in issues if i["severity"] == "warning"),
         "issues": issues,
     }
+
+
+# ── Ports ─────────────────────────────────────────────────────────────────────
+
+def _infer_port_type(host_port: int) -> str:
+    if host_port == 5432:
+        return "DB"
+    if host_port == 6379:
+        return "Cache"
+    if host_port == 8501:
+        return "Streamlit"
+    if 3000 <= host_port <= 3999:
+        return "Frontend"
+    if 8000 <= host_port <= 8999:
+        return "API"
+    return "Service"
+
+
+def _infer_project(service_name: str) -> str:
+    if service_name.startswith("dashboard"):
+        return "dashboard"
+    if service_name.startswith("nexus"):
+        return "nexus"
+    return service_name
+
+
+def _infer_category(port_type: str) -> str:
+    if port_type in ("Frontend", "Streamlit"):
+        return "前端"
+    if port_type == "API":
+        return "後端"
+    if port_type in ("DB", "Cache"):
+        return "資料庫"
+    return "其他"
+
+
+@app.get("/api/ports", tags=["Ports"])
+async def api_ports() -> dict[str, Any]:
+    """Parse docker-compose.yml, infer service metadata, check port reachability."""
+    import asyncio
+
+    try:
+        import yaml
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PyYAML not installed")
+
+    dc_path = Path(__file__).resolve().parent.parent.parent / "docker-compose.yml"
+    if not dc_path.exists():
+        raise HTTPException(status_code=404, detail=f"docker-compose.yml not found: {dc_path}")
+
+    try:
+        dc = yaml.safe_load(dc_path.read_text())
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to parse docker-compose.yml: {exc}")
+
+    entries: list[dict[str, Any]] = []
+    for svc_name, svc_cfg in dc.get("services", {}).items():
+        if not isinstance(svc_cfg, dict):
+            continue
+        container = svc_cfg.get("container_name", svc_name)
+        for port_spec in svc_cfg.get("ports", []):
+            if not isinstance(port_spec, str) or ":" not in port_spec:
+                continue
+            try:
+                host_port = int(port_spec.split(":")[0])
+            except ValueError:
+                continue
+            port_type = _infer_port_type(host_port)
+            entries.append({
+                "port": host_port,
+                "service": svc_name,
+                "container": container,
+                "type": port_type,
+                "web": port_type not in ("DB", "Cache"),
+                "category": _infer_category(port_type),
+                "project": _infer_project(svc_name),
+                "status": "unknown",
+            })
+
+    async def check_port(port: int) -> str:
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", port),
+                timeout=0.8,
+            )
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return "live"
+        except Exception:
+            return "stopped"
+
+    statuses = await asyncio.gather(*[check_port(e["port"]) for e in entries])
+    for entry, status in zip(entries, statuses):
+        entry["status"] = status
+
+    return {"ports": entries}

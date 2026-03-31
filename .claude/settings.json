@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/manibari/Documents/Projects/rivendell/skills/meta/sync-readme/scripts/sync-readme-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -31,6 +31,7 @@ Commands:
   audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
   permissions [dir]   Scan project tooling and update .claude/settings.local.json
   maintain            Nightly maintenance: permissions sync, deploy check, agent health, audit
+  readme              Regenerate README.md Skills Catalog from SKILL.md frontmatter
   sync                Show Google Drive import status for re-import
   agent               Manage automated agents (list/start/stop/status/log/create)
 
@@ -496,6 +497,15 @@ cmd_sync() {
   else
     echo -e "  ${YELLOW}To re-import, run /gdrive-to-skills in Claude Code${NC}"
   fi
+}
+
+cmd_readme() {
+  local script="$REPO_DIR/scripts/generate-readme-catalog.py"
+  if [ ! -f "$script" ]; then
+    echo -e "${RED}Error:${NC} $script not found"
+    exit 1
+  fi
+  python3 "$script"
 }
 
 cmd_list() {
@@ -3492,6 +3502,7 @@ case "${1:-help}" in
   maintain)   cmd_maintain ;;
   agent)      shift; cmd_agent "$@" ;;
   sync)       cmd_sync ;;
+  readme)     cmd_readme ;;
   profile)    shift; cmd_profile "$@" ;;
   bootstrap)  shift; cmd_bootstrap "$@" ;;
   up)         shift; cmd_up "$@" ;;

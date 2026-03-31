@@ -222,6 +222,23 @@ export interface ProjectDetailData extends ProjectInfo {
   agent_details: AgentInfo[];
 }
 
+// ── Ports ─────────────────────────────────────────────────────────────────────
+
+export interface PortInfo {
+  port: number;
+  service: string;
+  container: string;
+  type: "API" | "Frontend" | "Streamlit" | "DB" | "Cache" | "Service";
+  web: boolean;
+  category: "前端" | "後端" | "資料庫" | "其他";
+  project: string;
+  status: "live" | "stopped" | "unknown";
+}
+
+export interface PortsData {
+  ports: PortInfo[];
+}
+
 export interface AgentFile {
   name: string;
   path: string;
