@@ -213,6 +213,18 @@ with open(plist_path, "wb") as f:
 
 6. **TCC / Full Disk Access** — launchd agents accessing `~/Documents/`, `~/Desktop/`, or `~/Downloads/` need the executable to have Full Disk Access (FDA). `/bin/bash` does NOT have FDA by default. See the Portable Fleet Pattern below for the solution.
 
+7. **Cross-project `source` causes EDEADLK (exit 78)** — When a launchd script sources a lib from a *different* project directory (e.g., `source ~/Documents/OtherProject/bin/lib.sh`), macOS TCC can intermittently return "Resource deadlock avoided" (errno 78). Under `set -euo pipefail` this silently aborts the entire script. Wrap the `source` defensively:
+
+   ```bash
+   # Bad — aborts script on TCC failure
+   source "$OTHER_PROJECT/bin/sk-exec-lib"
+
+   # Good — TCC failure is non-fatal; main task continues
+   set +e; source "$OTHER_PROJECT/bin/sk-exec-lib" 2>/dev/null || true; set -e
+   ```
+
+   This applies especially when the sourced lib is optional (e.g., dashboard telemetry). If the lib is mandatory, log the failure and exit cleanly rather than proceeding silently.
+
 ---
 
 ## Portable Multi-Agent Fleet Pattern

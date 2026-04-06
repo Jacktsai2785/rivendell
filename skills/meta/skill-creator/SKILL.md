@@ -142,6 +142,18 @@ Input: Added user authentication with JWT tokens
 Output: feat(auth): implement JWT-based authentication
 ```
 
+**Hook env var fallback pattern** — When a skill's `hooks` use `$CLAUDE_SKILL_DIR` to reference scripts bundled with the skill, always add a fallback so the hook works even when `CLAUDE_SKILL_DIR` is not set in the environment (e.g., when invoked from a global `~/.claude/skills/` install):
+
+```yaml
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: "sh \"${CLAUDE_SKILL_DIR:-$HOME/.claude/skills/<skill-name>}/scripts/my-script.sh\" 2>/dev/null || true"
+```
+
+The `|| true` prevents hook noise from blocking the conversation when the script is non-critical.
+
 ### Writing Style
 
 Try to explain to the model why things are important in lieu of heavy-handed musty MUSTs. Use theory of mind and try to make the skill general and not super-narrow to specific examples. Start by writing a draft and then look at it with fresh eyes and improve it.

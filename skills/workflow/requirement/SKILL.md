@@ -19,6 +19,17 @@ Produce a structured requirement document before any design or implementation be
 
 ## Instructions
 
+### Step 0: Demand Validation (via gstack-office-hours)
+
+Before writing user stories, validate the "why".
+
+**If the feature is new and hasn't been through office hours yet**, invoke `/gstack-office-hours` first.
+It will expose: demand reality, status quo, desperate specificity, and narrowest wedge.
+
+Skip Step 0 if:
+- The user explicitly says "skip office hours" or "直接做"
+- A design doc from `/gstack-office-hours` already exists in `docs/`
+
 ### Step 1: Clarify the Goal
 
 Ask the user (skip questions they already answered):
@@ -66,5 +77,14 @@ Save to `docs/requirements/{feature-name}.md` (ask user for feature name if uncl
 
 After saving, prompt:
 
-> **Requirement complete.** Next step: define the user flow.
-> Run `/user-flow` or describe the main user journey to continue.
+> **Requirement complete.** Follow the gstack UI workflow:
+>
+> | Step | Skill | Purpose |
+> |------|-------|---------|
+> | 2 | `/user-flow` | Screen transitions + branches |
+> | 3 | `/gstack-design-consultation` | Design system / brand direction |
+> | 4 | `/gstack-design-shotgun` | Generate design variants, pick one |
+> | 5 | `/mockup` → `/gstack-design-html` | Finalize static HTML |
+> | 6 | `/planning-with-files` → `/gstack-plan-eng-review` | Implementation task list + architecture review |
+>
+> Next: `/user-flow`
