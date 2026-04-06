@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "sk-dashboard",
+  title: "rivendell",
   description: "Skills library agent dashboard",
 };
 

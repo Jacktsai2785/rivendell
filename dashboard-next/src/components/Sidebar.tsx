@@ -124,7 +124,7 @@ export default function Sidebar() {
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 min-h-screen">
       <div className="px-4 py-6">
-        <h1 className="text-lg font-bold tracking-tight">sk-dashboard</h1>
+        <h1 className="text-lg font-bold tracking-tight">rivendell</h1>
       </div>
 
       {/* Project Switcher */}

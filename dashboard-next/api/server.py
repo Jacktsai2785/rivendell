@@ -46,7 +46,7 @@ from lib.skills import list_skills
 from lib.hooks import list_hooks
 
 app = FastAPI(
-    title="sk-dashboard API",
+    title="rivendell API",
     openapi_tags=[
         {"name": "Overview", "description": "Dashboard overview metrics"},
         {"name": "Agents", "description": "Agent lifecycle & scheduling"},

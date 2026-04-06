@@ -1,4 +1,4 @@
-"""sk-dashboard — Streamlit management dashboard."""
+"""rivendell — Streamlit management dashboard."""
 
 import sys
 from pathlib import Path
@@ -11,10 +11,10 @@ sys.path.insert(0, str(DASHBOARD_DIR))
 import streamlit as st
 from lib.db import init_db
 
-st.set_page_config(page_title="sk-dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="rivendell", page_icon="📊", layout="wide")
 init_db()
 
-st.sidebar.title("📊 sk-dashboard")
+st.sidebar.title("📊 rivendell")
 page = st.sidebar.radio("導覽", ["總覽", "Agent 管理", "Token 用量", "Skill 總覽"])
 
 st.sidebar.divider()

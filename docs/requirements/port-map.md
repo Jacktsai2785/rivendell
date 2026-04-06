@@ -87,8 +87,8 @@ The rivendell project runs multiple Docker services. Each service maps one or mo
 
 | Host Port | Service | Container | Type |
 |---|---|---|---|
-| 8000 | dashboard-api | sk-dashboard-api | API (web) |
-| 3000 | dashboard-web | sk-dashboard-web | Frontend (web) |
+| 8000 | dashboard-api | rivendell-api | API (web) |
+| 3000 | dashboard-web | rivendell-web | Frontend (web) |
 | 8001 | news-stock | sk-news-stock | API (web) |
 | 3001 | news-stock | sk-news-stock | Frontend (web) |
 | 8501 | news-stock | sk-news-stock | Streamlit (web) |

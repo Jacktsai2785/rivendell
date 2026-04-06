@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# start-api.sh — Start the FastAPI backend for sk-dashboard.
+# start-api.sh — Start the FastAPI backend for rivendell.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"

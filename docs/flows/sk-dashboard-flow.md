@@ -1,4 +1,4 @@
-# User Flow: sk-dashboard
+# User Flow: rivendell
 
 ## Flow 1: Overview（US-1）
 

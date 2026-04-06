@@ -1,7 +1,7 @@
 ---
 name: agent-observability
 description: >
-  Make any script-based agent visible in sk-dashboard: execution history,
+  Make any script-based agent visible in rivendell: execution history,
   live log streaming, and timeline events. Step-by-step guide for integrating
   exec-lib, progress logging, and dashboard log discovery.
   TRIGGER when: building a new scraper/script agent, user asks why agent

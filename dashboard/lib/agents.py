@@ -1,4 +1,4 @@
-"""Read and manage launchd agent state for sk-dashboard."""
+"""Read and manage launchd agent state for rivendell."""
 
 from __future__ import annotations
 

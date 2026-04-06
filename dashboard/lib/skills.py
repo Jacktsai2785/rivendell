@@ -1,4 +1,4 @@
-"""Merge TSV metadata + SKILL.md files for sk-dashboard."""
+"""Merge TSV metadata + SKILL.md files for rivendell."""
 
 from __future__ import annotations
 

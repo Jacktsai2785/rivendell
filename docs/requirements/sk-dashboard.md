@@ -1,4 +1,4 @@
-# Requirement: sk-dashboard
+# Requirement: rivendell
 
 **Target User:** 個人（manibari）
 **Problem:** 46 skills + 3 agents + 3 hooks 散落各處，缺乏統一管理介面
@@ -168,7 +168,7 @@ CREATE TABLE settings (
 ## Page Structure
 
 ```
-📊 sk-dashboard
+📊 rivendell
 ├── 🏠 Overview          ← US-1: metrics + agent/hook 狀態卡片
 ├── 🤖 Agents            ← US-2, US-3: agent 管理 + log viewer
 ├── 🔗 Hooks             ← US-4: hook toggle

@@ -1,4 +1,4 @@
-# sk-dashboard V1 Implementation Plan
+# rivendell V1 Implementation Plan
 
 > **For Claude:** Use `${SUPERPOWERS_SKILLS_ROOT}/skills/collaboration/executing-plans/SKILL.md` to implement this plan task-by-task.
 
@@ -32,12 +32,12 @@ Run: `cd /Users/manibari/Documents/Projects/skills-test && pip install -r dashbo
 **Step 3: Write db.py with schema init**
 
 ```python
-"""SQLite database layer for sk-dashboard."""
+"""SQLite database layer for rivendell."""
 
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "sk-dashboard.db"
+DB_PATH = Path(__file__).parent.parent / "data" / "rivendell.db"
 
 
 def get_conn() -> sqlite3.Connection:
@@ -85,15 +85,15 @@ def init_db() -> None:
 **Step 4: Write minimal app.py**
 
 ```python
-"""sk-dashboard — Streamlit management dashboard."""
+"""rivendell — Streamlit management dashboard."""
 
 import streamlit as st
 from lib.db import init_db
 
-st.set_page_config(page_title="sk-dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="rivendell", page_icon="📊", layout="wide")
 init_db()
 
-st.sidebar.title("📊 sk-dashboard")
+st.sidebar.title("📊 rivendell")
 page = st.sidebar.radio("Navigation", ["Overview", "Agents", "Token Usage"])
 
 if page == "Overview":

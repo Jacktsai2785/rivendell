@@ -1,9 +1,9 @@
-"""SQLite database layer for sk-dashboard."""
+"""SQLite database layer for rivendell."""
 
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "sk-dashboard.db"
+DB_PATH = Path(__file__).parent.parent / "data" / "rivendell.db"
 
 
 def get_conn() -> sqlite3.Connection:
