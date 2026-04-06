@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -1272,7 +1273,8 @@ def api_skill_content(name: str) -> dict[str, Any]:
 
 # ── Harvest ──────────────────────────────────────────────────────────
 
-HARVEST_DECISIONS_FILE = Path(__file__).resolve().parent.parent.parent / "reports" / ".harvest-decisions.json"
+_REPORTS_DIR = Path(os.environ.get("REPORTS_DIR", str(Path(__file__).resolve().parent.parent.parent / "reports")))
+HARVEST_DECISIONS_FILE = _REPORTS_DIR / ".harvest-decisions.json"
 
 
 def _load_harvest_decisions() -> dict[str, str]:
@@ -1292,7 +1294,7 @@ def _parse_harvest_reports() -> list[dict[str, Any]]:
     """Parse all harvest-*.md reports and extract skill candidates."""
     import re
 
-    reports_dir = Path(__file__).resolve().parent.parent.parent / "reports"
+    reports_dir = _REPORTS_DIR
     candidates: list[dict[str, Any]] = []
 
     for md_file in sorted(reports_dir.glob("harvest-*.md")):

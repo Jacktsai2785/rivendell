@@ -14,10 +14,12 @@ services:
       context: .
       dockerfile: dockerfiles/dashboard-api.Dockerfile
     container_name: sk-dashboard-api
+    environment:
+      - REPORTS_DIR=/data/reports
     ports:
       - "8000:8000"
     volumes:
-      - ./reports:/data/reports:ro
+      - ./reports:/data/reports
       - ./logs:/data/logs:ro
       - ./data:/dashboard/data
       - ./data/skill-summaries-zh.tsv:/data/skill-summaries-zh.tsv:ro
