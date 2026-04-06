@@ -18,7 +18,7 @@ mkdir -p "$REPORT_DIR"
 touch "$HARVESTED_FILE"
 
 # Source exec lib for _sk_exec_record_run
-source "$REPO_DIR/bin/sk-exec-lib"
+set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
 
 # --- Find new sessions (not yet harvested) ---
 # 1. Find JSONL files modified since last harvest (or 24h)

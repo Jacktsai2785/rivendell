@@ -15,7 +15,7 @@ SYMLINK_DIR="$HOME/.claude/skills"
 mkdir -p "$REPORT_DIR"
 
 # Source exec lib for _sk_exec_record_run
-source "$REPO_DIR/bin/sk-exec-lib"
+set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
 
 start_epoch=$(date +%s)
 total_pass=0

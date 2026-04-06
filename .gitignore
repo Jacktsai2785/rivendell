@@ -7,6 +7,9 @@ scripts/__pycache__/
 dashboard/data/*.db
 dashboard/data/*.db-wal
 dashboard/data/*.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
 __pycache__/
 logs/
 data/cost-ledger.jsonl
@@ -17,3 +20,4 @@ node_modules/
 .active-profile
 .env
 .env.shared
+.gstack/
