@@ -83,7 +83,7 @@ export default function TokensPage() {
         <section className="mt-8">
           <h2 className="mb-3 text-base font-semibold">每日 Token 用量</h2>
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={256}>
               <BarChart data={data.daily}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
@@ -107,7 +107,7 @@ export default function TokensPage() {
         <section className="mt-8">
           <h2 className="mb-3 text-base font-semibold">每日花費</h2>
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={256}>
               <BarChart data={data.daily}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis

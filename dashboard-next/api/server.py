@@ -1814,7 +1814,7 @@ async def api_ports() -> dict[str, Any]:
     except ImportError:
         raise HTTPException(status_code=500, detail="PyYAML not installed")
 
-    dc_path = Path(__file__).resolve().parent.parent.parent / "docker-compose.yml"
+    dc_path = Path(os.environ.get("COMPOSE_FILE", str(Path(__file__).resolve().parent.parent.parent / "docker-compose.yml")))
     if not dc_path.exists():
         raise HTTPException(status_code=404, detail=f"docker-compose.yml not found: {dc_path}")
 

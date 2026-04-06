@@ -143,7 +143,7 @@ export default function SkillDetailPage() {
       <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="mb-3 text-sm font-semibold">呼叫次數（近 30 天）</h2>
         <div className="h-36 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={144}>
             <BarChart
               data={chartData}
               margin={{ top: 2, right: 4, left: -24, bottom: 0 }}

@@ -16,6 +16,7 @@ services:
     container_name: sk-dashboard-api
     environment:
       - REPORTS_DIR=/data/reports
+      - COMPOSE_FILE=/app/docker-compose.yml
     ports:
       - "8000:8000"
     volumes:
@@ -23,6 +24,7 @@ services:
       - ./logs:/data/logs:ro
       - ./data:/dashboard/data
       - ./data/skill-summaries-zh.tsv:/data/skill-summaries-zh.tsv:ro
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
       - ${HOME}/Library/LaunchAgents:/root/Library/LaunchAgents:ro
       - ${HOME}/.claude/projects:/root/.claude/projects:ro
       - ${HOME}/.claude/skills:/root/.claude/skills:ro

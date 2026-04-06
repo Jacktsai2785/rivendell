@@ -249,7 +249,7 @@ export default function SkillsPage() {
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-3 text-sm font-semibold">Category Map</h2>
           <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={224}>
               <Treemap
                 data={treemapData}
                 dataKey="size"
@@ -264,7 +264,7 @@ export default function SkillsPage() {
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-3 text-sm font-semibold">Lifecycle 分佈</h2>
           <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={224}>
               <PieChart>
                 <Pie
                   data={lifecycleData}
@@ -298,7 +298,7 @@ export default function SkillsPage() {
         <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="mb-3 text-sm font-semibold">最常使用（累計呼叫次數）</h2>
           <div style={{ height: topSkills.length * 28 + 16 }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={topSkills.length * 28 + 16}>
               <BarChart
                 data={topSkills}
                 layout="vertical"
