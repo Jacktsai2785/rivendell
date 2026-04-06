@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup — Workflow Map</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'], mono: ['JetBrains Mono','monospace'] } } }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+    * { box-sizing: border-box; }
+
+    /* Chip styles */
+    .chip { display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; font-size:11px; font-family:monospace; white-space:nowrap; cursor:default; transition: opacity .15s, outline .1s; }
+    .chip-local-m  { background:rgba(124,58,237,.15); color:#a78bfa; border:1px solid rgba(124,58,237,.5); }
+    .chip-local-o  { background:rgba(124,58,237,.07); color:#8b5cf6; border:1px dashed rgba(124,58,237,.35); }
+    .chip-gstack-m { background:rgba(20,184,166,.15); color:#5eead4; border:1px solid rgba(20,184,166,.5); }
+    .chip-gstack-o { background:rgba(20,184,166,.07); color:#2dd4bf; border:1px dashed rgba(20,184,166,.35); }
+    .chip-orphan-r { background:rgba(239,68,68,.15);  color:#f87171; border:1px solid rgba(239,68,68,.5); }
+    .chip-orphan-a { background:rgba(245,158,11,.15); color:#fbbf24; border:1px solid rgba(245,158,11,.5); }
+    .chip-maint    { background:rgba(99,102,241,.15); color:#a5b4fc; border:1px solid rgba(99,102,241,.4); }
+
+    html.light .chip-local-m  { background:#ede9fe; color:#7c3aed; border:1px solid #c4b5fd; }
+    html.light .chip-local-o  { background:#f5f3ff; color:#8b5cf6; border:1px dashed #ddd6fe; }
+    html.light .chip-gstack-m { background:#ccfbf1; color:#0d9488; border:1px solid #99f6e4; }
+    html.light .chip-gstack-o { background:#f0fdf9; color:#0f766e; border:1px dashed #99f6e4; }
+    html.light .chip-orphan-r { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
+    html.light .chip-orphan-a { background:#fef9c3; color:#d97706; border:1px solid #fde68a; }
+    html.light .chip-maint    { background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; }
+
+    .search-dim { opacity:.12; }
+    .search-hit { outline:2px solid #fbbf24; outline-offset:1px; border-radius:4px; }
+
+    details > summary { list-style:none; cursor:pointer; }
+    details > summary::-webkit-details-marker { display:none; }
+    details > summary .chevron { transition: transform .2s; }
+    details[open] > summary .chevron { transform: rotate(90deg); }
+
+    /* Step row */
+    .step-row { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid rgba(113,113,122,.12); }
+    .step-row:last-child { border-bottom:none; }
+    .step-num { display:flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:50%; background:rgba(113,113,122,.2); font-size:11px; font-weight:600; color:#a1a1aa; flex-shrink:0; margin-top:1px; }
+    .step-skills { display:flex; flex-wrap:wrap; gap:4px; }
+
+    /* Trigger row */
+    .trigger-row { padding:10px 14px; border-radius:8px; background:rgba(39,39,42,.5); border:1px solid rgba(63,63,70,.5); }
+    html.light .trigger-row { background:#f9fafb; border:1px solid #e4e4e7; }
+
+    /* Edit mode */
+    .edit-controls { display:none; }
+    body.edit-mode .edit-controls { display:flex; }
+    body.edit-mode .edit-mode-hide { display:none; }
+
+    .skill-input-wrap { position:relative; }
+    .skill-autocomplete { position:absolute; top:100%; left:0; right:0; background:#18181b; border:1px solid #3f3f46; border-radius:6px; z-index:50; max-height:160px; overflow-y:auto; }
+    html.light .skill-autocomplete { background:#fff; border-color:#d4d4d8; }
+    .skill-ac-item { padding:5px 10px; font-size:12px; font-family:monospace; cursor:pointer; color:#a1a1aa; }
+    .skill-ac-item:hover { background:rgba(113,113,122,.2); color:#e4e4e7; }
+
+    .tooltip-wrap { position:relative; }
+    .tooltip-wrap .tooltip-box { display:none; position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:#27272a; color:#e4e4e7; font-size:11px; padding:4px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:100; border:1px solid #3f3f46; }
+    html.light .tooltip-wrap .tooltip-box { background:#fff; color:#18181b; border-color:#d4d4d8; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+    .tooltip-wrap:hover .tooltip-box { display:block; }
+  </style>
+</head>
+
+<body class="bg-zinc-950 text-zinc-100 font-sans antialiased min-h-screen flex dark:bg-zinc-950 dark:text-zinc-100">
+
+<!-- ── Sidebar ── -->
+<aside class="flex w-56 shrink-0 flex-col border-r border-zinc-800 bg-zinc-950 min-h-screen">
+  <div class="px-4 py-6">
+    <h1 class="text-lg font-bold tracking-tight text-zinc-100">sk-dashboard</h1>
+  </div>
+  <nav class="flex flex-col gap-1 px-2">
+    <a href="#" class="flex items-center gap-3 rounded-md py-2 px-3 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      總覽
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-md py-2 px-3 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+      Agent 管理
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-md py-2 px-3 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8H20l-5 3.6 1.9 5.8L12 15l-4.9 3.2 1.9-5.8-5-3.6h6.1z"/></svg>
+      Skill 總覽
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-md py-2 px-3 text-sm bg-zinc-800 text-zinc-100 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      Workflow Map
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-md py-2 px-3 text-sm text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+      Port 對應
+    </a>
+  </nav>
+</aside>
+
+<!-- ── Main ── -->
+<main class="flex-1 flex flex-col min-h-screen overflow-auto bg-white dark:bg-zinc-950">
+
+  <!-- Top bar -->
+  <div class="flex items-center gap-3 px-6 py-3 border-b border-zinc-200 dark:border-zinc-800">
+    <input id="search-input" type="search" placeholder="搜尋 skill…" oninput="onSearch(this.value)"
+      class="flex-1 max-w-xs rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:bg-zinc-900">
+    <div class="ml-auto flex items-center gap-2">
+      <button onclick="toggleEditMode()" id="edit-btn"
+        class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 1 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit Mode
+      </button>
+      <label class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import
+        <input type="file" accept=".json" onchange="importData(event)" class="hidden">
+      </label>
+      <button onclick="exportData()"
+        class="flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors">
+        <svg id="theme-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <span id="theme-label">Light</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="px-8 py-6 flex-1 space-y-10">
+
+    <!-- Page header + stats -->
+    <div>
+      <h2 class="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Workflow Map</h2>
+      <p class="mt-0.5 text-sm text-zinc-500">每個 skill 在工作流程中的定位・審計孤兒 skill</p>
+      <div id="stats-strip" class="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500"></div>
+    </div>
+
+    <!-- SECTION 1: Core Dev Workflows -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-zinc-200">核心開發流程</h3>
+        <div class="flex gap-2">
+          <button onclick="expandAll('core')" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">展開全部</button>
+          <span class="text-zinc-700">·</span>
+          <button onclick="collapseAll('core')" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">收合全部</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="core-tracks"></div>
+      <!-- Maintenance table -->
+      <div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">定期維護</div>
+        <div id="maintenance-table" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: Domain Workflows -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-zinc-200">領域工作流程</h3>
+        <button onclick="addDomainFlow()" class="edit-controls items-center gap-1.5 rounded-md border border-dashed border-zinc-600 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-100 hover:border-zinc-400 transition-colors">
+          ＋ 新增工作流程
+        </button>
+      </div>
+      <div id="domain-flows" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+    </section>
+
+    <!-- SECTION 3: Situational -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-zinc-200">情境觸發</h3>
+        <span class="text-xs text-zinc-500">沒有固定流程步驟，但有明確觸發條件</span>
+      </div>
+      <div id="situational-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+    </section>
+
+    <!-- SECTION 4: Orphaned -->
+    <section>
+      <div class="flex items-center gap-3 mb-3">
+        <h3 class="text-base font-semibold text-zinc-200">待審查</h3>
+        <span class="text-xs text-zinc-500">無法對應任何工作流程或情境觸發的 skills</span>
+      </div>
+      <div id="orphaned-list" class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 flex flex-wrap gap-3"></div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────────────────
+
+const DEFAULT_DATA = {
+
+  // ── skillMeta ──
+  skillMeta: {
+    // local skills
+    'agent-observability':     { source:'local', desc:'讓 script-based agent 在 sk-dashboard 可視' },
+    'audit-fix':               { source:'local', desc:'分析 sk audit 報告並修復問題' },
+    'auto-stage':              { source:'local', desc:'PostToolUse hook：自動 git stage' },
+    'autoresearch':            { source:'local', desc:'自主目標導向研究迭代循環' },
+    'candidate-analysis':      { source:'local', desc:'面試候選人管理，提取結構化評估' },
+    'ci-pipeline':             { source:'local', desc:'偵測專案技術棧，生成 GitHub Actions' },
+    'claude-to-telegram':      { source:'local', desc:'設定 Telegram bridge 遠端控制 Claude' },
+    'context-recovery':        { source:'local', desc:'session 切換後自動恢復工作上下文' },
+    'crm-projection':          { source:'local', desc:'投影 nx_client + nx_deal 資料到本地行銷' },
+    'customer-intel':          { source:'local', desc:'B2B 客戶情報：公司名稱 → 結構化分析' },
+    'db-migration':            { source:'local', desc:'設定 DB migration 工具，生成 schema 變更' },
+    'de-slopify':              { source:'local', desc:'移除 AI 生成文字的典型痕跡' },
+    'deploy':                  { source:'local', desc:'推薦部署平台並生成部署設定' },
+    'dev-process-gate':        { source:'local', desc:'強制執行開發工作流程：需求 → 使用者故事' },
+    'dispatching-parallel-agents': { source:'local', desc:'使用多個 Claude agents 平行調查' },
+    'doc-to-structured-data':  { source:'local', desc:'解析非結構化技術文件為結構化資料' },
+    'executing-plans':         { source:'local', desc:'分批執行詳細計畫並逐步審查' },
+    'firebase-backend':        { source:'local', desc:'Firebase 架構設計：Firestore、Security Rules' },
+    'frontend-design':         { source:'local', desc:'建立獨特、生產級前端設計' },
+    'gdrive-to-skills':        { source:'local', desc:'從 Google Drive 文件讀取內容並分類為 skills' },
+    'headless-agent':          { source:'local', desc:'無頭模式執行 Claude Code 的自動化模式' },
+    'imap-smtp-integration':   { source:'local', desc:'IMAP/SMTP 郵件整合：FastAPI 收發信' },
+    'init-project':            { source:'local', desc:'初始化 Claude Code 專案設定檔' },
+    'investment-research':     { source:'local', desc:'持續投資組合管理 agent：alpha 發現' },
+    'ios-integration':         { source:'local', desc:'iOS 系統整合：App Extensions、Share Extension' },
+    'keyword-discovery':       { source:'local', desc:'自動化關鍵字發現用於爬蟲過濾' },
+    'knowledge-graph':         { source:'local', desc:'三層記憶系統：結構化實體知識圖' },
+    'large-file-refactor':     { source:'local', desc:'系統性拆分大型單檔元件' },
+    'launchd-agent':           { source:'local', desc:'建立、設定、管理 macOS launchd agents' },
+    'markdown-file-ssot':      { source:'local', desc:'Markdown 檔作為半結構化資料 SSOT' },
+    'material-health':         { source:'local', desc:'銷售材料庫的健檢' },
+    'mcp-builder':             { source:'local', desc:'建立高品質 MCP Server 的指南' },
+    'mockup':                  { source:'local', desc:'建立三種保真度等級的 UI mockup' },
+    'oauth-token-vault':       { source:'local', desc:'OAuth 2.0 flow + Fernet 加密 token 儲存' },
+    'office-docx':             { source:'local', desc:'Word 文件處理：建立、編輯、追蹤修訂' },
+    'office-pdf':              { source:'local', desc:'PDF 操作：提取文字/表格、建立、合併' },
+    'office-pptx':             { source:'local', desc:'PowerPoint 建立、編輯與分析' },
+    'office-xlsx':             { source:'local', desc:'電子試算表建立、編輯與分析' },
+    'plan-check-style':        { source:'local', desc:'掃描可用 style skills 並載入匹配的' },
+    'planning-with-files':     { source:'local', desc:'Manus 風格以檔案為基礎的規劃' },
+    'protect-secrets':         { source:'local', desc:'PreToolUse hook：阻止讀取/寫入機密檔案' },
+    'qa-auto':                 { source:'local', desc:'從 QA 計畫或程式碼自動生成測試' },
+    'qa-planner':              { source:'local', desc:'分析程式碼變更生成結構化 QA 計畫' },
+    'qa-testing':              { source:'local', desc:'跨框架測試策略與撰寫指南' },
+    'repo-rename':             { source:'local', desc:'系統性審計所有跨位置的引用並重新命名' },
+    'requirement':             { source:'local', desc:'定義結構化需求、使用者故事、驗收標準' },
+    'sales-material':          { source:'local', desc:'組合客戶特定銷售簡報' },
+    'self-improving-agent':    { source:'local', desc:'捕捉學習、錯誤和修正以自我改進' },
+    'session-harvest':         { source:'local', desc:'回顧當前 session 的工作並提取 learnings' },
+    'settings-audit':          { source:'local', desc:'審計並清理 settings.local.json' },
+    'setup-permissions':       { source:'local', desc:'偵測專案工具並設定 Claude Code 權限' },
+    'skill-creator':           { source:'local', desc:'建立新 skills，修改並改進現有的' },
+    'skill-scout':             { source:'local', desc:'探索、評估並移植 Claude Code skills' },
+    'sqlite-to-postgres':      { source:'local', desc:'SQLite → PostgreSQL 遷移指南' },
+    'subsidy-scraper':         { source:'local', desc:'自動化政府補助爬蟲' },
+    'swiftui-patterns':        { source:'local', desc:'SwiftUI 架構模式與最佳實踐' },
+    'sync-readme':             { source:'local', desc:'保持 README.md 與程式碼結構同步' },
+    'telegram-bot':            { source:'local', desc:'建立 Telegram bots 的完整指南' },
+    'tender-scraper':          { source:'local', desc:'自動化政府標案爬蟲' },
+    'tunnel-proxy-deploy':     { source:'local', desc:'FastAPI + Next.js 透過 Cloudflare Tunnel 部署' },
+    'tw-company-lookup':       { source:'local', desc:'查詢台灣官方商業登記資料庫' },
+    'ui-ux-pro-max':           { source:'local', desc:'UI/UX 設計智慧，可搜尋資料庫' },
+    'user-flow':               { source:'local', desc:'設計使用者工作流程圖（Mermaid）' },
+    'vector-search-setup':     { source:'local', desc:'在 FastAPI 中設定向量搜尋知識庫' },
+    'writing-plans':           { source:'local', desc:'建立詳細實作計畫' },
+    // gstack skills
+    'gstack':                  { source:'gstack', desc:'快速無頭瀏覽器 QA 測試工具' },
+    'gstack-autoplan':         { source:'gstack', desc:'自動審查：CEO、設計師、工程師三視角一次執行' },
+    'gstack-benchmark':        { source:'gstack', desc:'使用瀏覽器偵測效能退化' },
+    'gstack-browse':           { source:'gstack', desc:'快速無頭瀏覽器 QA 測試' },
+    'gstack-canary':           { source:'gstack', desc:'部署後金絲雀監控，觀察生產環境' },
+    'gstack-careful':          { source:'gstack', desc:'破壞性指令前的安全護欄' },
+    'gstack-checkpoint':       { source:'gstack', desc:'長時間 session 中建立 checkpoint' },
+    'gstack-codex':            { source:'gstack', desc:'OpenAI Codex CLI wrapper，獨立第二意見' },
+    'gstack-connect-chrome':   { source:'gstack', desc:'啟動真實 Chrome 並由 gstack 控制' },
+    'gstack-cso':              { source:'gstack', desc:'首席安全官模式，基礎設施安全審計' },
+    'gstack-design-consultation': { source:'gstack', desc:'設計系統/品牌方向諮詢' },
+    'gstack-design-html':      { source:'gstack', desc:'設計終稿：生成生產品質靜態 HTML' },
+    'gstack-design-review':    { source:'gstack', desc:'設計師視角 QA：視覺一致性檢查' },
+    'gstack-design-shotgun':   { source:'gstack', desc:'設計散彈槍：生成多個 AI 設計變體' },
+    'gstack-devex-review':     { source:'gstack', desc:'開發者體驗審查' },
+    'gstack-document-release': { source:'gstack', desc:'上線後文件更新，讀取所有專案文件' },
+    'gstack-freeze':           { source:'gstack', desc:'限制檔案編輯到特定目錄（重構保護）' },
+    'gstack-guard':            { source:'gstack', desc:'完整安全模式：破壞性指令警告' },
+    'gstack-health':           { source:'gstack', desc:'gstack 本身的健康檢查' },
+    'gstack-investigate':      { source:'gstack', desc:'系統性除錯，找出根本原因' },
+    'gstack-land-and-deploy':  { source:'gstack', desc:'合併 PR → 等待 CI → 部署（CI/CD 環境）' },
+    'gstack-learn':            { source:'gstack', desc:'管理專案 learnings，回顧、搜尋、精簡' },
+    'gstack-office-hours':     { source:'gstack', desc:'YC Office Hours：驗證想法、找出盲點' },
+    'gstack-open-gstack-browser': { source:'gstack', desc:'（內部）開啟 gstack 瀏覽器視窗' },
+    'gstack-plan-ceo-review':  { source:'gstack', desc:'CEO/創辦人模式計畫審查：範圍與商業價值' },
+    'gstack-plan-design-review': { source:'gstack', desc:'設計師視角計畫審查：UX 缺口' },
+    'gstack-plan-devex-review': { source:'gstack', desc:'開發者體驗計畫審查' },
+    'gstack-plan-eng-review':  { source:'gstack', desc:'工程師模式計畫審查：架構與邊界情況' },
+    'gstack-qa':               { source:'gstack', desc:'系統性 QA 測試 web 應用並修復問題' },
+    'gstack-qa-only':          { source:'gstack', desc:'僅報告 QA 測試（不修復，定期健檢）' },
+    'gstack-retro':            { source:'gstack', desc:'每週工程回顧，分析提交歷史' },
+    'gstack-review':           { source:'gstack', desc:'Landing 前 PR 審查，分析 diff' },
+    'gstack-setup-browser-cookies': { source:'gstack', desc:'從真實 Chromium 瀏覽器匯入 cookies' },
+    'gstack-setup-deploy':     { source:'gstack', desc:'設定 land-and-deploy 的部署配置' },
+    'gstack-ship':             { source:'gstack', desc:'Ship 工作流：偵測 + merge + 部署 + 驗證' },
+    'gstack-unfreeze':         { source:'gstack', desc:'清除 freeze 設定的邊界' },
+    'gstack-upgrade':          { source:'gstack', desc:'升級 gstack 到最新版本' },
+    'gstack.bak':              { source:'gstack', desc:'（備份檔案）gstack 的備份副本' },
+  },
+
+  // ── Core tracks ──
+  tracks: [
+    {
+      id: 'ui-feature',
+      label: 'UI Feature / New Page',
+      icon: '🖥',
+      steps: [
+        { num:1, label:'驗證 Why',       desc:'確認需求合理性、使用者故事、驗收標準', mandatory:['requirement'], optional:['gstack-office-hours'] },
+        { num:2, label:'畫面流程',       desc:'Screen transitions + 分支設計', mandatory:['user-flow'], optional:[] },
+        { num:3, label:'品牌方向',       desc:'設計系統 / 品牌諮詢', mandatory:['gstack-design-consultation'], optional:[] },
+        { num:4, label:'設計變體',       desc:'生成多個設計變體，選定一個', mandatory:['gstack-design-shotgun'], optional:[] },
+        { num:5, label:'靜態 HTML',      desc:'建立 mockup，確認靜態 HTML', mandatory:['mockup'], optional:['gstack-design-html'] },
+        { num:6, label:'規劃',           desc:'任務清單 + 架構審查', mandatory:['planning-with-files'], optional:['gstack-plan-eng-review','gstack-plan-design-review','gstack-plan-ceo-review','gstack-autoplan'] },
+        { num:7, label:'實作',           desc:'如遇阻礙：調查 / 鎖定穩定區 / 安全操作 / 第二意見', mandatory:[], optional:['gstack-investigate','gstack-freeze','gstack-unfreeze','gstack-careful','gstack-codex'] },
+        { num:8, label:'Pre-commit 審查', desc:'提交前 diff 審查', mandatory:['gstack-review'], optional:[] },
+        { num:9, label:'QA',             desc:'無頭瀏覽器 UI flow 測試', mandatory:['gstack-qa'], optional:['gstack-qa-only','gstack-design-review'] },
+        { num:10, label:'Ship',          desc:'合併 PR → 等待 CI → 部署 → 監控', mandatory:['gstack-land-and-deploy','gstack-ship'], optional:['gstack-canary','gstack-document-release'] },
+      ]
+    },
+    {
+      id: 'backend-bug',
+      label: 'Backend / Bug Fix / Refactor',
+      icon: '🔧',
+      steps: [
+        { num:1, label:'調查根因',   desc:'系統性除錯找出根本原因', mandatory:['gstack-investigate'], optional:[] },
+        { num:2, label:'實作',       desc:'修復或實作', mandatory:[], optional:[] },
+        { num:3, label:'Diff 審查',  desc:'提交前 diff 審查', mandatory:['gstack-review'], optional:[] },
+        { num:4, label:'安全檢查',   desc:'破壞性操作前的護欄', mandatory:['gstack-careful'], optional:[] },
+        { num:5, label:'Ship',       desc:'部署 + 效能監控（效能敏感路徑）', mandatory:['gstack-land-and-deploy','gstack-ship'], optional:['gstack-benchmark','gstack-canary'] },
+      ]
+    }
+  ],
+
+  // ── Maintenance ──
+  maintenance: [
+    { trigger:'遇到不明 bug',           skills:['gstack-investigate'] },
+    { trigger:'每次 ship 前',           skills:['gstack-careful','gstack-review','gstack-qa'] },
+    { trigger:'每次 ship 後',           skills:['gstack-canary','gstack-document-release'] },
+    { trigger:'定期 UI 健檢（不修）',   skills:['gstack-qa-only'] },
+    { trigger:'重構時保護穩定區域',     skills:['gstack-freeze','gstack-unfreeze'] },
+    { trigger:'需要獨立第二意見',       skills:['gstack-codex'] },
+    { trigger:'每週 retro',             skills:['gstack-retro'] },
+    { trigger:'安全審計（上線前）',     skills:['gstack-cso'] },
+    { trigger:'gstack 有 UPGRADE_AVAILABLE', skills:['gstack-upgrade'] },
+    { trigger:'學到新東西 / 踩坑',      skills:['gstack-learn'] },
+  ],
+
+  // ── Domain flows ──
+  domainFlows: [
+    {
+      id: 'facility-analysis',
+      label: '廠務數據分析',
+      icon: '🏭',
+      steps: [
+        { num:1, label:'數據解讀系統架構', desc:'透過數據回推廠務系統架構', skills:['autoresearch','doc-to-structured-data'] },
+        { num:2, label:'確認工作流程',     desc:'整體流程確認與任務規劃', skills:['writing-plans'] },
+        { num:3, label:'確認物理性質',     desc:'確認設備物理屬性（如冰水主機 → 冷凍噸、用電量）', skills:['autoresearch'] },
+        { num:4, label:'預防保修分析',     desc:'設備效率分析與預防性維護建議', skills:['executing-plans','dispatching-parallel-agents'] },
+        { num:5, label:'尋找優化解',       desc:'效率提升方案研究', skills:['autoresearch'] },
+        { num:6, label:'生成簡報',         desc:'輸出分析報告簡報（詢問主題、目錄架構）', skills:['office-pptx'] },
+      ]
+    },
+    {
+      id: 'sales',
+      label: '銷售流程',
+      icon: '💼',
+      steps: [
+        { num:1, label:'客戶情報',   desc:'B2B 客戶研究與公司資料查詢', skills:['customer-intel','tw-company-lookup','crm-projection'] },
+        { num:2, label:'材料準備',   desc:'組合客戶特定銷售簡報', skills:['sales-material'] },
+        { num:3, label:'材料健檢',   desc:'確認材料完整性與品質', skills:['material-health'] },
+        { num:4, label:'提案輸出',   desc:'最終簡報與報告輸出', skills:['office-pptx','office-pdf'] },
+      ]
+    },
+    {
+      id: 'research-invest',
+      label: '研究 / 投資流程',
+      icon: '📊',
+      steps: [
+        { num:1, label:'市場研究',   desc:'自主深度研究與投資分析', skills:['autoresearch','investment-research'] },
+        { num:2, label:'公司查詢',   desc:'台灣商業登記查詢', skills:['tw-company-lookup'] },
+        { num:3, label:'報告生成',   desc:'Word / PDF 研究報告輸出', skills:['office-docx','office-pdf'] },
+        { num:4, label:'知識沉澱',   desc:'將研究成果存入知識圖', skills:['knowledge-graph','gdrive-to-skills'] },
+      ]
+    },
+    {
+      id: 'biz-dev',
+      label: '業務開發流程',
+      icon: '🤝',
+      steps: [
+        { num:1, label:'市場/客戶研究', desc:'客戶情報 + 競品分析', skills:['customer-intel','autoresearch','investment-research'] },
+        { num:2, label:'銷售材料準備', desc:'組合客製化提案材料', skills:['sales-material'] },
+        { num:3, label:'材料健檢',     desc:'確認材料完整性', skills:['material-health'] },
+        { num:4, label:'提案簡報',     desc:'簡報與報告輸出', skills:['office-pptx','office-pdf'] },
+        { num:5, label:'CRM 更新',     desc:'更新客戶關係管理資料', skills:['crm-projection'] },
+      ]
+    },
+    {
+      id: 'project-mgmt',
+      label: '專案管理流程',
+      icon: '📋',
+      steps: [
+        { num:1, label:'需求定義',     desc:'結構化需求與使用者故事', skills:['requirement'] },
+        { num:2, label:'任務規劃',     desc:'詳細任務清單與計畫', skills:['planning-with-files','writing-plans'] },
+        { num:3, label:'任務執行',     desc:'大型或平行 Agent 任務執行', skills:['executing-plans','dispatching-parallel-agents'] },
+        { num:4, label:'進度可視化',   desc:'Agent 運行狀態監控', skills:['agent-observability'] },
+        { num:5, label:'知識沉澱',     desc:'跨 session 記憶與 learnings', skills:['knowledge-graph','gdrive-to-skills','session-harvest'] },
+        { num:6, label:'定期回顧',     desc:'每週工程回顧', skills:['gstack-retro'] },
+      ]
+    },
+    {
+      id: 'hr',
+      label: 'HR / 招募流程',
+      icon: '👥',
+      steps: [
+        { num:1, label:'候選人分析', desc:'面試資料提取與結構化評估', skills:['candidate-analysis'] },
+        { num:2, label:'記錄整理',   desc:'面試記錄整理成文件', skills:['office-docx'] },
+        { num:3, label:'決策矩陣',   desc:'評分與決策輸出', skills:['office-xlsx'] },
+      ]
+    },
+    {
+      id: 'scraping',
+      label: '爬蟲 / 數據收集',
+      icon: '🕷',
+      steps: [
+        { num:1, label:'關鍵字發現',   desc:'自動化關鍵字發現', skills:['keyword-discovery'] },
+        { num:2, label:'標案爬蟲',     desc:'政府標案自動化爬取', skills:['tender-scraper'] },
+        { num:3, label:'補助爬蟲',     desc:'政府補助資訊爬取', skills:['subsidy-scraper'] },
+        { num:4, label:'結果整理',     desc:'非結構化資料轉結構化', skills:['doc-to-structured-data'] },
+      ]
+    },
+    {
+      id: 'bot-integration',
+      label: 'Bot / 通訊整合',
+      icon: '🤖',
+      steps: [
+        { num:1, label:'Bot 建立',    desc:'建立 Telegram bot 或 Claude 橋接', skills:['telegram-bot','claude-to-telegram'] },
+        { num:2, label:'郵件整合',    desc:'IMAP/SMTP 郵件整合', skills:['imap-smtp-integration'] },
+      ]
+    },
+  ],
+
+  // ── Situational triggers ──
+  situational: [
+    { trigger:'需要 DB 設計/遷移',        icon:'🗄', skills:['db-migration','sqlite-to-postgres','firebase-backend','vector-search-setup'] },
+    { trigger:'需要 OAuth / 機密管理',    icon:'🔐', skills:['oauth-token-vault','protect-secrets'] },
+    { trigger:'需要 MCP 開發',            icon:'🔌', skills:['mcp-builder'] },
+    { trigger:'需要 iOS / SwiftUI',       icon:'📱', skills:['ios-integration','swiftui-patterns'] },
+    { trigger:'需要前端設計指導',         icon:'🎨', skills:['frontend-design','ui-ux-pro-max'] },
+    { trigger:'需要部署 / 基礎設施',      icon:'🚀', skills:['deploy','tunnel-proxy-deploy','ci-pipeline','launchd-agent','headless-agent'] },
+    { trigger:'需要深度品質提升',         icon:'✅', skills:['de-slopify','large-file-refactor','qa-auto','qa-planner','qa-testing'] },
+    { trigger:'需要初始化新專案',         icon:'🆕', skills:['init-project','setup-permissions','settings-audit','gstack-setup-deploy'] },
+    { trigger:'需要管理 Skill 庫',        icon:'📚', skills:['skill-creator','skill-scout','sync-readme'] },
+    { trigger:'需要跨 session 記憶',      icon:'🧠', skills:['self-improving-agent','context-recovery'] },
+    { trigger:'需要 Code 品質審計',       icon:'🔍', skills:['audit-fix','plan-check-style','dev-process-gate','repo-rename'] },
+    { trigger:'需要監控 / 觀測',          icon:'📡', skills:['agent-observability','gstack-health','gstack-guard'] },
+    { trigger:'需要瀏覽器自動化',         icon:'🌐', skills:['gstack','gstack-browse','gstack-connect-chrome','gstack-setup-browser-cookies','gstack-checkpoint'] },
+    { trigger:'需要 Git 操作',            icon:'🌿', skills:['auto-stage'] },
+    { trigger:'需要 Markdown SSOT',       icon:'📝', skills:['markdown-file-ssot'] },
+    { trigger:'需要文件輸出（Office）',   icon:'📄', skills:['office-docx','office-pdf','office-pptx','office-xlsx','doc-to-structured-data'] },
+  ],
+
+  // ── Orphaned ──
+  orphaned: [
+    { skill:'gstack.bak',              severity:'red',   reason:'備份檔案，非可調用 skill，應刪除或歸檔' },
+    { skill:'gstack-open-gstack-browser', severity:'amber', reason:'內部實作細節，非用戶觸發點' },
+    { skill:'gstack-devex-review',     severity:'amber', reason:'未在 CLAUDE.md 中文件化，與 gstack-review 差異不明' },
+    { skill:'gstack-plan-devex-review',severity:'amber', reason:'同上，DevEx 計畫審查未文件化' },
+  ]
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+
+let state = loadState();
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('workflow-map-data');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
+
+function saveState() {
+  localStorage.setItem('workflow-map-data', JSON.stringify(state));
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function chipClass(skill, mandatory) {
+  const meta = state.skillMeta[skill] || { source:'local' };
+  if (meta.source === 'gstack') return mandatory ? 'chip-gstack-m' : 'chip-gstack-o';
+  return mandatory ? 'chip-local-m' : 'chip-local-o';
+}
+
+function chipHtml(skill, mandatory = true, extraClass = '') {
+  const meta = state.skillMeta[skill] || {};
+  const cls = extraClass || chipClass(skill, mandatory);
+  const desc = (meta.desc || '').replace(/"/g,'&quot;');
+  return `<span class="chip ${cls} tooltip-wrap" data-skill="${skill}">
+    /${skill}
+    ${desc ? `<span class="tooltip-box">${meta.desc}</span>` : ''}
+  </span>`;
+}
+
+function allMappedSkills() {
+  const mapped = new Set();
+  for (const tr of state.tracks) for (const s of tr.steps) {
+    [...s.mandatory, ...s.optional].forEach(sk => mapped.add(sk));
+  }
+  for (const m of state.maintenance) m.skills.forEach(sk => mapped.add(sk));
+  for (const df of state.domainFlows) for (const s of df.steps) s.skills.forEach(sk => mapped.add(sk));
+  for (const sit of state.situational) sit.skills.forEach(sk => mapped.add(sk));
+  for (const o of state.orphaned) mapped.add(o.skill);
+  return mapped;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+
+function renderStats() {
+  const total = Object.keys(state.skillMeta).length;
+  let core = new Set();
+  for (const tr of state.tracks) for (const s of tr.steps) {
+    [...s.mandatory, ...s.optional].forEach(sk => core.add(sk));
+  }
+  for (const m of state.maintenance) m.skills.forEach(sk => core.add(sk));
+
+  let domain = new Set();
+  for (const df of state.domainFlows) for (const s of df.steps) s.skills.forEach(sk => domain.add(sk));
+
+  let sit = new Set();
+  for (const s of state.situational) s.skills.forEach(sk => sit.add(sk));
+
+  const orphCnt = state.orphaned.length;
+
+  document.getElementById('stats-strip').innerHTML = `
+    <span class="flex items-center gap-1.5">
+      <span class="inline-block w-2 h-2 rounded-full bg-violet-500"></span>
+      <strong class="text-zinc-300">${total}</strong> skills 總計
+    </span>
+    <span class="text-zinc-700">·</span>
+    <span class="flex items-center gap-1.5">
+      <span class="inline-block w-2 h-2 rounded-full bg-teal-500"></span>
+      <strong class="text-zinc-300">${core.size}</strong> 核心工作流程
+    </span>
+    <span class="text-zinc-700">·</span>
+    <span class="flex items-center gap-1.5">
+      <span class="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
+      <strong class="text-zinc-300">${domain.size}</strong> 領域工作流程
+    </span>
+    <span class="text-zinc-700">·</span>
+    <span class="flex items-center gap-1.5">
+      <span class="inline-block w-2 h-2 rounded-full bg-zinc-500"></span>
+      <strong class="text-zinc-300">${sit.size}</strong> 情境觸發
+    </span>
+    <span class="text-zinc-700">·</span>
+    <span class="flex items-center gap-1.5">
+      <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+      <strong class="text-zinc-300">${orphCnt}</strong> 待審查
+    </span>
+  `;
+}
+
+function renderTracks() {
+  const container = document.getElementById('core-tracks');
+  container.innerHTML = state.tracks.map(track => `
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/30 overflow-hidden">
+      <details open data-group="core">
+        <summary class="flex items-center gap-2 px-4 py-3 bg-zinc-900/50 cursor-pointer select-none">
+          <span class="chevron text-zinc-500">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+          <span class="text-sm">${track.icon}</span>
+          <span class="text-sm font-semibold text-zinc-200">${track.label}</span>
+          <span class="ml-auto text-xs text-zinc-500">${track.steps.length} steps</span>
+        </summary>
+        <div class="px-4 py-2">
+          <div class="flex gap-4 text-xs text-zinc-600 mb-2 mt-1">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm border border-violet-500/60 inline-block"></span> mandatory</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-sm border-dashed border border-violet-400/40 inline-block"></span> optional</span>
+          </div>
+          ${track.steps.map(s => `
+            <div class="step-row" data-step="${track.id}-${s.num}">
+              <span class="step-num">${s.num}</span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-medium text-zinc-300 mb-1">${s.label}
+                  ${s.desc ? `<span class="text-zinc-600 font-normal ml-1">— ${s.desc}</span>` : ''}
+                </div>
+                <div class="step-skills">
+                  ${s.mandatory.map(sk => chipHtml(sk, true)).join('')}
+                  ${s.optional.map(sk => chipHtml(sk, false)).join('')}
+                  ${(!s.mandatory.length && !s.optional.length) ? '<span class="text-xs text-zinc-600 italic">（無特定 skill）</span>' : ''}
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </details>
+    </div>
+  `).join('');
+}
+
+function renderMaintenance() {
+  document.getElementById('maintenance-table').innerHTML = state.maintenance.map(m => `
+    <div class="flex items-center gap-3 py-1.5" data-step="maint-${m.trigger}">
+      <span class="text-xs text-zinc-500 w-44 shrink-0">${m.trigger}</span>
+      <div class="step-skills flex-wrap flex gap-1.5">
+        ${m.skills.map(sk => chipHtml(sk, true, 'chip-maint')).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderDomainFlows() {
+  const container = document.getElementById('domain-flows');
+  const editMode = document.body.classList.contains('edit-mode');
+
+  container.innerHTML = state.domainFlows.map((flow, fi) => `
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/30 overflow-hidden" data-flow-idx="${fi}">
+      <details open data-group="domain">
+        <summary class="flex items-center gap-2 px-4 py-3 bg-zinc-900/50 cursor-pointer select-none">
+          <span class="chevron text-zinc-500">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+          <span class="text-sm">${flow.icon}</span>
+          <span class="text-sm font-semibold text-zinc-200" ${editMode ? `contenteditable="true" onblur="updateFlowLabel(${fi},this.textContent)"` : ''}>${flow.label}</span>
+          <span class="ml-auto flex items-center gap-2">
+            <span class="text-xs text-zinc-500">${flow.steps.length} steps</span>
+            <button onclick="event.stopPropagation(); deleteFlow(${fi})" class="edit-controls items-center text-zinc-600 hover:text-red-400 transition-colors p-0.5" title="刪除此工作流程">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </span>
+        </summary>
+        <div class="px-4 py-2">
+          ${flow.steps.map((s, si) => `
+            <div class="step-row" data-step="domain-${fi}-${si}">
+              <span class="step-num">${s.num}</span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-medium text-zinc-300 mb-1">
+                  <span ${editMode ? `contenteditable="true" onblur="updateStepLabel(${fi},${si},this.textContent)"` : ''}>${s.label}</span>
+                  ${s.desc ? `<span class="text-zinc-600 font-normal ml-1">— <span ${editMode ? `contenteditable="true" onblur="updateStepDesc(${fi},${si},this.textContent)"` : ''}>${s.desc}</span></span>` : ''}
+                </div>
+                <div class="step-skills">
+                  ${s.skills.map(sk => `
+                    <span class="inline-flex items-center gap-0.5">
+                      ${chipHtml(sk, true)}
+                      ${editMode ? `<button onclick="removeSkillFromStep(${fi},${si},'${sk}')" class="text-zinc-600 hover:text-red-400 ml-0.5 text-xs leading-none">×</button>` : ''}
+                    </span>
+                  `).join('')}
+                  ${editMode ? `
+                    <span class="skill-input-wrap">
+                      <input type="text" placeholder="+ skill" oninput="showAC(this,${fi},${si})" onfocus="showAC(this,${fi},${si})" onblur="hideAC(this,300)"
+                        class="inline-block w-20 rounded px-1.5 py-0.5 text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none focus:border-violet-500">
+                      <div class="skill-autocomplete hidden"></div>
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+              ${editMode ? `<button onclick="deleteStep(${fi},${si})" class="text-zinc-600 hover:text-red-400 transition-colors ml-2 shrink-0" title="刪除步驟">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>` : ''}
+            </div>
+          `).join('')}
+          ${editMode ? `
+            <div class="pt-2">
+              <button onclick="addStep(${fi})" class="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                新增步驟
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      </details>
+    </div>
+  `).join('');
+}
+
+function renderSituational() {
+  document.getElementById('situational-grid').innerHTML = state.situational.map((s, si) => `
+    <div class="trigger-row" data-trigger-idx="${si}">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-base">${s.icon}</span>
+        <span class="text-xs font-medium text-zinc-300">${s.trigger}</span>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        ${s.skills.map(sk => chipHtml(sk, true, 'chip-local-m')).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderOrphaned() {
+  document.getElementById('orphaned-list').innerHTML = state.orphaned.map(o => `
+    <div class="flex flex-col gap-1 tooltip-wrap">
+      <span class="chip ${o.severity === 'red' ? 'chip-orphan-r' : 'chip-orphan-a'}" data-skill="${o.skill}">/${o.skill}</span>
+      <span class="text-xs text-zinc-600 max-w-[180px] leading-tight">${o.reason}</span>
+    </div>
+  `).join('');
+}
+
+function renderAll() {
+  renderStats();
+  renderTracks();
+  renderMaintenance();
+  renderDomainFlows();
+  renderSituational();
+  renderOrphaned();
+}
+
+// ── Search ──────────────────────────────────────────────────────────────────
+
+function onSearch(q) {
+  q = q.toLowerCase().trim();
+  document.querySelectorAll('[data-skill]').forEach(el => {
+    const name = el.dataset.skill || '';
+    const match = !q || name.includes(q);
+    el.classList.toggle('search-dim', !match);
+    el.classList.toggle('search-hit', !!(match && q));
+  });
+  // dim steps with no matches
+  document.querySelectorAll('[data-step]').forEach(row => {
+    if (!q) { row.style.opacity = ''; return; }
+    const hasMatch = [...row.querySelectorAll('[data-skill]')].some(c => !c.classList.contains('search-dim'));
+    row.style.opacity = hasMatch ? '' : '0.3';
+  });
+}
+
+// ── Edit Mode ───────────────────────────────────────────────────────────────
+
+function toggleEditMode() {
+  const active = document.body.classList.toggle('edit-mode');
+  const btn = document.getElementById('edit-btn');
+  btn.classList.toggle('bg-violet-900/40', active);
+  btn.classList.toggle('border-violet-600', active);
+  btn.classList.toggle('text-violet-300', active);
+  renderDomainFlows();
+}
+
+function updateFlowLabel(fi, val) {
+  state.domainFlows[fi].label = val.trim();
+  saveState();
+}
+function updateStepLabel(fi, si, val) {
+  state.domainFlows[fi].steps[si].label = val.trim();
+  saveState();
+}
+function updateStepDesc(fi, si, val) {
+  state.domainFlows[fi].steps[si].desc = val.trim();
+  saveState();
+}
+
+function deleteFlow(fi) {
+  if (!confirm(`刪除「${state.domainFlows[fi].label}」？`)) return;
+  state.domainFlows.splice(fi, 1);
+  saveState(); renderDomainFlows(); renderStats();
+}
+
+function addStep(fi) {
+  const flow = state.domainFlows[fi];
+  flow.steps.push({ num: flow.steps.length + 1, label:'新步驟', desc:'', skills:[] });
+  saveState(); renderDomainFlows();
+}
+
+function deleteStep(fi, si) {
+  state.domainFlows[fi].steps.splice(si, 1);
+  state.domainFlows[fi].steps.forEach((s, i) => s.num = i + 1);
+  saveState(); renderDomainFlows();
+}
+
+function removeSkillFromStep(fi, si, skill) {
+  const step = state.domainFlows[fi].steps[si];
+  step.skills = step.skills.filter(s => s !== skill);
+  saveState(); renderDomainFlows();
+}
+
+function addDomainFlow() {
+  state.domainFlows.push({
+    id: 'flow-' + Date.now(),
+    label: '新工作流程',
+    icon: '📌',
+    steps: [{ num:1, label:'步驟一', desc:'', skills:[] }]
+  });
+  saveState(); renderDomainFlows(); renderStats();
+  // scroll to end
+  setTimeout(() => document.getElementById('domain-flows').lastElementChild?.scrollIntoView({ behavior:'smooth' }), 50);
+}
+
+// ── Autocomplete ────────────────────────────────────────────────────────────
+
+let acTarget = null;
+
+function showAC(input, fi, si) {
+  acTarget = { fi, si, input };
+  const q = input.value.toLowerCase();
+  const allSkills = Object.keys(state.skillMeta).sort();
+  const matches = allSkills.filter(s => s.includes(q) && !state.domainFlows[fi].steps[si].skills.includes(s));
+  const box = input.nextElementSibling;
+  if (!matches.length) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  box.innerHTML = matches.slice(0, 12).map(s => `
+    <div class="skill-ac-item" onmousedown="event.preventDefault(); addSkillToStep(${fi},${si},'${s}')">${s}</div>
+  `).join('');
+}
+
+function hideAC(input, delay = 0) {
+  setTimeout(() => {
+    const box = input?.nextElementSibling;
+    if (box) box.classList.add('hidden');
+    if (input) input.value = '';
+  }, delay);
+}
+
+function addSkillToStep(fi, si, skill) {
+  const step = state.domainFlows[fi].steps[si];
+  if (!step.skills.includes(skill)) step.skills.push(skill);
+  saveState(); renderDomainFlows();
+}
+
+// ── Collapse / Expand ────────────────────────────────────────────────────────
+
+function expandAll(group) {
+  document.querySelectorAll(`details[data-group="${group}"]`).forEach(d => d.open = true);
+}
+function collapseAll(group) {
+  document.querySelectorAll(`details[data-group="${group}"]`).forEach(d => d.open = false);
+}
+
+// ── Theme ────────────────────────────────────────────────────────────────────
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const light = html.classList.toggle('light');
+  html.classList.toggle('dark', !light);
+  document.getElementById('theme-label').textContent = light ? 'Dark' : 'Light';
+  document.getElementById('theme-icon').innerHTML = light
+    ? '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>'
+    : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  document.body.classList.toggle('bg-zinc-950', !light);
+  document.body.classList.toggle('text-zinc-100', !light);
+  document.body.classList.toggle('bg-white', light);
+  document.body.classList.toggle('text-zinc-900', light);
+}
+
+// ── Export / Import ──────────────────────────────────────────────────────────
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'workflow-map-data.json';
+  a.click();
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      state = JSON.parse(e.target.result);
+      saveState();
+      renderAll();
+      alert('✅ 匯入成功');
+    } catch(err) {
+      alert('❌ JSON 格式錯誤');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+renderAll();
+</script>
+
+</body>
+</html>

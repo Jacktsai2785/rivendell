@@ -7,6 +7,8 @@ import {
   apiFetch,
   type ProjectDetailData,
   type AgentInfo,
+  type GitCommit,
+  type GitLogData,
 } from "@/lib/api";
 import {
   ArrowLeft,
@@ -14,6 +16,8 @@ import {
   Clock,
   Activity,
   ChevronRight,
+  GitBranch,
+  GitCommit as GitCommitIcon,
 } from "lucide-react";
 
 function StatusDot({ agent }: { agent: AgentInfo }) {
@@ -32,10 +36,7 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
       href={`/agents/${encodeURIComponent(agent.label)}`}
       className="flex items-center gap-4 rounded-lg border border-zinc-200 bg-white p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/30 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
     >
-      {/* Status dot */}
       <StatusDot agent={agent} />
-
-      {/* Name & role */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-semibold">{agent.name}</span>
@@ -46,19 +47,13 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
           )}
         </div>
         {agent.description && (
-          <p className="mt-0.5 text-xs text-zinc-500 truncate">
-            {agent.description}
-          </p>
+          <p className="mt-0.5 text-xs text-zinc-500 truncate">{agent.description}</p>
         )}
       </div>
-
-      {/* Schedule */}
       <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-500">
         <Clock size={12} />
         <span>{agent.schedule_display || "—"}</span>
       </div>
-
-      {/* Exit code */}
       <div className="text-xs">
         {agent.exit_code === null || agent.exit_code === undefined ? (
           <span className="text-zinc-400">—</span>
@@ -68,22 +63,108 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
           <span className="text-red-500">Exit {agent.exit_code}</span>
         )}
       </div>
-
-      {/* Activity */}
       {agent.current_activity && (
         <div className="hidden md:flex items-center gap-1.5 max-w-48 text-xs text-blue-600 dark:text-blue-400 truncate">
           <Activity size={12} />
           <span>{agent.current_activity.label}</span>
           {agent.current_activity.detail && (
-            <span className="text-zinc-400 truncate">
-              {agent.current_activity.detail}
-            </span>
+            <span className="text-zinc-400 truncate">{agent.current_activity.detail}</span>
           )}
         </div>
       )}
-
       <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600" />
     </Link>
+  );
+}
+
+function GitStatusSection({ git }: { git: ProjectDetailData["git"] }) {
+  if (!git || !git.is_git) return null;
+
+  const syncColor =
+    git.behind > 0 ? "text-red-500" : git.ahead > 0 ? "text-amber-600" : "text-green-600";
+  const syncLabel =
+    git.behind > 0
+      ? `↓${git.behind} behind origin`
+      : git.ahead > 0
+        ? `↑${git.ahead} unpushed`
+        : "✓ synced with origin";
+
+  return (
+    <div className="mt-4 rounded-lg border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/30">
+      <div className="flex items-center gap-2 text-sm">
+        <GitBranch size={14} className="text-zinc-400" />
+        <span className="font-mono font-medium">{git.branch}</span>
+        <span className={`text-xs font-medium ${syncColor}`}>{syncLabel}</span>
+      </div>
+      {git.last_commit_msg && (
+        <p className="mt-1.5 text-xs text-zinc-500">
+          {git.last_commit_ago} — {git.last_commit_msg}
+        </p>
+      )}
+      {git.recent_files.length > 0 && (
+        <p className="mt-1 font-mono text-xs text-zinc-400">
+          最近修改：{git.recent_files.join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MissionSection({ mission }: { mission: ProjectDetailData["mission"] }) {
+  if (!mission) return null;
+  const hasContent =
+    mission.goal ||
+    mission.commercial_value ||
+    mission.situation_analysis ||
+    mission.expected_revenue ||
+    mission.potential_clients.length ||
+    mission.blockers.length ||
+    mission.next_steps.length ||
+    mission.resources_needed ||
+    mission.deadline;
+  if (!hasContent) return null;
+
+  const row = (label: string, value: string | string[]) => {
+    if (!value || (Array.isArray(value) && value.length === 0)) return null;
+    const text = Array.isArray(value) ? value.join("、") : value;
+    return (
+      <div key={label} className="flex gap-2 text-sm">
+        <span className="w-24 shrink-0 text-right text-xs text-zinc-400">{label}</span>
+        <span className="text-zinc-700 dark:text-zinc-300">{text}</span>
+      </div>
+    );
+  };
+
+  return (
+    <div className="mt-6">
+      <h2 className="mb-3 text-lg font-semibold">🎯 使命</h2>
+      <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+        <div className="space-y-2">
+          {row("目標", mission.goal)}
+          {row("期限", mission.deadline)}
+          {row("預期收益", mission.expected_revenue)}
+          {row("潛在客戶", mission.potential_clients)}
+          {row("商業價值", mission.commercial_value)}
+          {row("局勢", mission.situation_analysis)}
+          {row("阻礙", mission.blockers)}
+          {row("下一步", mission.next_steps)}
+          {row("所需資源", mission.resources_needed)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CommitRow({ commit }: { commit: GitCommit }) {
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+      <GitCommitIcon size={13} className="mt-0.5 shrink-0 text-zinc-400" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">{commit.message}</p>
+        <p className="text-xs text-zinc-400">{commit.author} · {commit.ago}</p>
+      </div>
+      <span className="shrink-0 font-mono text-xs text-zinc-400">{commit.hash}</span>
+    </div>
   );
 }
 
@@ -91,17 +172,20 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const name = decodeURIComponent(params.name as string);
   const [data, setData] = useState<ProjectDetailData | null>(null);
+  const [commits, setCommits] = useState<GitCommit[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     apiFetch<ProjectDetailData>(`/api/projects/${encodeURIComponent(name)}`)
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    apiFetch<GitLogData>(`/api/projects/${encodeURIComponent(name)}/git-log`)
+      .then((d) => setCommits(d.commits))
+      .catch(() => setCommits([]));
   }, [name]);
 
   useEffect(load, [load]);
 
-  // Auto-refresh every 5 seconds
   useEffect(() => {
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
@@ -117,7 +201,6 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      {/* Back */}
       <Link
         href="/projects"
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
@@ -140,7 +223,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="mt-4 flex gap-6 text-sm">
           <div>
             <span className="text-xs text-zinc-500">Agents</span>
@@ -167,21 +249,34 @@ export default function ProjectDetailPage() {
             </div>
           )}
         </div>
+
+        <GitStatusSection git={data.git} />
       </div>
 
-      {/* Agent list */}
+      {/* Mission */}
+      <MissionSection mission={data.mission} />
+
+      {/* Agents */}
       <div className="mt-6 space-y-2">
         <h2 className="mb-3 text-lg font-semibold">Agents</h2>
         {agents.length > 0 ? (
-          agents.map((agent) => (
-            <AgentRow key={agent.label} agent={agent} />
-          ))
+          agents.map((agent) => <AgentRow key={agent.label} agent={agent} />)
         ) : (
-          <p className="text-sm text-zinc-500">
-            此專案尚無 agent。
-          </p>
+          <p className="text-sm text-zinc-500">此專案尚無 agent。</p>
         )}
       </div>
+
+      {/* Recent commits */}
+      {commits.length > 0 && (
+        <div className="mt-6">
+          <h2 className="mb-3 text-lg font-semibold">最近 Commits</h2>
+          <div className="rounded-lg border border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+            {commits.map((c) => (
+              <CommitRow key={c.hash} commit={c} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

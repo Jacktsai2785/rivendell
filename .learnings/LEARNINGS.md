@@ -76,6 +76,15 @@
 - **Context**: `SK_EXEC_REPO_DIR="$VAL" source exec-lib` worked during sourcing but the variable wasn't available when functions were called later under `set -u`
 - **Learning**: Use `export SK_EXEC_REPO_DIR=...` before `source`, not inline `VAR=val source file`. The inline form may not persist for later function calls.
 
+## 2026-04-01 — Always check port map before starting a dev server; ask before allocating new ports
+
+- **Category**: correction
+- **Context**: Started RTK dev server on port 3001 without checking the port map. Port 3001 was already allocated to news-stock Frontend. RTK had no entry in the port map at all.
+- **Two mistakes**:
+  1. Assumed port 3001 was free instead of reading the port map first
+  2. Started a new project's server without first asking the user to assign it a port
+- **Rule**: Before starting any dev server, (a) read `mockups/port-map.html` SERVICES array to find what's taken, (b) if the project has no assigned port, ask the user what port to use, (c) only then `lsof -i :<port>` to confirm it's actually free, then start.
+
 ## 2026-03-24 — Dashboard must discover log paths from plist, not assume reports/
 
 - **Category**: best_practice

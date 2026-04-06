@@ -8,10 +8,200 @@ import {
   apiDelete,
   type ProjectsData,
   type ProjectInfo,
+  type MissionBrief,
 } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
-import { Pencil, Trash2, Plus, X, FolderOpen, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, Plus, X, FolderOpen, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
+
+// ── Git Status Badge ──────────────────────────────────────────────────
+
+function GitBadge({ git }: { git: ProjectInfo["git"] }) {
+  if (!git) return null;
+  if (git.error === "no-repo") {
+    return (
+      <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-400 dark:bg-zinc-800/50">
+        ⚪ repo 路徑不存在
+      </div>
+    );
+  }
+  if (git.error === "no-git") {
+    return (
+      <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-400 dark:bg-zinc-800/50">
+        ⚪ 非 git repo
+      </div>
+    );
+  }
+  if (!git.is_git) return null;
+
+  const syncColor =
+    git.behind > 0
+      ? "text-red-500"
+      : git.ahead > 0
+        ? "text-amber-600"
+        : "text-green-600";
+
+  const syncLabel =
+    git.behind > 0
+      ? `↓${git.behind} behind`
+      : git.ahead > 0
+        ? `↑${git.ahead} unpushed`
+        : "✓ synced";
+
+  return (
+    <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/50">
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-zinc-500">{git.branch}</span>
+        <span className={`font-medium ${syncColor}`}>{syncLabel}</span>
+      </div>
+      {git.last_commit_msg && (
+        <p className="mt-1 truncate text-zinc-600 dark:text-zinc-400">
+          {git.last_commit_ago} — {git.last_commit_msg}
+        </p>
+      )}
+      {git.recent_files.length > 0 && (
+        <p className="mt-0.5 truncate font-mono text-zinc-400">
+          {git.recent_files.slice(0, 3).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Mission Card ──────────────────────────────────────────────────────
+
+const EMPTY_MISSION: MissionBrief = {
+  goal: "",
+  commercial_value: "",
+  potential_clients: [],
+  expected_revenue: "",
+  blockers: [],
+  next_steps: [],
+  resources_needed: "",
+  situation_analysis: "",
+  deadline: "",
+};
+
+function hasMission(m: MissionBrief): boolean {
+  return !!(
+    m.goal ||
+    m.commercial_value ||
+    m.situation_analysis ||
+    m.expected_revenue ||
+    m.potential_clients.length ||
+    m.blockers.length ||
+    m.next_steps.length
+  );
+}
+
+function MissionCard({ mission }: { mission: MissionBrief }) {
+  const [open, setOpen] = useState(true);
+  if (!hasMission(mission)) return null;
+
+  return (
+    <div className="mt-3 rounded-md border border-blue-100 bg-blue-50/40 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-3 py-2 font-semibold text-blue-700 dark:text-blue-400"
+      >
+        <span>🎯 使命</span>
+        {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+      </button>
+      {open && (
+        <div className="space-y-1 px-3 pb-2 text-zinc-700 dark:text-zinc-300">
+          {mission.goal && (
+            <p><span className="text-zinc-400">目標：</span>{mission.goal}</p>
+          )}
+          {mission.deadline && (
+            <p><span className="text-zinc-400">期限：</span>{mission.deadline}</p>
+          )}
+          {mission.expected_revenue && (
+            <p><span className="text-zinc-400">預期收益：</span>{mission.expected_revenue}</p>
+          )}
+          {mission.potential_clients.length > 0 && (
+            <p><span className="text-zinc-400">潛在客戶：</span>{mission.potential_clients.join("、")}</p>
+          )}
+          {mission.situation_analysis && (
+            <p><span className="text-zinc-400">局勢：</span>{mission.situation_analysis}</p>
+          )}
+          {mission.commercial_value && (
+            <p><span className="text-zinc-400">商業價值：</span>{mission.commercial_value}</p>
+          )}
+          {mission.blockers.length > 0 && (
+            <p><span className="text-zinc-400">阻礙：</span>
+              {mission.blockers.map((b, i) => (
+                <span key={i} className="mr-1">🚫 {b}</span>
+              ))}
+            </p>
+          )}
+          {mission.next_steps.length > 0 && (
+            <p><span className="text-zinc-400">下一步：</span>
+              {mission.next_steps.map((s, i) => (
+                <span key={i} className="mr-2">① {s}</span>
+              )).slice(0, 3)}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Mission Edit Form ─────────────────────────────────────────────────
+
+function MissionEditForm({
+  mission,
+  onChange,
+}: {
+  mission: MissionBrief;
+  onChange: (m: MissionBrief) => void;
+}) {
+  const field = (key: keyof MissionBrief, label: string, placeholder = "") => (
+    <label className="block">
+      <span className="text-xs text-zinc-500">{label}</span>
+      <input
+        value={mission[key] as string}
+        onChange={(e) => onChange({ ...mission, [key]: e.target.value })}
+        placeholder={placeholder}
+        className="mt-0.5 w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs dark:border-zinc-700"
+      />
+    </label>
+  );
+
+  const listField = (key: "potential_clients" | "blockers" | "next_steps", label: string, placeholder = "") => (
+    <label className="block">
+      <span className="text-xs text-zinc-500">{label}（逗號分隔）</span>
+      <input
+        value={(mission[key] as string[]).join(", ")}
+        onChange={(e) =>
+          onChange({
+            ...mission,
+            [key]: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+          })
+        }
+        placeholder={placeholder}
+        className="mt-0.5 w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs dark:border-zinc-700"
+      />
+    </label>
+  );
+
+  return (
+    <div className="mt-3 space-y-2 rounded-md border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-900 dark:bg-blue-950/20">
+      <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">🎯 使命</p>
+      {field("goal", "目標（一句話）", "S35 完成，可上線 SMB 客戶")}
+      {field("deadline", "期限", "S35 結束前")}
+      {field("expected_revenue", "預期收益", "NT$50k/月")}
+      {listField("potential_clients", "潛在客戶", "東聯化學, 台塑石化")}
+      {field("situation_analysis", "當前局勢", "HubSpot 貴且難用，機會窗口開著")}
+      {field("commercial_value", "商業價值", "B2B SaaS，每客戶年約")}
+      {listField("blockers", "阻礙", "Auth 系統未動工")}
+      {listField("next_steps", "下一步", "接洽公安協會, 開發 MVP")}
+      {field("resources_needed", "所需資源", "前端工程師 × 1")}
+    </div>
+  );
+}
+
+// ── Project Card ──────────────────────────────────────────────────────
 
 function ProjectCard({
   project,
@@ -23,6 +213,7 @@ function ProjectCard({
   const [editing, setEditing] = useState(false);
   const [desc, setDesc] = useState(project.description);
   const [agentsStr, setAgentsStr] = useState(project.agents.join(", "));
+  const [mission, setMission] = useState<MissionBrief>(project.mission ?? EMPTY_MISSION);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +227,7 @@ function ProjectCard({
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
+        mission,
       });
       setEditing(false);
       onRefresh();
@@ -97,7 +289,8 @@ function ProjectCard({
             placeholder="Agents（逗號分隔）"
             className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm font-mono dark:border-zinc-700"
           />
-          <div className="flex gap-2">
+          <MissionEditForm mission={mission} onChange={setMission} />
+          <div className="flex gap-2 pt-1">
             <button
               disabled={busy}
               onClick={handleSave}
@@ -133,9 +326,12 @@ function ProjectCard({
             )}
           </div>
 
+          <MissionCard mission={project.mission ?? EMPTY_MISSION} />
+          <GitBadge git={project.git} />
+
           <div className="mt-4 flex gap-2">
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => { setEditing(true); setMission(project.mission ?? EMPTY_MISSION); }}
               className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               <Pencil size={14} /> 編輯
@@ -156,12 +352,13 @@ function ProjectCard({
   );
 }
 
+// ── Page ──────────────────────────────────────────────────────────────
+
 export default function ProjectsPage() {
   const [data, setData] = useState<ProjectsData | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  // New project form
   const [newName, setNewName] = useState("");
   const [newRepo, setNewRepo] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -222,7 +419,6 @@ export default function ProjectsPage() {
         ]}
       />
 
-      {/* Add project button */}
       <div className="mt-6 flex justify-end">
         <button
           onClick={() => setShowForm(!showForm)}
@@ -233,7 +429,6 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {/* New project form */}
       {showForm && (
         <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/50 p-5 dark:border-blue-900 dark:bg-blue-950/20">
           <h2 className="mb-4 text-sm font-semibold">新增專案</h2>
@@ -288,14 +483,16 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Project cards */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {projects.map((p) => (
           <ProjectCard key={p.name} project={p} onRefresh={load} />
         ))}
         {projects.length === 0 && (
           <p className="text-sm text-zinc-500">
-            尚無專案。點擊「新增專案」或編輯 <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-800">~/.claude/projects.json</code>
+            尚無專案。點擊「新增專案」或編輯{" "}
+            <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-800">
+              ~/.claude/projects.json
+            </code>
           </p>
         )}
       </div>

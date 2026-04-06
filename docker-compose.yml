@@ -1,7 +1,7 @@
 # rivendell/docker-compose.yml — Root orchestrator
 # Usage: docker compose --profile <name> [--profile <name>] up -d
 #
-# Profiles: dashboard, news-stock, sales, nexus, marketing
+# Profiles: dashboard, news-stock, sales, marketing
 # Set PROJECTS_DIR to override default sibling directory layout.
 
 services:
@@ -11,15 +11,21 @@ services:
   dashboard-api:
     profiles: ["dashboard"]
     build:
-      context: ./dashboard-next/api
-      dockerfile: ../../dockerfiles/dashboard-api.Dockerfile
+      context: .
+      dockerfile: dockerfiles/dashboard-api.Dockerfile
     container_name: sk-dashboard-api
     ports:
       - "8000:8000"
     volumes:
       - ./reports:/data/reports:ro
       - ./logs:/data/logs:ro
-      - ./data:/data/data:ro
+      - ./data:/dashboard/data
+      - ./data/skill-summaries-zh.tsv:/data/skill-summaries-zh.tsv:ro
+      - ${HOME}/Library/LaunchAgents:/root/Library/LaunchAgents:ro
+      - ${HOME}/.claude/projects:/root/.claude/projects:ro
+      - ${HOME}/.claude/skills:/root/.claude/skills:ro
+      - ./skills:/Users/manibari/Documents/Projects/rivendell/skills:ro
+      - ${PROJECTS_DIR:-/Users/manibari/Documents/Projects}/gstack:/Users/manibari/Documents/Projects/gstack:ro
     restart: unless-stopped
 
   dashboard-web:
@@ -75,71 +81,6 @@ services:
       - sales-data:/app/data
     restart: unless-stopped
 
-  # === nexus-ai-company (profile: nexus) ===
-
-  nexus-postgres:
-    profiles: ["nexus"]
-    image: postgres:16-alpine
-    container_name: sk-nexus-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: nexus
-      POSTGRES_USER: nexus
-      POSTGRES_PASSWORD: ${NEXUS_PG_PASSWORD:-nexus_dev}
-    volumes:
-      - nexus-pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexus"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  nexus-redis:
-    profiles: ["nexus"]
-    image: redis:7-alpine
-    container_name: sk-nexus-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  nexus-backend:
-    profiles: ["nexus"]
-    build:
-      context: ${PROJECTS_DIR:-..}/nexus-ai-company/backend
-    container_name: sk-nexus-backend
-    ports:
-      - "8003:8000"
-    env_file:
-      - path: ${PROJECTS_DIR:-..}/nexus-ai-company/.env
-        required: false
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://nexus:${NEXUS_PG_PASSWORD:-nexus_dev}@nexus-postgres:5432/nexus
-      - REDIS_URL=redis://nexus-redis:6379/0
-    depends_on:
-      nexus-postgres: { condition: service_healthy }
-      nexus-redis: { condition: service_healthy }
-    restart: unless-stopped
-
-  nexus-frontend:
-    profiles: ["nexus"]
-    build:
-      context: ${PROJECTS_DIR:-..}/nexus-ai-company/frontend
-    container_name: sk-nexus-frontend
-    ports:
-      - "3003:3000"
-    environment:
-      - VITE_API_URL=http://localhost:8003
-    depends_on:
-      - nexus-backend
-    restart: unless-stopped
-
   # === Marketing-Pal web (profile: marketing) ===
 
   marketing-web:
@@ -155,4 +96,3 @@ services:
 volumes:
   news-stock-data:
   sales-data:
-  nexus-pgdata:

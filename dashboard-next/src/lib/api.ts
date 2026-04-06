@@ -205,6 +205,36 @@ export type SkillUsage = Record<string, SkillUsageDay[]>;
 
 // ── Projects ──────────────────────────────────────────────────────────
 
+export interface MissionBrief {
+  goal: string;
+  commercial_value: string;
+  potential_clients: string[];
+  expected_revenue: string;
+  blockers: string[];
+  next_steps: string[];
+  resources_needed: string;
+  situation_analysis: string;
+  deadline: string;
+}
+
+export interface GitStatus {
+  branch: string;
+  last_commit_msg: string;
+  last_commit_ago: string;
+  ahead: number;
+  behind: number;
+  recent_files: string[];
+  is_git: boolean;
+  error: string;
+}
+
+export interface GitCommit {
+  hash: string;
+  message: string;
+  author: string;
+  ago: string;
+}
+
 export interface ProjectInfo {
   name: string;
   repo: string;
@@ -212,6 +242,8 @@ export interface ProjectInfo {
   agents: string[];
   agent_count_loaded: number;
   total_cost_usd: number;
+  mission: MissionBrief;
+  git: GitStatus;
 }
 
 export interface ProjectsData {
@@ -220,6 +252,10 @@ export interface ProjectsData {
 
 export interface ProjectDetailData extends ProjectInfo {
   agent_details: AgentInfo[];
+}
+
+export interface GitLogData {
+  commits: GitCommit[];
 }
 
 // ── Ports ─────────────────────────────────────────────────────────────────────

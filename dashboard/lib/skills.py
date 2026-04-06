@@ -122,6 +122,8 @@ def list_skills(
         tsv_entry = tsv_data.get(name, {})
         category = tsv_entry.get("category_zh", "")
         summary = tsv_entry.get("summary_zh", "")
+        if not category and (name.startswith("gstack") or name == "gstack"):
+            category = "gstack"
 
         result.append(SkillInfo(
             name=name,
