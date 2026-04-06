@@ -24,7 +24,7 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: "sh \"${CLAUDE_SKILL_DIR}/scripts/check-complete.sh\""
+          command: "sh \"${CLAUDE_SKILL_DIR:-$HOME/.claude/skills/planning-with-files}/scripts/check-complete.sh\" 2>/dev/null || true"
 metadata:
   version: "2.16.1"
 ---

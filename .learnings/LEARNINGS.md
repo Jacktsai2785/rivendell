@@ -85,6 +85,24 @@
   2. Started a new project's server without first asking the user to assign it a port
 - **Rule**: Before starting any dev server, (a) read `mockups/port-map.html` SERVICES array to find what's taken, (b) if the project has no assigned port, ask the user what port to use, (c) only then `lsof -i :<port>` to confirm it's actually free, then start.
 
+## 2026-04-07 — launchd agents: source across ~/Documents/ intermittently fails with EDEADLK
+
+- **Category**: best_practice
+- **Context**: `sk-harvest-cron`, `sk-maintain-cron`, `sk-tester-cron`, `knowledge-sync.sh` all had bare `source sk-exec-lib` under `set -euo pipefail`. In launchd environment, sourcing files in `~/Documents/` (different project) intermittently fails with "Resource deadlock avoided" (EDEADLK), causing the script to exit early with a non-zero code (launchctl showed exit 78).
+- **Learning**: Wrap any cross-project `source` with `set +e ... set -e` + `|| true`:
+  ```bash
+  set +e; source "$RIVENDELL_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
+  ```
+  The main task still runs; only the optional dashboard recording is skipped.
+- **Also**: Sales agent plists had label prefix `com.sk.agent.sales.*` but project dir name is `sales-assistant`. The `sk agent start` CLI derives label from dir name. Must match or `sk maintain` shows them as "unloaded". Fix: unload old plists, reinstall with `sk agent start --project sales-assistant`.
+
+## 2026-04-07 — Docker API: Path(__file__).parent×N breaks when WORKDIR differs from local layout
+
+- **Category**: best_practice
+- **Context**: `dashboard-next/api/server.py` uses `Path(__file__).resolve().parent.parent.parent / "reports"` to find the reports dir. Locally this resolves to the repo root. In Docker, `server.py` is copied to `/app/server.py` so `.parent.parent.parent` = `/` and `/reports` doesn't exist (mounted at `/data/reports`).
+- **Fix**: Use env var with fallback: `Path(os.environ.get("REPORTS_DIR", str(Path(__file__).resolve().parent.parent.parent / "reports")))`. Set `REPORTS_DIR=/data/reports` in docker-compose `environment:`.
+- **Rule**: Any path that diverges between local dev and Docker must be an env var, not computed from `__file__`.
+
 ## 2026-03-24 — Dashboard must discover log paths from plist, not assume reports/
 
 - **Category**: best_practice
