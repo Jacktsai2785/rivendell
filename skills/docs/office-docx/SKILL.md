@@ -34,6 +34,17 @@ Use "Creating a new Word document" workflow
 - **Legal, academic, business, or government docs**
   Use **"Redlining workflow"** (required)
 
+### Inserting Tables, Charts, or Images
+Read **`charts-and-tables.md`** in this skill directory. Covers:
+- Tables (python-docx, CJK font handling, merged cells, cell colors, repeat headers, column widths)
+- Charts (matplotlib bar/line/pie → PNG → docx, including CJK font setup and DPI guidance)
+- Mermaid diagrams (gantt/flowchart → PNG via mmdc → docx)
+- Figures with captions
+- Reusable snippets for pricing tables, milestone tables, and other consulting document patterns
+
+**Critical**: Chinese characters in Word/matplotlib have non-obvious failure modes (boxes, missing
+glyphs, minus sign as 口). Always read `charts-and-tables.md` before inserting CJK content.
+
 ## Reading and analyzing content
 
 ### Text extraction
