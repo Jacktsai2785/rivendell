@@ -245,6 +245,14 @@ const DEFAULT_DATA = {
     'repo-rename':             { source:'local', desc:'系統性審計所有跨位置的引用並重新命名' },
     'requirement':             { source:'local', desc:'定義結構化需求、使用者故事、驗收標準' },
     'sales-material':          { source:'local', desc:'組合客戶特定銷售簡報' },
+    'audio-transcription-flow': { source:'local', desc:'音檔上傳 → Whisper → 逐字稿顯示完整流程' },
+    'discovery-interview':     { source:'local', desc:'結構化客戶 Discovery 訪談，找痛點＋量化成本' },
+    'docker-compose-setup':    { source:'local', desc:'多服務 Docker Compose（Next.js + FastAPI + DB）' },
+    'metadata-workshop':       { source:'local', desc:'客戶業務知識 → YAML metadata schema（顧問護城河）' },
+    'pitch-deck':              { source:'local', desc:'商業簡報：discovery → narrative → HTML → PPTX' },
+    'rbac-permissions':        { source:'local', desc:'全端 RBAC：FastAPI decorator + React AuthGuard' },
+    'rfq-writer':              { source:'local', desc:'Request for Quotation（報價單，SOW 前議價）' },
+    'sow-writer':              { source:'local', desc:'台灣商務 SOW 工作說明書（12 章節）' },
     'self-improving-agent':    { source:'local', desc:'捕捉學習、錯誤和修正以自我改進' },
     'session-harvest':         { source:'local', desc:'回顧當前 session 的工作並提取 learnings' },
     'settings-audit':          { source:'local', desc:'審計並清理 settings.local.json' },
@@ -443,16 +451,30 @@ const DEFAULT_DATA = {
         { num:2, label:'郵件整合',    desc:'IMAP/SMTP 郵件整合', skills:['imap-smtp-integration'] },
       ]
     },
+    {
+      id: 'consulting',
+      label: '顧問業務流程',
+      icon: '🤝',
+      steps: [
+        { num:1, label:'Discovery 訪談', desc:'結構化客戶訪談找痛點＋量化人時成本', skills:['discovery-interview','customer-intel'] },
+        { num:2, label:'提案簡報',       desc:'商業敘事簡報（problem → solution → traction → ask）', skills:['pitch-deck','office-pptx'] },
+        { num:3, label:'RFQ 議價',       desc:'Request for Quotation：3 方案＋費用區間＋有效期', skills:['rfq-writer'] },
+        { num:4, label:'SOW 簽約',       desc:'台灣商務 SOW 工作說明書（12 章節＋Gantt＋付款）', skills:['sow-writer','office-docx'] },
+        { num:5, label:'Metadata 梳理',  desc:'客戶業務知識 → YAML schema（顧問護城河，同業複用 ≥70%）', skills:['metadata-workshop'] },
+        { num:6, label:'Agent 開發',     desc:'依 schema 開發第一個 AI Agent 並交付 API', skills:['writing-plans','executing-plans','docker-compose-setup'] },
+        { num:7, label:'月費托管',       desc:'上線後監控 + 維護 + 定期回顧', skills:['agent-observability','gstack-canary'] },
+      ]
+    },
   ],
 
   // ── Situational triggers ──
   situational: [
     { trigger:'需要 DB 設計/遷移',        icon:'🗄', skills:['db-migration','sqlite-to-postgres','firebase-backend','vector-search-setup'] },
-    { trigger:'需要 OAuth / 機密管理',    icon:'🔐', skills:['oauth-token-vault','protect-secrets'] },
+    { trigger:'需要 OAuth / 機密管理',    icon:'🔐', skills:['oauth-token-vault','protect-secrets','rbac-permissions'] },
     { trigger:'需要 MCP 開發',            icon:'🔌', skills:['mcp-builder'] },
     { trigger:'需要 iOS / SwiftUI',       icon:'📱', skills:['ios-integration','swiftui-patterns'] },
     { trigger:'需要前端設計指導',         icon:'🎨', skills:['frontend-design','ui-ux-pro-max'] },
-    { trigger:'需要部署 / 基礎設施',      icon:'🚀', skills:['deploy','tunnel-proxy-deploy','ci-pipeline','launchd-agent','headless-agent'] },
+    { trigger:'需要部署 / 基礎設施',      icon:'🚀', skills:['deploy','tunnel-proxy-deploy','ci-pipeline','launchd-agent','headless-agent','docker-compose-setup'] },
     { trigger:'需要深度品質提升',         icon:'✅', skills:['de-slopify','large-file-refactor','qa-auto','qa-planner','qa-testing'] },
     { trigger:'需要初始化新專案',         icon:'🆕', skills:['init-project','setup-permissions','settings-audit','gstack-setup-deploy'] },
     { trigger:'需要管理 Skill 庫',        icon:'📚', skills:['skill-creator','skill-scout','sync-readme'] },
@@ -463,6 +485,7 @@ const DEFAULT_DATA = {
     { trigger:'需要 Git 操作',            icon:'🌿', skills:['auto-stage'] },
     { trigger:'需要 Markdown SSOT',       icon:'📝', skills:['markdown-file-ssot'] },
     { trigger:'需要文件輸出（Office）',   icon:'📄', skills:['office-docx','office-pdf','office-pptx','office-xlsx','doc-to-structured-data'] },
+    { trigger:'需要音訊 / 語音功能',      icon:'🎙', skills:['audio-transcription-flow'] },
   ],
 
   // ── Orphaned ──
