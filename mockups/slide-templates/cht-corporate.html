@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>中華電信 Corporate Template</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  /* ── Locked CHT Corporate Tokens ─────────────── */
+  :root {
+    --cht-blue: #215CA0;
+    --cht-blue-light: #036AFB;
+    --cht-blue-soft: #4285F4;
+    --cht-navy: #002060;
+    --cht-red: #E53935;
+    --text-primary: #1a1a1a;
+    --text-secondary: #3F3F3F;
+    --text-muted: #6B7280;
+    --bg: #FFFFFF;
+    --bg-soft: #F5F7FA;
+    --border: #E5E7EB;
+    --accent-subtle: #E8F0FB;
+    --font: 'Noto Sans TC', 'PingFang TC', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ddd; font-family: var(--font); padding: 40px 20px; }
+
+  /* ── Slide Frame (1280×720 = 16:9) ────────────── */
+  .slide {
+    width: 1280px; height: 720px;
+    background: var(--bg);
+    color: var(--text-primary);
+    margin: 0 auto 40px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+  }
+  .header-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 8px;
+    background: linear-gradient(90deg, var(--cht-blue) 0%, var(--cht-blue-light) 100%);
+    z-index: 5;
+  }
+  .brand-mark {
+    position: absolute; top: 36px; left: 56px;
+    display: flex; align-items: center; gap: 12px;
+    z-index: 10;
+  }
+  .brand-logo {
+    width: 36px; height: 36px;
+    background: var(--cht-blue);
+    border-radius: 50%;
+    position: relative;
+  }
+  .brand-logo::after {
+    content: ""; position: absolute;
+    left: 50%; top: 50%;
+    width: 16px; height: 16px;
+    background: #fff;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+  }
+  .brand-text {
+    font-size: 16px; font-weight: 700; color: var(--cht-blue);
+    letter-spacing: 0.5px;
+  }
+  .brand-text .sub {
+    display: block; font-size: 11px; font-weight: 400;
+    color: var(--text-muted); margin-top: 2px; letter-spacing: 0;
+  }
+  .page-num {
+    position: absolute; bottom: 28px; right: 56px;
+    font-size: 11px; color: var(--text-muted); letter-spacing: 2px;
+  }
+  .footer-line {
+    position: absolute; bottom: 60px; left: 56px; right: 56px;
+    height: 1px; background: var(--border);
+  }
+  .footer-note {
+    position: absolute; bottom: 28px; left: 56px;
+    font-size: 10px; color: var(--text-muted); letter-spacing: 1px;
+  }
+
+  /* ── 1. Cover ─────────────────────────────────── */
+  .cover {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 96px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent-subtle) 100%);
+    position: relative;
+  }
+  .cover::before {
+    content: ""; position: absolute;
+    right: 0; bottom: 0;
+    width: 480px; height: 360px;
+    background: linear-gradient(135deg, var(--cht-blue) 0%, var(--cht-blue-light) 100%);
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+    opacity: 0.9;
+  }
+  .cover::after {
+    content: ""; position: absolute;
+    right: 0; bottom: 0;
+    width: 560px; height: 420px;
+    border: 2px solid var(--cht-blue-light);
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+    opacity: 0.3;
+  }
+  .cover-eyebrow {
+    font-size: 14px; color: var(--cht-blue-light);
+    letter-spacing: 4px; font-weight: 700; text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .cover h1 {
+    font-size: 64px; font-weight: 900;
+    color: var(--cht-blue); line-height: 1.1;
+    letter-spacing: -1px; max-width: 800px;
+    position: relative; z-index: 2;
+  }
+  .cover .cover-sub {
+    font-size: 24px; font-weight: 500;
+    color: var(--text-secondary); margin-top: 20px;
+    position: relative; z-index: 2;
+  }
+  .cover .cover-meta {
+    margin-top: 48px; font-size: 14px; color: var(--text-muted);
+    letter-spacing: 1px; position: relative; z-index: 2;
+  }
+
+  /* ── 2. Section Divider ──────────────────────── */
+  .section {
+    background: var(--cht-navy);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .section::before {
+    content: ""; position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 12px; background: var(--cht-blue-light);
+  }
+  .section .num {
+    font-size: 200px; font-weight: 900;
+    color: rgba(3, 106, 251, 0.15);
+    position: absolute; right: 96px; top: 50%; transform: translateY(-50%);
+    line-height: 1;
+  }
+  .section .inner {
+    text-align: left; padding-left: 120px;
+  }
+  .section .label {
+    font-size: 13px; letter-spacing: 5px; color: var(--cht-blue-light);
+    text-transform: uppercase; margin-bottom: 20px; font-weight: 700;
+  }
+  .section h2 {
+    font-size: 60px; font-weight: 900; color: #fff;
+    line-height: 1.1; max-width: 800px;
+  }
+  .section .accent-line {
+    width: 100px; height: 4px; background: var(--cht-blue-light);
+    margin-top: 28px;
+  }
+  .section .brand-mark .brand-text,
+  .section .brand-mark .brand-text .sub { color: #fff; }
+  .section .brand-logo::after { background: var(--cht-navy); }
+
+  /* ── 3. Title + Content ──────────────────────── */
+  .content { padding: 100px 80px 80px; }
+  .content h2 {
+    font-size: 40px; font-weight: 900; color: var(--cht-navy);
+    margin-bottom: 8px; padding-bottom: 16px;
+    border-bottom: 3px solid var(--cht-blue);
+    display: inline-block;
+  }
+  .content .lead {
+    font-size: 18px; color: var(--text-secondary);
+    margin: 24px 0 40px; max-width: 900px; line-height: 1.6;
+  }
+  .three-col {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
+  }
+  .step {
+    background: var(--bg-soft);
+    border-top: 4px solid var(--cht-blue);
+    padding: 32px 28px;
+    position: relative;
+  }
+  .step-num {
+    position: absolute; top: -16px; left: 28px;
+    width: 36px; height: 36px;
+    background: var(--cht-blue);
+    color: #fff; font-size: 16px; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+  }
+  .step h3 {
+    font-size: 22px; font-weight: 700; color: var(--cht-navy);
+    margin: 16px 0 12px;
+  }
+  .step p {
+    font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+  }
+
+  /* ── 4. Data Table ───────────────────────────── */
+  .data-slide { padding: 100px 80px 80px; }
+  .data-slide h2 {
+    font-size: 40px; font-weight: 900; color: var(--cht-navy);
+    margin-bottom: 8px; padding-bottom: 16px;
+    border-bottom: 3px solid var(--cht-blue);
+    display: inline-block;
+  }
+  .data-slide .lead {
+    font-size: 16px; color: var(--text-secondary);
+    margin: 20px 0 32px;
+  }
+  table.cht-table {
+    width: 100%; border-collapse: collapse;
+    border: 1px solid var(--border);
+  }
+  table.cht-table th {
+    background: var(--cht-blue);
+    color: #fff; padding: 16px 24px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.5px;
+    text-align: left; text-transform: uppercase;
+  }
+  table.cht-table td {
+    padding: 16px 24px;
+    font-size: 15px; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  table.cht-table tr:nth-child(even) td { background: var(--bg-soft); }
+  table.cht-table .highlight { color: var(--cht-blue); font-weight: 700; }
+  table.cht-table .danger { color: var(--cht-red); font-weight: 700; }
+
+  /* ── 5. Metrics ──────────────────────────────── */
+  .metrics { padding: 100px 80px 80px; }
+  .metrics h2 {
+    font-size: 40px; font-weight: 900; color: var(--cht-navy);
+    margin-bottom: 8px; padding-bottom: 16px;
+    border-bottom: 3px solid var(--cht-blue);
+    display: inline-block;
+  }
+  .metric-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px;
+    margin-top: 48px;
+  }
+  .metric {
+    text-align: left; padding: 0;
+  }
+  .metric-value {
+    font-size: 84px; font-weight: 900; color: var(--cht-blue);
+    line-height: 1; letter-spacing: -3px;
+  }
+  .metric-value .unit {
+    font-size: 28px; color: var(--cht-navy); margin-left: 8px;
+    font-weight: 500;
+  }
+  .metric-label {
+    font-size: 16px; color: var(--cht-navy); margin-top: 16px;
+    font-weight: 700; padding-top: 16px; border-top: 2px solid var(--cht-blue);
+  }
+  .metric-desc {
+    font-size: 13px; color: var(--text-muted); margin-top: 8px;
+  }
+
+  /* ── Diagram slide (AS-IS / TO-BE) ───────────── */
+  .compare { padding: 100px 80px 80px; }
+  .compare h2 {
+    font-size: 40px; font-weight: 900; color: var(--cht-navy);
+    margin-bottom: 40px; padding-bottom: 16px;
+    border-bottom: 3px solid var(--cht-blue);
+    display: inline-block;
+  }
+  .compare-grid {
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px;
+    align-items: center;
+  }
+  .compare-col {
+    padding: 32px; background: var(--bg-soft);
+    border: 1px solid var(--border);
+  }
+  .compare-col.after {
+    background: var(--accent-subtle);
+    border: 2px solid var(--cht-blue);
+  }
+  .compare-label {
+    font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--text-muted); font-weight: 700; margin-bottom: 12px;
+  }
+  .compare-col.after .compare-label { color: var(--cht-blue); }
+  .compare-col h3 {
+    font-size: 22px; font-weight: 700; color: var(--cht-navy);
+    margin-bottom: 16px; line-height: 1.3;
+  }
+  .compare-col ul { list-style: none; }
+  .compare-col li {
+    font-size: 14px; color: var(--text-secondary);
+    padding: 8px 0 8px 20px; position: relative;
+  }
+  .compare-col li::before {
+    content: "—"; position: absolute; left: 0; color: var(--text-muted);
+  }
+  .compare-col.after li::before { content: "✓"; color: var(--cht-blue); font-weight: 900; }
+  .arrow {
+    font-size: 48px; color: var(--cht-blue); font-weight: 900;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- 1. COVER -->
+<div class="slide cover">
+  <div class="header-bar"></div>
+  <div class="brand-mark">
+    <div class="brand-logo"></div>
+    <div class="brand-text">中華電信 Chunghwa Telecom<span class="sub">企業客戶分公司 · 資信通信處</span></div>
+  </div>
+  <div class="cover-eyebrow">SMART MANUFACTURING SOLUTION</div>
+  <h1>智慧製造產品介紹</h1>
+  <p class="cover-sub">AI 驅動的企業數位轉型平台</p>
+  <div class="cover-meta">Prepared for · 立積電子 · 2026 Q2</div>
+  <div class="footer-note">© CHUNGHWA TELECOM CO., LTD. CONFIDENTIAL</div>
+</div>
+
+<!-- 2. SECTION DIVIDER -->
+<div class="slide section">
+  <div class="header-bar"></div>
+  <div class="brand-mark">
+    <div class="brand-logo"></div>
+    <div class="brand-text">中華電信 Chunghwa Telecom<span class="sub">企業客戶分公司 · 資信通信處</span></div>
+  </div>
+  <div class="num">01</div>
+  <div class="inner">
+    <div class="label">PART ONE</div>
+    <h2>AI 轉型三階段<br>實施藍圖</h2>
+    <div class="accent-line"></div>
+  </div>
+  <div class="page-num" style="color: rgba(255,255,255,0.5);">02 / 06</div>
+</div>
+
+<!-- 3. THREE-STEP PROCESS -->
+<div class="slide content">
+  <div class="header-bar"></div>
+  <div class="brand-mark">
+    <div class="brand-logo"></div>
+    <div class="brand-text">中華電信 Chunghwa Telecom<span class="sub">企業客戶分公司 · 資信通信處</span></div>
+  </div>
+  <h2>導入機制說明</h2>
+  <p class="lead">為企業決策者量身打造的 AI 導入策略，以實際可執行的專案導向方式協助客戶完成轉型</p>
+  <div class="three-col">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>釐清關鍵議題</h3>
+      <p>領域聚焦 · 資料盤點 · 3 個月效益釐清，識別最高 ROI 的 AI 應用場景。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>建立可用模型</h3>
+      <p>系統建置 · 種子成員培訓 · Tukey AutoML Platform 降低技術門檻。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>擴大使用效益</h3>
+      <p>應用落地 · 3 個月應用落地 · 從點對點專案擴展到面的平台化管理。</p>
+    </div>
+  </div>
+  <div class="footer-line"></div>
+  <div class="footer-note">© CHUNGHWA TELECOM CO., LTD. CONFIDENTIAL</div>
+  <div class="page-num">03 / 06</div>
+</div>
+
+<!-- 4. AS-IS / TO-BE -->
+<div class="slide compare">
+  <div class="header-bar"></div>
+  <div class="brand-mark">
+    <div class="brand-logo"></div>
+    <div class="brand-text">中華電信 Chunghwa Telecom<span class="sub">企業客戶分公司 · 資信通信處</span></div>
+  </div>
+  <h2>成功配方：平台化專業分工</h2>
+  <div class="compare-grid">
+    <div class="compare-col">
+      <div class="compare-label">AS-IS</div>
+      <h3>點對點的專案逐步建構</h3>
+      <ul>
+        <li>跨域溝通困難，專案執行漫長</li>
+        <li>5 名 AI 顧問 · 3 年完成 40 專案</li>
+        <li>模型維運導致顧問無法建立新案</li>
+        <li>定義問題、提出需求 · AI 建模</li>
+      </ul>
+    </div>
+    <div class="arrow">→</div>
+    <div class="compare-col after">
+      <div class="compare-label">TO-BE</div>
+      <h3>點到面的平台協助與管理</h3>
+      <ul>
+        <li>ML & GPT 賦能，維運管理、優化精進</li>
+        <li>15 名員工 · 3 個月 · 400+ 模型</li>
+        <li>關鍵員工維運模型，顧問解決新問題</li>
+        <li>輔助管理 · 優化程式 · 效益規模化</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-line"></div>
+  <div class="footer-note">© CHUNGHWA TELECOM CO., LTD. CONFIDENTIAL</div>
+  <div class="page-num">04 / 06</div>
+</div>
+
+<!-- 5. DATA TABLE -->
+<div class="slide data-slide">
+  <div class="header-bar"></div>
+  <div class="brand-mark">
+    <div class="brand-logo"></div>
+    <div class="brand-text">中華電信 Chunghwa Telecom<span class="sub">企業客戶分公司 · 資信通信處</span></div>
+  </div>
+  <h2>落地實證案例</h2>
+  <p class="lead">以下為 Tukey AutoML 平台於多產業的實際導入成果</p>
+  <table class="cht-table">
+    <thead>
+      <tr>
+        <th>客戶</th>
+        <th>產業</th>
+        <th>應用場景</th>
+        <th class="highlight">效益</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>東聯化學</td><td>石化業</td><td>製程優化 + 工安整合</td><td class="highlight">耗能 -13.5%</td></tr>
+      <tr><td>大呷麵本家</td><td>食品業</td><td>AI 優化麵條製程</td><td class="highlight">良率 87% → 93%</td></tr>
+      <tr><td>中鋼碳素</td><td>金屬業</td><td>鍋爐系統 AI 節能</td><td class="highlight">品質達標 +17%</td></tr>
+      <tr><td>Lypid</td><td>生物科技</td><td>AI 驅動植物肉研發</td><td class="highlight">命中率 25% → 60%</td></tr>
+      <tr><td>某大型石化</td><td>石化業</td><td>即時品質預測（軟儀錶）</td><td class="highlight">決策效率 +66%</td></tr>
+    </tbody>
+  </table>
+  <div class="footer-line"></div>
+  <div class="footer-note">© CHUNGHWA TELECOM CO., LTD. CONFIDENTIAL</div>
+  <div class="page-num">05 / 06</div>
+</div>
+
+<!-- 6. METRICS -->
+<div class="slide metrics">
+  <div class="header-bar"></div>
+  <div class="brand-mark">
+    <div class="brand-logo"></div>
+    <div class="brand-text">中華電信 Chunghwa Telecom<span class="sub">企業客戶分公司 · 資信通信處</span></div>
+  </div>
+  <h2>投資回報</h2>
+  <div class="metric-grid">
+    <div class="metric">
+      <div class="metric-value">13.5<span class="unit">%</span></div>
+      <div class="metric-label">系統耗能降低</div>
+      <div class="metric-desc">製程能源調度優化 · 化工業</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">400<span class="unit">+</span></div>
+      <div class="metric-label">模型部署數</div>
+      <div class="metric-desc">15 名員工 · 3 個月完成</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">66<span class="unit">%</span></div>
+      <div class="metric-label">決策效率提升</div>
+      <div class="metric-desc">即時品質預測 · 石化業</div>
+    </div>
+  </div>
+  <div class="footer-line"></div>
+  <div class="footer-note">© CHUNGHWA TELECOM CO., LTD. CONFIDENTIAL</div>
+  <div class="page-num">06 / 06</div>
+</div>
+
+</body>
+</html>
