@@ -1,13 +1,14 @@
 /*
  * sk-agent-run — tiny launcher for launchd agents.
- * Compiled during setup; user grants it Full Disk Access once.
  *
  * Usage: sk-agent-run <project_dir> <script> [args...]
  *
- * Equivalent to: cd <project_dir> && exec bash <script> [args...]
+ * Sets REPO_DIR env var and chdir into <project_dir>, then execs bash.
+ * Scripts should use $REPO_DIR instead of $(pwd) to avoid macOS TCC/getcwd failures.
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 int main(int argc, char *argv[]) {
@@ -17,7 +18,9 @@ int main(int argc, char *argv[]) {
     }
 
     const char *project_dir = argv[1];
-    const char *script = argv[2];
+
+    /* Export REPO_DIR so scripts don't need pwd (which fails under TCC) */
+    setenv("REPO_DIR", project_dir, 1);
 
     if (chdir(project_dir) != 0) {
         perror("chdir");

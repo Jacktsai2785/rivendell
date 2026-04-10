@@ -4,7 +4,7 @@
 # Records execution to dashboard DB via sk-exec-lib
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 PROJECT_NAME="$(basename "$REPO_DIR")"
 REPORT_DIR="$REPO_DIR/reports"
 NOW="$(date '+%Y-%m-%d_%H%M')"

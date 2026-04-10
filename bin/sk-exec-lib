@@ -11,7 +11,7 @@
 _SK_EXEC_LIB_LOADED=1
 
 # Resolve repo dir (same as bin/sk)
-SK_EXEC_REPO_DIR="${SK_EXEC_REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+SK_EXEC_REPO_DIR="${SK_EXEC_REPO_DIR:-${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}}"
 SK_EXEC_PARSER="${SK_EXEC_REPO_DIR}/scripts/parse-agent-log.py"
 
 # ─── sk_exec() ───────────────────────────────────────────────────────

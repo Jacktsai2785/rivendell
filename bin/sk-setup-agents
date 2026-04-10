@@ -4,9 +4,10 @@
 #   ./bin/sk-setup-agents
 #
 # What it does:
-#   1. Detects HOME, python3/conda/npm paths → builds PATH
-#   2. Reads agents/agents.conf → generates plist per agent
-#   3. Uses native plist WorkingDirectory (no intermediary binary needed)
+#   1. Compiles sk-agent-run binary (sets REPO_DIR env to bypass TCC getcwd)
+#   2. Detects python3/conda/npm paths → builds PATH
+#   3. Reads agents/agents.conf → generates plist per agent
+#      (launchd logs go to ~/Library/Logs/sk-agent/ to avoid TCC on ~/Documents/)
 #   4. Loads all plists into launchd
 #
 # Options:
@@ -72,10 +73,7 @@ if ! $DRY_RUN && ! $UNLOAD_ONLY; then
   echo "Compiling sk-agent-run..."
   mkdir -p "$(dirname "$SK_AGENT_RUN")"
   cc -O2 -o "$SK_AGENT_RUN" "$REPO_DIR/agents/sk-agent-run.c"
-  echo "Installed: $SK_AGENT_RUN ($(file -b "$SK_AGENT_RUN"))"
-  echo ""
-  echo "NOTE: On first run, grant Full Disk Access to sk-agent-run:"
-  echo "  System Settings → Privacy & Security → Full Disk Access → add $SK_AGENT_RUN"
+  echo "Installed: $SK_AGENT_RUN"
   echo ""
 fi
 
@@ -148,8 +146,11 @@ grep -v '^\s*#' "$CONF" | grep -v '^\s*$' | while IFS='|' read -r label project_
   extra_args="$(echo "$extra_args" | xargs)"
 
   project_dir="$PROJECTS_DIR/$project_rel"
-  log_dir="$project_dir/$log_dir_rel"
   plist="$LAUNCH_DIR/${label}.plist"
+
+  # launchd stdout/stderr go to ~/Library/Logs (not TCC-protected)
+  # Script-internal reports still write to project's own log_dir_rel
+  launchd_log_dir="$HOME/Library/Logs/sk-agent"
 
   # Derive log name from label suffix
   log_name="${label##*.}"
@@ -199,9 +200,9 @@ $prog_args
 $schedule
 
     <key>StandardOutPath</key>
-    <string>$log_dir/${log_name}-stdout.log</string>
+    <string>$launchd_log_dir/${label}-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>$log_dir/${log_name}-stderr.log</string>
+    <string>$launchd_log_dir/${label}-stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
@@ -219,8 +220,8 @@ $schedule
     # Unload existing
     launchctl unload "$plist" 2>/dev/null || true
 
-    # Ensure log dir exists
-    mkdir -p "$log_dir"
+    # Ensure log dirs exist
+    mkdir -p "$launchd_log_dir"
 
     # Write plist
     echo "$plist_content" > "$plist"

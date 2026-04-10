@@ -11,6 +11,7 @@ import {
   Sparkles,
   Wheat,
   Network,
+  Workflow,
 } from "lucide-react";
 import { apiFetch, type ProjectsData, type AgentsData } from "@/lib/api";
 
@@ -28,6 +29,7 @@ const NAV: NavItem[] = [
   { href: "/tokens", label: "Token 用量", icon: Coins, indent: true },
   { href: "/skills", label: "Skill 總覽", icon: Sparkles },
   { href: "/harvest", label: "Skill Harvest", icon: Wheat },
+  { href: "/workflow", label: "Workflow Map", icon: Workflow },
   { href: "/ports", label: "Port 對應", icon: Network },
 ];
 
