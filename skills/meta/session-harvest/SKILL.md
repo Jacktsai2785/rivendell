@@ -37,6 +37,36 @@ Patterns that are NOT good skill candidates:
 - Simple operations Claude already handles well without guidance
 - Workflows that are too project-specific to generalize
 
+## Two Modes
+
+### Single-session mode (default)
+Review only the current session's tool calls and conversation. Use this when invoked as `session-harvest` without arguments.
+
+### Cross-session mode ("harvest all" / "其他 session")
+Read past harvest reports from `reports/harvest-*.md`, filter out skills that have already been built, and integrate all unimplemented Strong/Moderate candidates into a single prioritized list.
+
+```bash
+# 1. List historical reports
+ls reports/harvest-*.md 2>/dev/null | sort -r
+
+# 2. Extract candidate names from each report (Strong/Moderate sections)
+for f in reports/harvest-*.md; do
+  echo "=== $(basename $f) ==="
+  grep -E "Strong|Moderate|🟢|🟡|★★★|★★" "$f" 2>/dev/null
+done
+
+# 3. Cross-reference with currently installed skills
+ls ~/.claude/skills/
+
+# 4. Frequency-rank unimplemented candidates (more reports = stronger signal)
+```
+
+Trigger cross-session mode when user says: "harvest all", "skills harvest all", "其他 session 也 harvest", "整合過去的 harvest", or asks about "未實作的候選".
+
+Present results as **frequency-ranked unimplemented candidates** — the more reports mention a pattern, the stronger the signal it should be built.
+
+---
+
 ## How to Harvest
 
 ### Step 1: Reconstruct the Session

@@ -69,12 +69,30 @@ Map answers to slides. Standard investor pitch flow:
 
 ## Phase 3: HTML Slides
 
+### CRITICAL: Use a Locked Template First
+
+**Before writing any HTML**, check for locked brand templates:
+
+```bash
+ls mockups/slide-templates/*.html 2>/dev/null
+ls ../*/mockups/slide-templates/*.html 2>/dev/null
+```
+
+If a template matching the client/brand exists (e.g. `chimes-ai.html`, `cht-corporate.html`), **read it and reuse its `:root` CSS tokens, slide layouts, and component classes**. Do NOT invent a new style. Only the slide *content* (text, numbers, list items) changes — colors, fonts, spacing, and slide structure stay locked to the template.
+
+If no template exists for this brand, ask:
+> 沒有找到鎖定的品牌 template。要不要先用 `slide-template-extractor` 從一份既有簡報抽出 template？或要我先建一個臨時版本？
+
+**Why this rule exists**: Without a locked template, slide style drifts every session — sometimes good, sometimes bad. Locked templates make output deterministic.
+
+### Generate slides
+
 Generate one HTML file per 3-4 slides, or a single-file multi-slide deck using a scroll or nav structure.
 
 ### Slide design principles
 - One main idea per slide — supporting content is secondary
 - Max 5 bullet points; prefer visuals (charts, icons, diagrams) over text
-- Consistent brand color throughout (ask user for brand color, default: #1a1a2e with accent #4ecdc4)
+- Brand color: **always inherit from the locked template's `:root` variables**, never invent
 - Font: Inter or Geist Sans (load from Google Fonts if HTML)
 
 ### HTML slide template

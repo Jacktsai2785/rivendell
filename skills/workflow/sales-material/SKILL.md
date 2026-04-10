@@ -36,7 +36,10 @@ User: "幫我做奇美食品的提案簡報"
     │
     ├─ 4. Match Solutions → Read solutions/ by pain points
     │
-    ├─ 5. Assemble → Build HTML slides via slide blueprints
+    ├─ 5. Assemble → Build HTML slides — MUST use locked template from
+    │                 mockups/slide-templates/ if one exists for this brand
+    │                 (e.g. chimes-ai.html, cht-corporate.html). Otherwise
+    │                 fall back to slide-blueprints.md.
     │
     ├─ 6. Convert → html2pptx (office-pptx skill)
     │
