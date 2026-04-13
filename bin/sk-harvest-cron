@@ -60,6 +60,19 @@ total_messages=$(echo "$SESSION_SUMMARY" | head -1 | grep -oE 'Messages: ~[0-9]+
 
 echo "[$NOW] Found $session_count session(s) with ~$total_messages messages. Running harvest..."
 
+# --- Network pre-check (wait up to 120s for API) ---
+if ! curl -so /dev/null --max-time 3 "https://api.anthropic.com" 2>/dev/null; then
+  echo "[$NOW] Waiting for network..."
+  for i in $(seq 1 24); do
+    sleep 5
+    curl -so /dev/null --max-time 3 "https://api.anthropic.com" 2>/dev/null && break
+  done
+  if ! curl -so /dev/null --max-time 3 "https://api.anthropic.com" 2>/dev/null; then
+    echo "[$NOW] Network unavailable after 120s — aborting."
+    exit 1
+  fi
+fi
+
 # --- Build prompt ---
 PROMPT="You are reviewing recent Claude Code sessions to identify reusable patterns that could become skills.
 

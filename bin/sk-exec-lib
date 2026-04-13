@@ -41,6 +41,36 @@ SK_EXEC_PARSER="${SK_EXEC_REPO_DIR}/scripts/parse-agent-log.py"
 #   SK_EXEC_RESULT_ELAPSED    — elapsed seconds
 #   SK_EXEC_RESULT_SESSION    — session name used
 
+# ─── sk_wait_for_network() ────────────────────────────────────────────
+# Wait up to SK_EXEC_NET_TIMEOUT seconds for network connectivity.
+# Returns 0 if network is available, 1 if timeout reached.
+# Called automatically by sk_exec() unless SK_EXEC_SKIP_NET_CHECK=1.
+
+sk_wait_for_network() {
+  local timeout="${SK_EXEC_NET_TIMEOUT:-120}"
+  local interval=5
+  local elapsed=0
+  local host="api.anthropic.com"
+
+  # Quick check first (any HTTP response = network OK; only care about connectivity)
+  if curl -so /dev/null --max-time 3 "https://${host}" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "[net-check] Waiting for network (${host})..." >&2
+  while [ "$elapsed" -lt "$timeout" ]; do
+    sleep "$interval"
+    elapsed=$((elapsed + interval))
+    if curl -so /dev/null --max-time 3 "https://${host}" 2>/dev/null; then
+      echo "[net-check] Network available after ${elapsed}s" >&2
+      return 0
+    fi
+  done
+
+  echo "[net-check] Network unavailable after ${timeout}s — aborting" >&2
+  return 1
+}
+
 sk_exec() {
   local prompt="${1:?sk_exec: prompt required}"
 
@@ -56,6 +86,11 @@ sk_exec() {
   local inject_context="${SK_EXEC_CONTEXT:-0}"
   local quiet="${SK_EXEC_QUIET:-0}"
   local dry_run="${SK_EXEC_DRY_RUN:-0}"
+
+  # Network pre-check (skip with SK_EXEC_SKIP_NET_CHECK=1)
+  if [ "${SK_EXEC_SKIP_NET_CHECK:-0}" != "1" ]; then
+    sk_wait_for_network || return 1
+  fi
 
   # Resolve project directory
   project_dir="$(cd "$project_dir" 2>/dev/null && pwd)" || {
