@@ -46,12 +46,13 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (65 skills)
+## Skills Catalog (79 skills)
 
 ### meta/ — Claude Code 管理
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **agent-persona** | 自動 | Generate structured role prompts for headless Claude Code agents (tester |
 | **audit-fix** | 自動 | 分析 `sk audit` 報告，自動清理各專案 permission 白名單（刪 one-off、統一格式、移除全域重複） |
 | **ci-pipeline** | 自動 | 偵測專案 stack，自動產生 GitHub Actions CI workflow（lint、test、build）+ pre-commit config |
 | **deploy** | 自動 | 推薦部署平台，產生部署配置（Dockerfile、fly.toml、vercel.json）+ CD workflow |
@@ -82,6 +83,7 @@ cd ~/any-project && claude
 | **gdrive-to-skills** | `/gdrive-to-skills` | 讀取 Google Drive 文件，分類並自動建立 knowledge skills |
 | **headless-agent** | 自動 | 將 Claude Code 作為非互動式 agent 執行，含排程、結構化日誌、auto-commit/push、QA gate、branch workflow、multi-role agents |
 | **investment-research** | `/investment-research` 或自動 | 投資研究流程：總經掃描 → 選股池 → Alpha 發現 → 風險評估 → 回測 → 四大報表 → 報告 |
+| **jd-writer** | 自動 | Generate structured Job Descriptions (JD / 職缺描述) from organizational context. |
 | **keyword-discovery** | 自動 | 自動分析爬蟲未匹配項目，發現新關鍵字候選詞，高信心詞自動升級至 active 列表 |
 | **launchd-agent** | 自動 | 建立、設定、除錯 macOS launchd agents（plist 產生、排程、launchctl 生命週期管理） |
 | **material-health** | `/material-health` | Health check for the sales materials library — detects missing frontmatter |
@@ -100,6 +102,7 @@ cd ~/any-project && claude
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
 | **de-slopify** | 自動 | 移除 AI 生成「廢文」痕跡，讓文本讀起來像人寫的 |
+| **github-repo-audit** | 自動 | Audit a GitHub repository for structure quality, documentation coverage |
 | **large-file-refactor** | 自動 | Systematically split large single-file components (500+ lines) into modular |
 | **protect-secrets** | Hook (PreToolUse) | 攔截讀取/修改 .env、private keys、credentials 等敏感檔案 |
 | **qa-auto** | `/qa-auto` | 從 QA 計畫或 diff 自動產生測試程式碼、執行測試、報告覆蓋率缺口 |
@@ -126,12 +129,15 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **audio-transcription-flow** | 自動 | Implement a complete audio upload → speech-to-text → transcript display |
 | **db-migration** | 自動 | 偵測 DB stack，設定 migration 工具（Alembic/Prisma/Drizzle），指導安全 schema 變更 |
 | **doc-to-structured-data** | 自動 | 非結構化技術文件（.doc/.pdf 測試計畫、規格書、datasheet）→ 結構化 CSV/JSON，含格式偵測、欄位對映、驗證 |
+| **docker-compose-setup** | 自動 | Set up Docker Compose for multi-service projects (Next. |
 | **firebase-backend** | 自動 | Firebase 後端設計：Firestore schema、Security Rules、Cloud Functions v2、FCM 推播 |
 | **imap-smtp-integration** | 自動 | IMAP/SMTP Integration - Integrate email reading and sending via IMAP/SMTP into |
 | **markdown-file-ssot** | 自動 | Markdown File SSOT - Use Markdown files with YAML frontmatter as a data SSOT. |
 | **oauth-token-vault** | 自動 | OAuth Token Vault - Implement OAuth 2. |
+| **rbac-permissions** | 自動 | Design and implement Role-Based Access Control (RBAC) for full-stack apps. |
 | **sqlite-to-postgres** | 自動 | SQLite → PostgreSQL/Supabase 遷移指南：語法差異、schema 轉換、資料遷移、驗證 |
 | **tunnel-proxy-deploy** | 自動 | Deploy FastAPI + Next.js behind Cloudflare Tunnel. |
 | **tw-company-lookup** | `/tw-company-lookup` 或自動 | 用 Playwright 查詢經濟部 findbiz.nat.gov.tw：公司基本資料、董監事、工廠、歷史變更 |
@@ -141,11 +147,19 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **discovery-interview** | 自動 | Run a structured Discovery interview with a potential consulting client to find |
+| **gdoc-report-builder** | 自動 | Build structured reports in Google Docs/Slides via MCP tools — batch table |
+| **iot-factory-report** | 自動 | Analyze factory IoT/SCADA time-series data (CSV/Excel) and produce visual |
 | **mcp-builder** | 自動 | 建立 MCP server 的指南（Python FastMCP / Node MCP SDK） |
+| **metadata-workshop** | 自動 | Run a structured Metadata Workshop with a consulting client to convert their |
 | **office-docx** | 自動 | Word (.docx) 建立、編輯、分析，支援追蹤修訂與註解 |
 | **office-pdf** | 自動 | PDF 操作：文字/表格擷取、建立、合併/分割、表單填寫 |
 | **office-pptx** | 自動 | PowerPoint (.pptx) 建立、編輯、分析，支援版面配置與講者備註 |
 | **office-xlsx** | 自動 | 試算表 (.xlsx/.csv) 建立、編輯、分析，支援公式與資料視覺化 |
+| **pitch-deck** | 自動 | Create professional business pitch decks and investor presentations with |
+| **rfq-writer** | 自動 | Generate Request for Quotation (RFQ / 報價單) for consulting projects. |
+| **slide-template-extractor** | 自動 | Extract design system from an existing PPTX or Google Slides deck and produce a |
+| **sow-writer** | 自動 | Generate professional Taiwan-format Statement of Work (工作說明書 / SOW) for |
 | **telegram-bot** | 自動 | grammY / python-telegram-bot 機器人開發指南：架構、Bot API、部署模式 |
 
 
