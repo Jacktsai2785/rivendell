@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (79 skills)
+## Skills Catalog (81 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -62,6 +62,7 @@ cd ~/any-project && claude
 | **plan-check-style** | 自動 | 進入 plan mode 做前端任務時，自動掃描並套用 style skills |
 | **self-improving-agent** | 自動 + hook | 捕捉學習與錯誤修正，記錄至 .learnings/，提升有價值見解到 CLAUDE.md |
 | **session-harvest** | `/session-harvest` | 工作告一段落時，自動審查 session 內容，找出可重複使用的模式並建議建立新 skill |
+| **session-wrap** | 自動 | End-of-session cleanup: auto-commit uncommitted changes, archive learnings |
 | **setup-permissions** | 自動 | 偵測專案工具鏈，自動設定 permission allowlists，減少手動核准 |
 | **skill-creator** | 自動 | 建立、修改、評測 skills，含 eval 和 benchmark 工具 |
 | **skill-scout** | `/skill-scout` | 從 GitHub 與社群資源發現、評估、移植 Claude Code skills |
@@ -159,6 +160,7 @@ cd ~/any-project && claude
 | **pitch-deck** | 自動 | Create professional business pitch decks and investor presentations with |
 | **rfq-writer** | 自動 | Generate Request for Quotation (RFQ / 報價單) for consulting projects. |
 | **slide-template-extractor** | 自動 | Extract design system from an existing PPTX or Google Slides deck and produce a |
+| **slide-workflow** | 自動 | Step-by-step presentation creation workflow with confirmation gates. |
 | **sow-writer** | 自動 | Generate professional Taiwan-format Statement of Work (工作說明書 / SOW) for |
 | **telegram-bot** | 自動 | grammY / python-telegram-bot 機器人開發指南：架構、Bot API、部署模式 |
 
