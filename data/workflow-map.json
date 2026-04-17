@@ -443,6 +443,42 @@
     "gstack.bak": {
       "source": "gstack",
       "desc": "（備份檔案）gstack 的備份副本"
+    },
+    "agent-persona": {
+      "source": "local",
+      "desc": "生成 headless agent 的角色 prompt（tester, maintainer, reviewer 等）"
+    },
+    "gdoc-report-builder": {
+      "source": "local",
+      "desc": "透過 MCP 在 Google Docs/Slides 批次建立結構化報告"
+    },
+    "github-repo-audit": {
+      "source": "local",
+      "desc": "審計 GitHub repo 的結構、文件、CI/CD、依賴健康度"
+    },
+    "iot-factory-report": {
+      "source": "local",
+      "desc": "分析工廠 IoT/SCADA 時序資料，產出圖表與 PPTX 報告"
+    },
+    "jd-writer": {
+      "source": "local",
+      "desc": "生成結構化 JD（職缺描述），含職責、技能、薪資範圍"
+    },
+    "session-wrap": {
+      "source": "local",
+      "desc": "Session 結束時自動 commit、整理 learnings、更新 progress"
+    },
+    "slide-template-extractor": {
+      "source": "local",
+      "desc": "從 PPTX/Google Slides 抽取 design tokens 建立 locked template"
+    },
+    "slide-workflow": {
+      "source": "local",
+      "desc": "7 道關卡的簡報製作流程（目的→風格→大綱→素材→生成→審閱→輸出）"
+    },
+    "gstack-pair-agent": {
+      "source": "gstack",
+      "desc": "配對遠端 AI agent 與瀏覽器"
     }
   },
   "tracks": [
@@ -682,6 +718,12 @@
       "skills": [
         "gstack-learn"
       ]
+    },
+    {
+      "trigger": "Session 結束前",
+      "skills": [
+        "session-wrap"
+      ]
     }
   ],
   "domainFlows": [
@@ -738,6 +780,14 @@
           "desc": "輸出分析報告簡報（詢問主題、目錄架構）",
           "skills": [
             "office-pptx"
+          ]
+        },
+        {
+          "num": 7,
+          "label": "IoT 報告輸出",
+          "desc": "工廠 IoT 時序資料圖表 + PPTX",
+          "skills": [
+            "iot-factory-report"
           ]
         }
       ]
@@ -941,6 +991,14 @@
       "icon": "👥",
       "steps": [
         {
+          "num": 0,
+          "label": "職缺描述",
+          "desc": "生成 JD 含職責/技能/薪資",
+          "skills": [
+            "jd-writer"
+          ]
+        },
+        {
           "num": 1,
           "label": "候選人分析",
           "desc": "面試資料提取與結構化評估",
@@ -1097,6 +1155,64 @@
           ]
         }
       ]
+    },
+    {
+      "id": "presentation",
+      "label": "簡報製作流程",
+      "icon": "🎬",
+      "steps": [
+        {
+          "num": 1,
+          "label": "確認目的與受眾",
+          "desc": "決定路徑（投資人/客戶/技術報告）",
+          "skills": [
+            "slide-workflow"
+          ]
+        },
+        {
+          "num": 2,
+          "label": "品牌風格鎖定",
+          "desc": "選擇或抽取 locked template",
+          "skills": [
+            "slide-template-extractor"
+          ]
+        },
+        {
+          "num": 3,
+          "label": "大綱確認",
+          "desc": "每張 slide 1 句核心訊息",
+          "skills": [
+            "slide-workflow"
+          ]
+        },
+        {
+          "num": 4,
+          "label": "素材蒐集",
+          "desc": "客戶情報/案例/數據",
+          "skills": [
+            "customer-intel",
+            "sales-material",
+            "autoresearch"
+          ]
+        },
+        {
+          "num": 5,
+          "label": "生成 HTML Slides",
+          "desc": "使用 locked template 生成",
+          "skills": [
+            "pitch-deck",
+            "sales-material"
+          ]
+        },
+        {
+          "num": 6,
+          "label": "輸出 PPTX",
+          "desc": "HTML → PPTX 轉換",
+          "skills": [
+            "office-pptx"
+          ]
+        }
+      ]
     }
   ],
   "situational": [
@@ -1151,7 +1267,8 @@
         "ci-pipeline",
         "launchd-agent",
         "headless-agent",
-        "docker-compose-setup"
+        "docker-compose-setup",
+        "agent-persona"
       ]
     },
     {
@@ -1162,7 +1279,8 @@
         "large-file-refactor",
         "qa-auto",
         "qa-planner",
-        "qa-testing"
+        "qa-testing",
+        "github-repo-audit"
       ]
     },
     {
@@ -1252,6 +1370,13 @@
       "icon": "🎙",
       "skills": [
         "audio-transcription-flow"
+      ]
+    },
+    {
+      "trigger": "需要 Google Docs/Slides 報告",
+      "icon": "📝",
+      "skills": [
+        "gdoc-report-builder"
       ]
     }
   ],
