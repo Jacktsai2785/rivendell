@@ -56,6 +56,8 @@ It's OK to briefly explain terms if you're in doubt, and feel free to clarify te
 
 Start by understanding the user's intent. The current conversation might already contain a workflow the user wants to capture (e.g., they say "turn this into a skill"). If so, extract answers from the conversation history first — the tools used, the sequence of steps, corrections the user made, input/output formats observed. The user may need to fill the gaps, and should confirm before proceeding to the next step.
 
+**Raw material inference**: The user may hand you messy inputs — a transcript, a URL, existing code, a PDF, a half-written doc — instead of answering structured questions. When this happens, consume all provided material before forming conclusions. Read every file, follow every link. Then extract the implicit requirements the user assumed were obvious: error handling, edge cases, failure modes, output consumers, data validation. Your specification should contain requirements the user would say "yes, exactly" to but could never have articulated themselves. Only fall back to the interview questions below for gaps the material doesn't cover.
+
 1. What should this skill enable Claude to do?
 2. When should this skill trigger? (what user phrases/contexts)
 3. What's the expected output format?
@@ -422,6 +424,34 @@ This means your eval queries should be substantive enough that Claude would actu
 ### Step 4: Apply the result
 
 Take `best_description` from the JSON output and update the skill's SKILL.md frontmatter. Show the user before/after and report the scores.
+
+---
+
+## Pre-delivery Quality Gates
+
+Before packaging or delivering a skill, run these two checks. Both are quick and catch problems that are easy to miss during iterative development.
+
+### Spec Validation
+
+Verify the skill's structure is correct — frontmatter fields present and well-formed, name is lowercase-hyphenated, description under 1024 chars, body under 500 lines, no broken local file references. Check these programmatically rather than eyeballing:
+
+1. **Frontmatter**: `name` (lowercase, hyphens, <= 64 chars), `description` (non-empty, <= 1024 chars) are required. Warn if `version` or `tags` are missing.
+2. **Name consistency**: The `name` field should match the skill directory name.
+3. **Body length**: Warn if SKILL.md body exceeds 500 lines — the skill should use reference files for overflow.
+4. **Local links**: Any `[text](path)` references in the body should point to files that actually exist in the skill directory.
+5. **Bundled scripts**: If `scripts/` exists, verify files are executable (`chmod +x`) and have no syntax errors (run `python -c "import ast; ast.parse(open('script.py').read())"` for Python scripts).
+
+If validation fails, fix the issues before proceeding. Don't deliver a skill that fails its own structural checks.
+
+### Security Scan
+
+Scan the entire skill directory for accidental secret exposure and dangerous patterns:
+
+- **Hardcoded API keys**: OpenAI (`sk-`), AWS (`AKIA`), GitHub (`ghp_`), Slack (`xox`), and generic `api_key|secret|token|password` assignments with literal values.
+- **Sensitive files**: `.env`, `credentials.json`, `secrets.json` — these should never be bundled in a skill.
+- **Dangerous code patterns**: `eval()`, `exec()`, `os.system()` with string concatenation (shell injection risk). These are yellow flags — acceptable if justified in context, but flag them for the user to acknowledge.
+
+If the scan finds high-severity issues (hardcoded keys, sensitive files), block delivery and fix. Medium-severity issues (generic patterns, `eval` usage) should be reported to the user for acknowledgment.
 
 ---
 

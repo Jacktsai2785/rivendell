@@ -1,272 +1,261 @@
 ---
 name: firebase-backend
 description: >
-  Firebase backend design: Firestore schema, Security Rules, Cloud Functions v2,
-  and FCM push notifications.
+  Comprehensive Firebase development guidance for GCP-hosted applications. Covers
+  Firestore database operations (CRUD, queries, transactions, data modeling),
+  Cloud Functions (1st and 2nd generation, TypeScript and Python, all trigger types),
+  Firebase CLI operations, emulator setup and data persistence, security rules
+  (Firestore and Storage), authentication integration, hosting configuration,
+  and GCP service integration.
   TRIGGER when: user designs Firestore collections, writes security rules,
-  creates Cloud Functions, sets up FCM, or asks about Firebase architecture.
+  creates Cloud Functions, sets up FCM, asks about Firebase architecture,
+  deploys Cloud Functions, queries Firestore, sets up triggers (Firestore,
+  Auth, Storage, HTTP, Callable, Scheduled, Pub/Sub), manages security rules,
+  configures hosting rewrites/headers, manages secrets, or integrates with
+  GCP services like BigQuery and Cloud Tasks.
+  Triggers include firebase, firestore, cloud functions, firebase functions,
+  firebase hosting, firebase auth, firebase storage, firebase emulator,
+  firebase deploy, firebase init, firebase rules, callable function,
+  scheduled function, onDocumentCreated, onRequest, onCall, onSchedule.
   DO NOT TRIGGER when: working with non-Firebase backends (Supabase, custom REST API, etc.).
 tags: [backend, firebase]
-version: 1
-source: manual
+version: 2
+source: community:SpillwaveSolutions/using-firebase
 user_invocable: false
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - WebFetch
+  - Glob
+  - Grep
+metadata:
+  version: 1.0.0
+  last-updated: 2025-12-27
+  author: Claude Skills Community
+  ported: 2026-04-07
 ---
 
-# Firebase Backend Design
+# Firebase Development Skill
 
-## Firestore Schema Design
+## Table of Contents
 
-### Document vs Subcollection Decision
+- [Quick Start](#quick-start)
+- [Scope](#scope)
+- [Task Navigation](#task-navigation)
+- [Scripts](#scripts)
+- [Cloud Functions Generation](#cloud-functions-generation)
+- [Assets](#assets)
+- [Common Workflows](#common-workflows)
+- [Pre-Deployment Checklist](#pre-deployment-checklist)
+- [Emulator Ports](#emulator-ports)
+- [Key Decisions](#key-decisions)
 
-Use this decision tree:
+## Quick Start
 
-1. **Embed in document** when:
-   - Data is always read together with parent
-   - Array size is bounded (< 500 items)
-   - No need to query embedded data independently
+1. **New project**: Run `scripts/init_project.sh [project-id]`
+2. **Local development**: Run `scripts/start_emulators.sh`
+3. **Deploy**: Run `scripts/deploy.sh`
 
-2. **Use subcollection** when:
-   - Data grows unboundedly (messages, logs, activity)
-   - Need to query/paginate independently
-   - Need separate security rules per item
+## Scope
 
-3. **Use root collection with reference** when:
-   - Many-to-many relationships
-   - Data is shared across multiple parents
-   - Need collection group queries
+**Use this skill for:** Firebase development including Firestore CRUD/queries, Cloud Functions (1st/2nd gen), Firebase CLI, emulator setup, security rules, authentication, hosting, and GCP integration.
 
-### Denormalization Strategy
+**Do not use for:** Pure GCP without Firebase, AWS/Azure services, non-serverless architectures, self-hosted solutions, or complex relational queries (use Cloud SQL instead).
 
-- Duplicate data that is read frequently but written rarely
-- Keep a `updatedAt` timestamp on denormalized copies for staleness detection
-- Use Cloud Functions to propagate updates to denormalized copies
-- Common pattern: store `userName` and `userAvatar` on documents that reference a user
+## Task Navigation
 
-### Composite Indexes
+| Task | Action |
+|------|--------|
+| Initialize Firebase project | `scripts/init_project.sh` |
+| Start local emulators | `scripts/start_emulators.sh` |
+| Deploy to production | `scripts/deploy.sh` |
+| Deploy functions only | `scripts/deploy_functions.sh` |
+| Set up Python functions | `python scripts/setup_python_functions.py` |
+| Manage secrets | `scripts/manage_secrets.sh` |
+| Export Firestore data | `scripts/export_firestore.sh` |
+| Import Firestore data | `scripts/import_firestore.sh` |
 
-- Firestore requires composite indexes for queries with multiple `where` + `orderBy`
-- Define indexes in `firestore.indexes.json` and deploy with `firebase deploy --only firestore:indexes`
-- Avoid over-indexing — each index costs write performance and storage
-- Use `__name__` as implicit sort tiebreaker
+| Topic | Reference |
+|-------|-----------|
+| CLI commands | `references/cli-commands.md` |
+| Firestore CRUD, queries, modeling | `references/firestore.md` |
+| Cloud Functions triggers | `references/functions-triggers.md` |
+| Error handling, optimization | `references/functions-patterns.md` |
+| Security rules | `references/security-rules.md` |
+| Authentication | `references/auth-integration.md` |
+| Hosting configuration | `references/hosting-config.md` |
+| GCP integration | `references/gcp-integration.md` |
 
-### Data Modeling Patterns
+## Scripts
 
-```
-// Counter with distributed sharding (for high-write counters)
-counters/{counterId}/shards/{shardId}  → { count: Number }
+For complete CLI reference, see `references/cli-commands.md`.
 
-// Feed / timeline with fan-out
-users/{uid}/feed/{postId}  → { ...postSnapshot, authorId, createdAt }
-
-// Presence tracking
-users/{uid}/presence  → { online: Boolean, lastSeen: Timestamp }
-```
-
-## Security Rules
-
-### Template Structure
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    // Helper functions — define at top
-    function isAuth() {
-      return request.auth != null;
-    }
-
-    function isOwner(uid) {
-      return isAuth() && request.auth.uid == uid;
-    }
-
-    function hasRole(role) {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
-    }
-
-    function isValidString(field, minLen, maxLen) {
-      return field is string && field.size() >= minLen && field.size() <= maxLen;
-    }
-
-    // Always deny root access
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Per-collection rules
-    match /users/{uid} {
-      allow read: if isAuth();
-      allow create: if isOwner(uid) && isValidUserData();
-      allow update: if isOwner(uid) && isValidUserData();
-      allow delete: if false;  // soft-delete only
-    }
-  }
-}
+### init_project.sh
+Initialize Firebase project with Firestore, Functions, Hosting, Storage, Emulators.
+```bash
+./scripts/init_project.sh              # Interactive
+./scripts/init_project.sh my-project   # Specific project
 ```
 
-### Common Vulnerabilities to Check
+### start_emulators.sh
+Start emulator suite with data persistence.
+```bash
+./scripts/start_emulators.sh                    # Auto-persistence
+./scripts/start_emulators.sh --debug            # Enable debugging
+./scripts/start_emulators.sh --import ./backup  # Import data
+./scripts/start_emulators.sh --only functions,firestore
+```
 
-1. **Missing auth check** — every rule should start with `request.auth != null`
-2. **No field type validation** — validate `request.resource.data` field types
-3. **Missing field restriction** — use `request.resource.data.keys().hasOnly([...])` to prevent extra fields
-4. **Wildcard access** — avoid `match /{document=**}` with permissive rules
-5. **Recursive wildcard leak** — subcollection rules don't inherit parent restrictions
-6. **Missing rate limiting** — use `request.time` comparisons for write throttling
-7. **Stale token data** — custom claims are cached; force token refresh after role changes
+### deploy.sh
+Deploy with safety confirmations.
+```bash
+./scripts/deploy.sh                     # Full deploy
+./scripts/deploy.sh --dry-run           # Preview only
+./scripts/deploy.sh --only hosting      # Specific target
+./scripts/deploy.sh --force             # Skip confirmation
+```
 
-### Testing with Emulator
+### deploy_functions.sh
+Deploy Cloud Functions with granular control.
+```bash
+./scripts/deploy_functions.sh                    # All functions
+./scripts/deploy_functions.sh myFunction         # Single function
+./scripts/deploy_functions.sh --codebase python  # Specific codebase
+```
+
+### manage_secrets.sh
+Manage Cloud Functions secrets for 2nd gen functions. Uses GCP Secret Manager for secure storage. Prefer this script over direct `gcloud` commands for Firebase-integrated secret management with proper function access binding.
+
+**Secret lifecycle:** Create secrets before first deploy, update via `set` (creates new version), bind to functions via `runWith({ secrets: [...] })`, and rotate by setting new values.
 
 ```bash
-# Start emulator
-firebase emulators:start --only firestore
-
-# Run rules tests
-firebase emulators:exec --only firestore "npm test"
+./scripts/manage_secrets.sh set API_KEY      # Set secret (creates or updates)
+./scripts/manage_secrets.sh get API_KEY      # View metadata and versions
+./scripts/manage_secrets.sh list             # List all project secrets
+./scripts/manage_secrets.sh delete API_KEY   # Delete secret and all versions
 ```
 
-Always write `@firebase/rules-unit-testing` tests for security rules before deploying.
-
-## Cloud Functions v2
-
-### Structure Templates
-
-```typescript
-// onCall — client-callable function
-import { onCall, HttpsError } from "firebase-functions/v2/https";
-
-export const myFunction = onCall(
-  { region: "asia-east1", memory: "256MiB" },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Must be signed in");
-    }
-    // Validate input
-    const { fieldA } = request.data;
-    if (typeof fieldA !== "string") {
-      throw new HttpsError("invalid-argument", "fieldA must be string");
-    }
-    // Business logic
-    return { result: "ok" };
-  }
-);
+### export_firestore.sh / import_firestore.sh
+Backup and restore Firestore data.
+```bash
+./scripts/export_firestore.sh --emulator              # From emulator
+./scripts/export_firestore.sh --output gs://bucket    # Production to GCS
+./scripts/import_firestore.sh --input ./data --emulator
 ```
 
+### setup_python_functions.py
+Create Python Cloud Functions project.
+```bash
+python scripts/setup_python_functions.py --path python-functions --codebase python
+```
+
+## Cloud Functions Generation
+
+**Use 2nd generation** (recommended):
+- HTTP, Firestore, Storage, Scheduled, Pub/Sub triggers
+- Higher concurrency, longer timeouts
+
+**Use 1st generation** only for:
+- Auth `onCreate`/`onDelete` triggers (not available in 2nd gen)
+
+### 2nd Gen Example (TypeScript)
 ```typescript
-// onDocumentCreated — Firestore trigger
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 
-export const onUserCreated = onDocumentCreated(
-  { document: "users/{uid}", region: "asia-east1" },
-  async (event) => {
-    const snapshot = event.data;
-    if (!snapshot) return;
-    const userData = snapshot.data();
-    // Idempotency: check if side-effect already applied
-    // e.g., check if welcome email already sent
-  }
-);
+export const onUserCreated = onDocumentCreated("users/{userId}", (event) => {
+  console.log("New user:", event.params.userId, event.data?.data());
+});
+
+export const api = onRequest({ cors: true }, (req, res) => {
+  res.json({ status: "ok" });
+});
 ```
 
+### 1st Gen Auth Trigger
 ```typescript
-// onSchedule — cron job
-import { onSchedule } from "firebase-functions/v2/scheduler";
+import * as functions from "firebase-functions/v1";
 
-export const dailyCleanup = onSchedule(
-  { schedule: "every 24 hours", region: "asia-east1", timeoutSeconds: 540 },
-  async (event) => {
-    // Batch delete expired documents
-  }
-);
+export const onUserCreate = functions.auth.user().onCreate((user) => {
+  console.log("New user:", user.uid);
+  return null;
+});
 ```
 
-### Cold Start Optimization
+See `references/functions-triggers.md` for all trigger types with TypeScript and Python examples.
 
-- Set `minInstances: 1` for latency-critical functions
-- Keep imports minimal — lazy-load heavy dependencies
-- Use `global` scope for reusable clients (Firestore, Auth instances)
-- Prefer `"256MiB"` unless function needs more — smaller = faster cold start
-- Use v2 concurrency (`concurrency: 80`) to handle multiple requests per instance
+## Assets
 
-### Idempotency Design
+| File | Use |
+|------|-----|
+| `assets/firebase.json.template` | Copy to `firebase.json` and customize |
+| `assets/firestore.rules.template` | Copy to `firestore.rules` |
+| `assets/storage.rules.template` | Copy to `storage.rules` |
+| `assets/tsconfig.functions.json` | Copy to `functions/tsconfig.json` |
 
-All Firestore triggers can fire multiple times. Design for idempotency:
+## Common Workflows
 
-- Use `event.id` as deduplication key
-- Store processing status in Firestore before executing side effects
-- Use transactions for atomic read-check-write patterns
-- For notifications: check a `notificationSent` flag before sending
+### New Project Setup
+1. Run `scripts/init_project.sh`
+2. Copy templates from `assets/` directory
+3. Start emulators: `scripts/start_emulators.sh`
 
-## FCM Push Notifications
+### Add Python Functions
+1. Run `python scripts/setup_python_functions.py`
+2. Update `firebase.json` with provided config
+3. Deploy: `scripts/deploy_functions.sh --codebase python`
 
-### Payload Types
+### Security Rules Development
+1. Start with `assets/firestore.rules.template`
+2. Test with emulator
+3. Deploy: `firebase deploy --only firestore:rules`
 
-```typescript
-// Notification message — system tray display, handled by OS
-const notificationPayload = {
-  notification: {
-    title: "New message",
-    body: "You have a new message from Alice",
-  },
-  token: deviceToken,
-};
+See `references/security-rules.md` for patterns.
 
-// Data message — app handles display, works in background
-const dataPayload = {
-  data: {
-    type: "NEW_MESSAGE",
-    senderId: "abc123",
-    messagePreview: "Hey there!",
-  },
-  token: deviceToken,
-};
+### Production Deployment
+1. Set secrets: `scripts/manage_secrets.sh set API_KEY`
+2. Dry run: `scripts/deploy.sh --dry-run`
+3. Deploy: `scripts/deploy.sh`
 
-// Combined — notification + data
-const combinedPayload = {
-  notification: { title: "New message", body: "From Alice" },
-  data: { type: "NEW_MESSAGE", messageId: "xyz789" },
-  token: deviceToken,
-};
-```
+## Pre-Deployment Checklist
 
-### Token Management
+Before deploying to production, verify:
 
-- Store device tokens in `users/{uid}/tokens/{tokenId}` subcollection
-- Update token on every app launch (tokens rotate)
-- Remove invalid tokens when FCM returns `messaging/registration-token-not-registered`
-- For multi-device users, send to all tokens (loop or use `sendEachForMulticast`)
+- [ ] **Security Rules**: Tested rules in emulator, no open access patterns
+- [ ] **Secrets**: All required secrets configured via `scripts/manage_secrets.sh list`
+- [ ] **Environment**: Correct project selected (`firebase use`)
+- [ ] **Functions**: All functions tested locally with emulator
+- [ ] **Indexes**: Firestore indexes deployed (`firebase deploy --only firestore:indexes`)
+- [ ] **Dry Run**: `scripts/deploy.sh --dry-run` shows expected changes
+- [ ] **App Check**: Enabled for production apps (prevents abuse)
+- [ ] **Billing**: Budget alerts configured in GCP Console
+- [ ] **Monitoring**: Cloud Logging and Error Reporting enabled
 
-### Topic Subscriptions vs Direct Token
+## Emulator Ports
 
-| Use Case | Approach |
-|----------|----------|
-| Personal notifications | Direct token |
-| Group/channel messages | Topic subscription |
-| Broadcast to all users | Topic `all_users` |
-| Targeted segments | Condition expressions |
+| Service | Port |
+|---------|------|
+| Auth | 9099 |
+| Functions | 5001 |
+| Firestore | 8080 |
+| Storage | 9199 |
+| Hosting | 5000 |
+| UI | 4000 |
 
-### Silent Push (iOS)
+## Key Decisions
 
-```typescript
-// content-available triggers background app refresh
-const silentPush = {
-  data: { type: "SYNC_REQUEST" },
-  apns: {
-    payload: { aps: { "content-available": 1 } },
-  },
-  token: deviceToken,
-};
-```
+### Firestore Data Modeling
+- **Embed** data read together that rarely changes
+- **Reference** data that changes frequently or is shared
+- **Subcollections** for parent-child relationships
+- **Root collections** for cross-document queries
 
-## Architecture Checklist
+See `references/firestore.md` for patterns.
 
-Before finalizing any Firebase architecture, verify:
+### TypeScript vs Python Functions
+- **TypeScript**: JavaScript teams, Firebase client SDK integration
+- **Python**: ML/data science, Python ecosystem
 
-- [ ] Security Rules cover every collection with auth checks
-- [ ] Field type validation in Security Rules for all write operations
-- [ ] Composite indexes defined for all multi-field queries
-- [ ] Cloud Functions use v2 API (not v1)
-- [ ] All Firestore triggers are idempotent
-- [ ] FCM token cleanup handles expired/invalid tokens
-- [ ] Emulator tests exist for Security Rules
-- [ ] Denormalized data has propagation functions
-- [ ] Read/write costs estimated for primary user flows
+Both can coexist via multiple codebases in `firebase.json`.
