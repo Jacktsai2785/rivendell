@@ -134,7 +134,7 @@ cd ~/any-project && claude
 | **db-migration** | 自動 | 偵測 DB stack，設定 migration 工具（Alembic/Prisma/Drizzle），指導安全 schema 變更 |
 | **doc-to-structured-data** | 自動 | 非結構化技術文件（.doc/.pdf 測試計畫、規格書、datasheet）→ 結構化 CSV/JSON，含格式偵測、欄位對映、驗證 |
 | **docker-compose-setup** | 自動 | Set up Docker Compose for multi-service projects (Next. |
-| **firebase-backend** | 自動 | Firebase 後端設計：Firestore schema、Security Rules、Cloud Functions v2、FCM 推播 |
+| **firebase-backend** | 自動 | Firebase 全方位開發：Firestore CRUD/queries、Cloud Functions (1st/2nd gen, TS+Python)、CLI、emulator、Security Rules、Auth、Hosting、GCP 整合 |
 | **imap-smtp-integration** | 自動 | IMAP/SMTP Integration - Integrate email reading and sending via IMAP/SMTP into |
 | **markdown-file-ssot** | 自動 | Markdown File SSOT - Use Markdown files with YAML frontmatter as a data SSOT. |
 | **oauth-token-vault** | 自動 | OAuth Token Vault - Implement OAuth 2. |
