@@ -10,8 +10,11 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# Build if .next missing or package.json newer than .next
-if [ ! -d ".next" ] || [ "package.json" -nt ".next/BUILD_ID" ]; then
+# Rebuild if .next missing or any source/config newer than last build.
+# Clean .next first to avoid partial-build state (e.g. a previously-interrupted
+# build leaving BUILD_ID but missing route dirs like .next/server/app/skills/[name]).
+if [ ! -d ".next" ] || [ -n "$(find src next.config.ts package.json -newer .next/BUILD_ID 2>/dev/null)" ]; then
+    rm -rf .next
     npm run build
 fi
 
