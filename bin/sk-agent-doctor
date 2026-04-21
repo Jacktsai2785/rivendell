@@ -152,14 +152,14 @@ diagnose_and_heal() {
   local diagnosed=false
 
   # ── Pattern: Operation not permitted (TCC/FDA) ──
-  if echo "$stderr" | grep -q "Operation not permitted"; then
+  if grep -q "Operation not permitted" <<< "$stderr"; then
     needs_manual "TCC/FDA issue — grant Full Disk Access to ~/.local/bin/sk-agent-run"
     log "       System Settings → Privacy & Security → Full Disk Access"
     diagnosed=true
   fi
 
   # ── Pattern: command not found (PATH issue) ──
-  if echo "$stderr" | grep -q "command not found"; then
+  if grep -q "command not found" <<< "$stderr"; then
     local missing_cmd
     missing_cmd=$(echo "$stderr" | grep "command not found" | tail -1 | sed 's/.*: \(.*\): command not found/\1/')
     log "  Diagnosis: '$missing_cmd' not in PATH"
@@ -168,7 +168,7 @@ diagnose_and_heal() {
   fi
 
   # ── Pattern: No module named (Python import error) ──
-  if echo "$combined" | grep -q "No module named"; then
+  if grep -q "No module named" <<< "$combined"; then
     local missing_module
     missing_module=$(echo "$combined" | grep "No module named" | tail -1 | sed "s/.*No module named '\([^']*\)'.*/\1/" | sed 's/\..*//')
     log "  Diagnosis: Python module '$missing_module' not installed"
@@ -177,7 +177,7 @@ diagnose_and_heal() {
   fi
 
   # ── Pattern: EADDRINUSE or "address already in use" (port conflict) ──
-  if echo "$combined" | grep -qi "EADDRINUSE\|address already in use"; then
+  if grep -qi "EADDRINUSE\|address already in use" <<< "$combined"; then
     local port
     # Match: "port 3000", ":3000)", ", 8000)" (uvicorn format)
     port=$(echo "$combined" | grep -i "address already in use\|EADDRINUSE" | grep -oE '[0-9]{4,5}' | head -1 || true)
@@ -191,32 +191,32 @@ diagnose_and_heal() {
   fi
 
   # ── Pattern: OAuth token expired ──
-  if echo "$combined" | grep -qi "OAuth token has expired\|authentication_error\|authentication_failed"; then
+  if grep -qi "OAuth token has expired\|authentication_error\|authentication_failed" <<< "$combined"; then
     needs_manual "OAuth token expired — run: claude login"
     diagnosed=true
   fi
 
   # ── Pattern: ENOTEMPTY (.next build cache) ──
-  if echo "$combined" | grep -q "ENOTEMPTY.*\.next"; then
+  if grep -q "ENOTEMPTY.*\.next" <<< "$combined"; then
     log "  Diagnosis: stale .next build cache"
     fix_stale_build_cache "$project_dir"
     diagnosed=true
   fi
 
   # ── Pattern: Push failed (git) ──
-  if echo "$combined" | grep -qi "Push failed\|push.*rejected\|failed to push"; then
+  if grep -qi "Push failed\|push.*rejected\|failed to push" <<< "$combined"; then
     needs_manual "Git push failed — check remote permissions or conflicts"
     diagnosed=true
   fi
 
   # ── Pattern: API connection error ──
-  if echo "$combined" | grep -qi "ENOTFOUND\|Unable to connect to API\|ConnectionRefused"; then
+  if grep -qi "ENOTFOUND\|Unable to connect to API\|ConnectionRefused" <<< "$combined"; then
     needs_manual "API unreachable — check network or API endpoint"
     diagnosed=true
   fi
 
   # ── Pattern: error_max_turns (Claude ran out of turns) ──
-  if echo "$combined" | grep -q "error_max_turns"; then
+  if grep -q "error_max_turns" <<< "$combined"; then
     needs_manual "Claude hit max turns — simplify prompt or increase --max-turns"
     diagnosed=true
   fi
