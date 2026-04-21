@@ -1,5 +1,14 @@
 # Learnings
 
+## 2026-04-21 — Auto-stage PostToolUse hook silently adds files to staging; always check `git diff --cached --name-only` before commit
+
+- **Category**: correction
+- **Context**: This repo runs a PostToolUse hook that auto-git-stages files after Claude edits/writes them. During `/qa` fix + commit flow, the hook had already staged unrelated files like `reports/harvest-2026-04-20.md` (created by a scheduled agent on the same day). When I ran `git commit` expecting to ship only my one-line change to `server.py`, the commit swept in the pre-staged harvest reports.
+- **Happened twice in one session** — fixed the first with `git reset --soft HEAD~1 + git restore --staged`, then made the same mistake committing `sales-material/SKILL.md`. Lesson didn't stick without an explicit process step.
+- **Rule**: Before EVERY `git commit` on this repo, run `git diff --cached --name-only` and verify the list matches exactly what you intend to ship. The auto-stage hook means the index is not a reliable summary of "what you last edited."
+- **If you want to commit only specific files when others are already staged**: use `git stash push --staged --keep-index` plus targeted `git add`, OR explicitly unstage with `git restore --staged <unwanted>` before commit.
+- **See also**: `reports/*` per the user's standing instruction is always kept out of `/qa`-generated commits — those files belong to the user to curate manually.
+
 ## 2026-03-18 — Repo rename breaks all agents and dashboard if not done systematically
 
 - **Category**: best_practice
