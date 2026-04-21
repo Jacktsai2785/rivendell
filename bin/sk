@@ -2772,7 +2772,7 @@ cmd_audit() {
         # Recent commits
         if [ -d "$proj_dir/.git" ]; then
           local recent_commits
-          recent_commits="$(git -C "$proj_dir" log --oneline --no-decorate -5 2>/dev/null)"
+          recent_commits="$(git -C "$proj_dir" log --oneline --no-decorate -5 2>/dev/null || echo '')"
           if [ -n "$recent_commits" ]; then
             echo "<details><summary>$L_RECENT_COMMITS</summary>"
             echo ""
