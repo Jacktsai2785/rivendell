@@ -2720,7 +2720,7 @@ cmd_audit() {
           commits_7d="$(git -C "$proj_dir" rev-list --count --since='7 days ago' HEAD 2>/dev/null || echo 0)"
           commits_30d="$(git -C "$proj_dir" rev-list --count --since='30 days ago' HEAD 2>/dev/null || echo 0)"
           last_commit_date="$(git -C "$proj_dir" log -1 --format='%Y-%m-%d' 2>/dev/null || echo '')"
-          last_commit_msg="$(git -C "$proj_dir" log -1 --format='%s' 2>/dev/null | head -c 60)"
+          last_commit_msg="$(git -C "$proj_dir" log -1 --format='%s' 2>/dev/null | head -c 60 || echo '')"
         fi
 
         # --- Activity level ---
