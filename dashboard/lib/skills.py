@@ -104,6 +104,13 @@ def list_skills(
         return result
 
     for skill_dir in sorted(sdir.iterdir()):
+        # Skip hidden dirs, backup dirs (e.g. gstack.bak from upgrades),
+        # and regular files (like __pycache__)
+        name = skill_dir.name
+        if name.startswith(".") or name.endswith(".bak") or name.endswith(".old"):
+            continue
+        if not skill_dir.is_dir():
+            continue
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.is_file():
             continue
