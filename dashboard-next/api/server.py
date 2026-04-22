@@ -1339,6 +1339,11 @@ def _parse_harvest_reports() -> list[dict[str, Any]]:
             # Check for sub-candidates (#### headers within this section)
             body = "\n".join(lines[1:])
 
+            # Skip sections whose body explicitly says "no candidates found"
+            # e.g. "**(本次無 Strong 候選)**" under a Strong taxonomy heading
+            if re.search(r"本次無\s*\w*\s*候選", body):
+                continue
+
             # Check for table-format candidates (| 名稱 | 用途 | ... |)
             if re.search(r"^\|\s*名稱\s*\|", body, re.MULTILINE):
                 for row in body.splitlines():
@@ -1426,22 +1431,25 @@ def _parse_candidate_section(text: str, strength: str, report_date: str) -> dict
                     return val
         return ""
 
-    purpose = _extract(["目的", "用途"])
-    trigger = _extract(["觸發條件", "觸發"])
-    category = _extract(["建議分類", "分類"]).strip("`")
+    purpose = _extract(["目的", "用途", "Purpose"])
+    trigger = _extract(["觸發條件", "觸發", "Trigger"])
+    category = _extract(["建議分類", "分類", "Category"]).strip("`")
 
-    # Extract reasoning
+    # Extract reasoning — supports Chinese (理由) and English (Rationale/Reasoning)
     reasoning = ""
-    reason_match = re.search(r"\*\*理由\*\*[：:]\s*\n?((?:[\s\S]*?)(?=\n\*\*|\n---|\n###|\Z))", body)
+    reason_match = re.search(
+        r"\*\*(?:理由|Rationale|Reasoning)\*\*[：:]\s*\n?((?:[\s\S]*?)(?=\n\*\*|\n---|\n###|\Z))",
+        body,
+    )
     if reason_match:
         reasoning = reason_match.group(1).strip()
         # Truncate to first 300 chars
         if len(reasoning) > 300:
             reasoning = reasoning[:300] + "..."
 
-    # Extract conclusion
+    # Extract conclusion — supports Chinese (結論) and English (Conclusion)
     conclusion = ""
-    concl_match = re.search(r"\*\*結論\*\*[：:]\s*(.+)", body)
+    concl_match = re.search(r"\*\*(?:結論|Conclusion)\*\*[：:]\s*(.+)", body)
     if concl_match:
         conclusion = concl_match.group(1).strip()
 
