@@ -1757,18 +1757,32 @@ def api_issues() -> dict[str, Any]:
                     "label": link.name,
                 })
 
-    # 4. Missing .env — check sibling projects with .env.example but no .env
+    # 4. Missing .env — check sibling projects with .env.example but no matching env file.
+    # Next.js projects conventionally use .env.local; accept either.
+    # Python/Node projects conventionally use .env; accept either.
+    # Skip when the example points users to a different target ("Copy to .env.local").
     projects_dir = Path(__file__).resolve().parent.parent.parent.parent
     for env_example in projects_dir.glob("*/.env.example"):
         proj_dir = env_example.parent
-        if not (proj_dir / ".env").exists():
-            issues.append({
-                "source": "env",
-                "severity": "warning",
-                "title": f"{proj_dir.name} 缺少 .env",
-                "detail": "有 .env.example 但沒有 .env — 執行 sk env 修復",
-                "label": proj_dir.name,
-            })
+        # Accept any of these as "configured"
+        candidate_files = [".env", ".env.local", ".env.development", ".env.production"]
+        if any((proj_dir / f).exists() for f in candidate_files):
+            continue
+        # Peek at the example to see which target it recommends
+        try:
+            example_head = env_example.read_text(errors="ignore")[:400]
+        except Exception:
+            example_head = ""
+        recommended = ".env"
+        if ".env.local" in example_head:
+            recommended = ".env.local"
+        issues.append({
+            "source": "env",
+            "severity": "warning",
+            "title": f"{proj_dir.name} 缺少 {recommended}",
+            "detail": f"有 .env.example 但沒有 {recommended} — cp {env_example.name} {recommended} 後填值",
+            "label": proj_dir.name,
+        })
 
     # Sort: errors first, then warnings
     severity_order = {"error": 0, "warning": 1, "info": 2}
