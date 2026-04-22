@@ -1,13 +1,24 @@
 # Learnings
 
+## 2026-04-22 — Bash `git log | head` under pipefail dies with exit 128 on empty-HEAD repos
+
+- **Category**: best_practice
+- **Context**: `sk maintain` (and therefore the launchd agent `com.sk.agent.rivendell.maintain`) was silently exiting 128 with zero output on stdout and stderr. Root cause: `bin/sk` has several lines of the form `"$(git -C "$proj_dir" log -1 --format='%s' 2>/dev/null | head -c 60)"`. The `2>/dev/null` hides git's "fatal: your current branch does not have any commits yet" message but does NOT mask the exit code. When git log fails (e.g. rakucamp had 22 dirty files and no commits), it exits **128** (git's fatal-error convention). Under `set -o pipefail`, that 128 propagates as the pipeline's exit. `$(…)` captures it. `set -e` then trips and the script dies — but since stdout/stderr are redirected to per-day log files, the error never reaches the launchd-visible stderr. The result is a mysterious exit 128 with empty logs.
+- **Rule**: Any `$(git … 2>/dev/null [| …] )` pipeline under pipefail must end with `|| echo ''` (or similar fallback) to guarantee the command substitution produces a usable empty string. One sibling on line 2722 had the guard; the neighbors on 2723 and 2775 did not — exactly the two sites that broke.
+- **Debugging tip**: When a launchd job exits 128 with no log output, run `bash -x ./script > /dev/null 2>/tmp/trace.err` and `tail /tmp/trace.err` — the last traced command will pinpoint the bail-out site, even when normal stderr is silent.
+
 ## 2026-04-21 — Auto-stage PostToolUse hook silently adds files to staging; always check `git diff --cached --name-only` before commit
 
 - **Category**: correction
 - **Context**: This repo runs a PostToolUse hook that auto-git-stages files after Claude edits/writes them. During `/qa` fix + commit flow, the hook had already staged unrelated files like `reports/harvest-2026-04-20.md` (created by a scheduled agent on the same day). When I ran `git commit` expecting to ship only my one-line change to `server.py`, the commit swept in the pre-staged harvest reports.
-- **Happened twice in one session** — fixed the first with `git reset --soft HEAD~1 + git restore --staged`, then made the same mistake committing `sales-material/SKILL.md`. Lesson didn't stick without an explicit process step.
-- **Rule**: Before EVERY `git commit` on this repo, run `git diff --cached --name-only` and verify the list matches exactly what you intend to ship. The auto-stage hook means the index is not a reliable summary of "what you last edited."
-- **If you want to commit only specific files when others are already staged**: use `git stash push --staged --keep-index` plus targeted `git add`, OR explicitly unstage with `git restore --staged <unwanted>` before commit.
-- **See also**: `reports/*` per the user's standing instruction is always kept out of `/qa`-generated commits — those files belong to the user to curate manually.
+- **Recurrence**: Happened **3 times** across two sessions on 2026-04-21/22. Even after writing a learning entry (session 1), the mistake repeated in session 2 — the lesson doesn't stick as a passive rule; it needs a mechanical step.
+- **Rule (hardened)**: Make staging inspection a SEPARATE Bash call before each `git commit`, never chained with `&&`. Structure:
+  1. Run `git diff --cached --name-only` on its own → read the output → decide.
+  2. If anything unintended is staged, `git restore --staged <path>` FIRST, then re-run step 1 to confirm.
+  3. Only then run `git commit`.
+  The intermediate `&&`-chained "check-then-commit" pattern fails because a multi-line pipeline runs too fast to meaningfully review.
+- **Special note on `reports/*`**: Per the user's standing instruction, files under `reports/` (harvest-*.md, skill-audit-*.md, test-*.md, maintain-*.log, `.harvest-*.json`) are always kept out of repo-cleanup commits — they're scheduled-agent output the user curates manually.
+- **Recovery recipe**: `git reset --soft HEAD~1` → `git restore --staged <unwanted>` → re-commit. Leaves the working tree identical, rewrites only the most recent commit.
 
 ## 2026-03-18 — Repo rename breaks all agents and dashboard if not done systematically
 
