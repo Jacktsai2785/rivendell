@@ -1,5 +1,23 @@
 # Learnings
 
+## 2026-04-23 — macOS "Failed to fetch" from browser but curl 200 = IPv4-only uvicorn being shadowed by a Docker IPv6 listener
+
+- **Category**: best_practice (a debugging checklist, not a correction)
+- **Context**: Dashboard web app showed `Error: Failed to fetch` on every page that hit the API. Even incognito windows failed. But every curl I ran from the terminal — including curls with `Origin: http://127.0.0.1:3000` + `Content-Type: application/json` headers that simulated the exact React fetch — returned `200 OK` with correct CORS headers. I spent significant time chasing browser-state theories (cache, service workers, extensions, DevTools offline toggle) because curl was "proving" the server was fine.
+- **Actual root cause**: A forgotten Docker container `sk-dashboard-api` (started 2 weeks prior, image `rivendell-dashboard-api`) had `0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp` port mappings. It was running an OLD build of the FastAPI server — specifically one missing the `http://127.0.0.1:3000` entry in `allow_origins` that I'd added on 2026-04-20.
+  - Our macOS uvicorn bound only `127.0.0.1:8000` (IPv4).
+  - Docker's userland proxy bound BOTH `0.0.0.0:8000` (IPv4) AND `[::]:8000` (IPv6). Docker "won" IPv6 uncontested.
+  - macOS `/etc/hosts` has `::1 localhost` alongside `127.0.0.1 localhost`.
+  - Browsers' Happy Eyeballs (RFC 8305) prefers IPv6 when available. They resolved `localhost` to `::1`, connected via Docker's proxy, reached the stale container uvicorn, got `400 Disallowed CORS origin` on preflight, and reported "Failed to fetch" to the React app.
+  - Curl's Happy Eyeballs behavior defaults to IPv4-first on most macOS builds (or connects to whichever address responds first, which was the fast-local 127.0.0.1). That's why curl kept reaching the good uvicorn and saying "looks fine."
+- **Debug checklist when a browser sees "Failed to fetch" but curl sees 200**:
+  1. `lsof -nP -iTCP:<port> -sTCP:LISTEN` — list **every** listener, not just one. Look for separate IPv4 and IPv6 rows; they may be different processes.
+  2. `curl -v http://[::1]:<port>/...` AND `curl -v http://127.0.0.1:<port>/...` with the **same** headers as the failing browser. If responses differ, you have two servers.
+  3. `docker ps -a --format '{{.Names}} {{.Ports}}' | grep <port>` — Docker Desktop keeps port-published containers running invisibly; they survive across macOS reboots if "Start Docker Desktop when you log in" is on.
+  4. When the browser shows `Failed to fetch` (not `CORS error`), it's often the **preflight** failing. A simple GET can succeed while OPTIONS fails. Always test OPTIONS too.
+  5. `access-control-max-age: 600` means a failed preflight is cached per-tab for 10 min. Browser reloads alone don't clear it; close the whole tab/window.
+- **Fix**: `docker stop sk-dashboard-api`. Follow-up: `docker rm` the stopped duplicates, or decide whether the whole docker-compose setup should be taken down — per the user's 2026-04-20 instruction, rivendell is no longer meant to run in Docker.
+
 ## 2026-04-22 — Bash `git log | head` under pipefail dies with exit 128 on empty-HEAD repos
 
 - **Category**: best_practice
