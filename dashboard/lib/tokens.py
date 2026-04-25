@@ -14,6 +14,8 @@ PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
 # Pricing per million tokens
 PRICING: dict[str, dict[str, float]] = {
+    "claude-opus-4-7":              {"input": 15.0, "output": 75.0, "cache_read": 1.5, "cache_create": 18.75},
+    "claude-opus-4-7[1m]":          {"input": 15.0, "output": 75.0, "cache_read": 1.5, "cache_create": 18.75},
     "claude-opus-4-6":              {"input": 15.0, "output": 75.0, "cache_read": 1.5, "cache_create": 18.75},
     "claude-opus-4-5-20251101":     {"input": 15.0, "output": 75.0, "cache_read": 1.5, "cache_create": 18.75},
     "claude-sonnet-4-5-20250929":   {"input": 3.0,  "output": 15.0, "cache_read": 0.3, "cache_create": 3.75},
@@ -161,11 +163,19 @@ def get_total_stats() -> dict[str, Any]:
     }
 
 
+_SKIP_PARENT_DIRS = {"Documents", "Projects", "Desktop", "repos", "src", "code", "dev"}
+
+
 def _dir_to_project_name(dir_name: str) -> str:
     """Convert project dir name to human-readable project name.
 
     e.g. '-Users-manibari-Documents-Projects-skills-test' → 'skills-test'
     The dir name encodes the absolute path with dashes replacing slashes.
+
+    Used as a FALLBACK only — per-line cwd is preferred (see
+    _cwd_to_project_name) because Claude Code sessions launched in a parent
+    directory and `cd`-ed into a subproject would otherwise misattribute all
+    tokens to the parent.
     """
     # Build prefix from actual home directory
     home = str(Path.home())  # e.g. /Users/manibari
@@ -175,20 +185,45 @@ def _dir_to_project_name(dir_name: str) -> str:
         name = name[len(home_prefix):]
         # Strip leading dash
         name = name.lstrip("-")
-        # Try to get the last meaningful path segment
-        # e.g. "Documents-Projects-skills-test" → "skills-test"
         parts = name.split("-")
-        # Skip common intermediate dirs
-        skip = {"Documents", "Projects", "Desktop", "repos", "src", "code", "dev"}
         meaningful = []
         found_project = False
         for p in parts:
-            if p in skip and not found_project:
+            if p in _SKIP_PARENT_DIRS and not found_project:
                 continue
             found_project = True
             meaningful.append(p)
         name = "-".join(meaningful) if meaningful else name
     return name if name else dir_name
+
+
+def _cwd_to_project_name(cwd: str) -> str:
+    """Convert a real cwd path to a human-readable project name.
+
+    e.g. '/Users/manibari/Documents/Projects/odb-dfm' → 'odb-dfm'
+         '/Users/manibari/Documents/Peter/ChimesAI/01-Presales' → 'Peter/ChimesAI/01-Presales'
+
+    Strips the home prefix and skips intermediate dirs ("Documents",
+    "Projects", etc.) until the first meaningful segment.
+    """
+    if not cwd:
+        return ""
+    home = str(Path.home())
+    if cwd.startswith(home):
+        rel = cwd[len(home):].lstrip("/")
+        if not rel:
+            return Path(cwd).name or ""
+        parts = rel.split("/")
+        meaningful: list[str] = []
+        found_project = False
+        for p in parts:
+            if p in _SKIP_PARENT_DIRS and not found_project:
+                continue
+            found_project = True
+            meaningful.append(p)
+        return "/".join(meaningful) if meaningful else (parts[-1] if parts else "")
+    # Path outside home — use last segment
+    return Path(cwd).name or cwd
 
 
 @dataclass
@@ -294,12 +329,20 @@ def get_filtered_usage(date_start: str | None = None,
 
 
 def _parse_jsonl_unified(
-    path: Path, project: str,
+    path: Path, fallback_project: str,
     date_start: str | None, date_end: str | None,
     projects: dict, models_agg: dict, daily_agg: dict,
     all_sessions: set,
 ) -> None:
-    """Parse one JSONL file, accumulating into all three aggregation dicts."""
+    """Parse one JSONL file, accumulating into all three aggregation dicts.
+
+    Project attribution is per-line (uses entry["cwd"]), not per-file.
+    Sessions launched in a parent dir and `cd`-ed elsewhere get split
+    across the actual sub-projects worked on. fallback_project is used
+    only when a line has no cwd and we haven't seen one yet in this
+    session.
+    """
+    last_cwd: str | None = None
     try:
         with open(path) as f:
             for line in f:
@@ -307,6 +350,12 @@ def _parse_jsonl_unified(
                     entry = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+
+                # Track cwd as it changes within the session (used for
+                # current and subsequent lines until the next change)
+                cwd_now = entry.get("cwd")
+                if cwd_now:
+                    last_cwd = cwd_now
 
                 # Date filtering via entry timestamp
                 ts = entry.get("timestamp", "")
@@ -341,6 +390,12 @@ def _parse_jsonl_unified(
                             1 for c in content
                             if isinstance(c, dict) and c.get("type") == "tool_use"
                         )
+
+                # Per-line cwd → project; fall back to filename-derived
+                # project when no cwd has appeared yet in this session.
+                project = _cwd_to_project_name(last_cwd) if last_cwd else ""
+                if not project:
+                    project = fallback_project
 
                 # Accumulate per-project
                 pd = projects[project]
