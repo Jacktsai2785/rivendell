@@ -1,5 +1,14 @@
 # Learnings
 
+## 2026-04-27 — Half-built `.next` (BUILD_ID present, chunks missing) makes Next.js 500 on every request — watchdog restart can't fix it
+
+- **Category**: best_practice
+- **Context**: After deploying the watchdog, web 500'd with `Cannot find module '../chunks/ssr/[turbopack]_runtime.js'` from `.next/server/app/page.js`. The watchdog correctly detected and `kickstart -k`'d the service, but the kickstart didn't fix it — the artifact on disk was broken, so every restart failed the same way.
+- **Root cause**: `dashboard-next/start-web.sh` only rebuilds when `.next/BUILD_ID` is absent **or** sources are newer. It does not detect a half-finished build. If an earlier `npm run build` was killed mid-flight (SIGKILL from launchd grace expiry, OOM, disk full, Cmd+C), Next.js may have already written `BUILD_ID` and some output files but not all turbopack runtime chunks. `start-web.sh` then sees BUILD_ID, assumes the build is good, and runs `next start` against a poisoned cache.
+- **Fix in this session**: `cd dashboard-next && rm -rf .next && npm run build && launchctl kickstart -k gui/$UID/com.sk.dashboard.web`. Web back to 200.
+- **Prevention pattern**: Two-phase build — `npm run build` to a temp dir or with `--out-dir`, only `mv` it into place after success. The presence of `.next/BUILD_ID` should be a *commit point*, not something writable mid-build. Or: keep a sentinel like `.next/.build-complete` that's `touch`ed only after `npm run build` exits 0, and let `start-web.sh` check that instead of `BUILD_ID`.
+- **Why the watchdog can't see this class of bug**: an HTTP-probe watchdog can detect the symptom (500) but `launchctl kickstart -k` only re-runs the same start script against the same broken artifact. Bad caches need cache invalidation, not process restart. Detection-and-restart is necessary but not sufficient.
+
 ## 2026-04-26 — `launchd KeepAlive` only catches process death, not hung processes — pair it with an HTTP-probe watchdog
 
 - **Category**: best_practice
