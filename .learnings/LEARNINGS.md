@@ -1,5 +1,21 @@
 # Learnings
 
+## 2026-04-26 — `launchd KeepAlive` only catches process death, not hung processes — pair it with an HTTP-probe watchdog
+
+- **Category**: best_practice
+- **Context**: User reported "rivendell 又掛了" (the dashboard intermittently goes unresponsive). Both `com.sk.dashboard.api` and `com.sk.dashboard.web` already had `KeepAlive: true` in their plists, yet the dashboard was still going dark from the user's POV. At time of investigation both processes were live (PIDs 2086 and 2077) and the ports were listening, but the user had been seeing recurring outages.
+- **Why `KeepAlive` alone is insufficient**: `launchd`'s `KeepAlive: true` only restarts a service when the process **exits**. It cannot detect:
+  - A deadlocked event loop (port still listening, accept() never completes)
+  - A frozen worker holding the only reqlock
+  - A uvicorn that's still running but stuck in some library call
+  In all these cases the process is "alive" by every signal launchd watches, so it never restarts.
+- **Pattern**: Add an external HTTP-probe watchdog. The one I built (`bin/sk-watchdog`) runs every 60s via launchd `StartInterval`, curls each service URL with `--max-time 5`, and on threshold-many consecutive failures calls `launchctl kickstart -k gui/$UID/<label>` to force-restart the stuck service. Three details that matter:
+  1. **Threshold + grace period** — restart on N consecutive failures (avoids restarting on one transient hiccup), then ignore that service for `GRACE_SECONDS` after restart (avoids restart-loop while the new process is starting up).
+  2. **State file** — `reports/.watchdog-state` keeps `<key>:<consecutive_failures>:<last_restart_ts>` per service across watchdog invocations (each invocation is a fresh process, so state must be on disk).
+  3. **Silent on success** — only write `reports/watchdog.log` on FAIL/RESTART/RECOVER events. If everything is healthy the log stays empty, which makes anomalies obvious instead of buried in noise.
+- **Integration with `agents/agents.conf`**: A new row `com.sk.dashboard.watchdog | rivendell | bin/sk-watchdog | interval | 60 | reports` plus a re-run of `bin/sk-setup-agents` was all that was needed — the existing `interval` schedule type just worked.
+- **Verify**: `launchctl list | grep com.sk.dashboard.watchdog` should show the label loaded; manually invoking the script in a healthy state should produce no log output and no state file changes.
+
 ## 2026-04-23 — macOS "Failed to fetch" from browser but curl 200 = IPv4-only uvicorn being shadowed by a Docker IPv6 listener
 
 - **Category**: best_practice (a debugging checklist, not a correction)

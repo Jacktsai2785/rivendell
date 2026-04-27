@@ -171,6 +171,94 @@ Each skill directory gets symlinked individually into `~/.claude/skills/`. Edits
 
 Deploy also installs `com.*.plist` templates into `~/Library/LaunchAgents/`, replacing `REPO_PATH` with the actual repo path.
 
+## System Architecture
+
+rivendell runs three classes of long-lived processes, all managed by macOS `launchd`:
+
+```
+┌─ Dashboard (always-on) ─────────────────────────┐
+│  com.sk.dashboard.api     FastAPI :8000         │
+│  com.sk.dashboard.web     Next.js :3000         │
+│  com.sk.dashboard.watchdog  HTTP health probe   │  ← restarts hung API/web
+└─────────────────────────────────────────────────┘
+┌─ Scheduled agents (cron-like) ──────────────────┐
+│  rivendell.harvest    every 8h  → reports/      │
+│  rivendell.maintain   daily 22:00               │
+│  rivendell.tester     daily 6:00                │
+│  rivendell.doctor     daily 7:00                │
+│  news_stock.*, sales.*  (per-project schedules) │
+└─────────────────────────────────────────────────┘
+```
+
+**Single source of truth:** `agents/agents.conf` — pipe-delimited list of every agent.
+`bin/sk-setup-agents` reads it, generates one plist per row in `~/Library/LaunchAgents/`,
+and `launchctl load`s them. Re-run after editing the conf.
+
+**Why a custom runner (`sk-agent-run`)?** macOS TCC blocks `launchd`-spawned processes
+from reading `~/Documents/`. The compiled C wrapper runs `chdir()` before `execvp()`,
+which TCC permits. All `launchd` stdout/stderr go to `~/Library/Logs/sk-agent/` to
+avoid the same restriction.
+
+**Schedule types** (column 4 of `agents.conf`):
+| Type | Value | Meaning |
+|------|-------|---------|
+| `interval` | seconds | Run every N seconds (e.g. `60`, `28800`) |
+| `calendar` | `H:MM` or `W:H:MM` | Daily at time, or weekly on weekday W (0=Sun) |
+| `calendar_multi` | `W1:H:MM,W2:H:MM` | Multiple weekly slots |
+| `keepalive` | `-` | Run forever, restart if process exits |
+
+### Operating the dashboard
+
+```bash
+# Status
+launchctl list | grep com.sk.dashboard
+
+# Manual restart (kills + relaunches via launchd)
+launchctl kickstart -k gui/$UID/com.sk.dashboard.api
+launchctl kickstart -k gui/$UID/com.sk.dashboard.web
+
+# Logs
+tail -f ~/Library/Logs/sk-agent/com.sk.dashboard.api-stderr.log
+tail -f reports/api-stderr.log    # also captured here
+tail -f reports/watchdog.log       # only written when health checks fail
+```
+
+The dashboard URLs are http://localhost:8000 (API) and http://localhost:3000 (web).
+`start-api.sh` / `start-web.sh` handle venv + deps; you do not invoke them directly.
+
+### How the watchdog works
+
+`bin/sk-watchdog` runs every 60s (via `com.sk.dashboard.watchdog`) and HTTP-probes
+both services. `launchd`'s `KeepAlive` only catches process death — it cannot detect
+a hung process whose port is still listening. The watchdog covers that gap:
+
+- Failure threshold: **3 consecutive failures** (~3 min) before restart
+- After restart: **60s grace period** before re-checking that service
+- State: `reports/.watchdog-state` (consecutive-failure counter, last-restart timestamp)
+- Log: `reports/watchdog.log` — written only on FAIL / RESTART / RECOVER events
+
+Tune by editing `THRESHOLD` / `GRACE_SECONDS` at the top of `bin/sk-watchdog`.
+
+### Adding or changing an agent
+
+1. Edit `agents/agents.conf` (add a row, comment out, or change schedule)
+2. Run `./bin/sk-setup-agents` — regenerates plists and re-loads them all
+3. Verify: `launchctl list | grep com.sk.<your-label>`
+
+To temporarily disable an agent, comment its row in `agents.conf` and re-run setup,
+**then** delete the stale plist from `~/Library/LaunchAgents/` (the script does not
+clean up rows that no longer exist).
+
+### Troubleshooting
+
+| Symptom | Where to look |
+|---------|---------------|
+| Dashboard returns nothing | `tail -f reports/api-stderr.log` and `~/Library/Logs/sk-agent/com.sk.dashboard.api-stderr.log` |
+| Watchdog restarting every 3 min | `cat reports/watchdog.log` — find the failing endpoint, then read the API stderr log |
+| Agent didn't run on schedule | `launchctl list \| grep com.sk.<label>` — last column is exit code; `0` = success, `-` = never ran |
+| Permission errors writing to `reports/` | macOS TCC — re-run `./bin/sk-setup-agents` to recompile `sk-agent-run` |
+| Audit / health questions | `./bin/sk audit` (writes `reports/skill-audit-YYYY-MM-DD.md`) |
+
 ## Using Skills in Other Projects
 
 Skills deploy 後是**全域生效**的，不需要在每個專案裡做任何設定。

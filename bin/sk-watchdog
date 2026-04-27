@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# sk-watchdog — Health-check rivendell dashboard services and restart on failure.
+#
+# launchd's KeepAlive only catches process death. This watchdog catches the
+# other failure mode: process alive, port listening, but the service is hung
+# (deadlocked event loop, frozen worker, etc.) so requests time out.
+#
+# Designed to run every 60s via launchd. State (consecutive failure count and
+# last restart timestamp per service) lives in reports/.watchdog-state.
+# Restart triggers after THRESHOLD consecutive failures, then GRACE_SECONDS
+# of silence before the next check on that service.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+STATE_DIR="$REPO_DIR/reports"
+STATE_FILE="$STATE_DIR/.watchdog-state"
+LOG_FILE="$STATE_DIR/watchdog.log"
+THRESHOLD=3
+GRACE_SECONDS=60
+
+mkdir -p "$STATE_DIR"
+touch "$STATE_FILE"
+
+UID_NUM="$(id -u)"
+NOW=$(date +%s)
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
+}
+
+get_state() {
+    local key="$1"
+    # grep exits 1 when no match — guard the pipeline so pipefail+set -e doesn't kill us
+    { grep "^$key:" "$STATE_FILE" 2>/dev/null | cut -d: -f2,3 | head -1; } || true
+}
+
+set_state() {
+    local key="$1" failures="$2" last_restart="$3"
+    local tmp
+    tmp=$(mktemp)
+    grep -v "^$key:" "$STATE_FILE" 2>/dev/null > "$tmp" || true
+    echo "$key:$failures:$last_restart" >> "$tmp"
+    mv "$tmp" "$STATE_FILE"
+}
+
+check_and_restart() {
+    local key="$1" url="$2" label="$3"
+    local state failures last_restart
+    state=$(get_state "$key")
+    failures="${state%%:*}"
+    last_restart="${state##*:}"
+    failures="${failures:-0}"
+    last_restart="${last_restart:-0}"
+
+    if [ "$last_restart" -gt 0 ] && [ $((NOW - last_restart)) -lt "$GRACE_SECONDS" ]; then
+        return 0
+    fi
+
+    if curl -fs --max-time 5 -o /dev/null "$url" 2>/dev/null; then
+        if [ "$failures" -gt 0 ]; then
+            log "OK $key (recovered after $failures failures)"
+            set_state "$key" 0 "$last_restart"
+        fi
+        return 0
+    fi
+
+    failures=$((failures + 1))
+    log "FAIL $key (consecutive=$failures, url=$url)"
+
+    if [ "$failures" -ge "$THRESHOLD" ]; then
+        log "RESTART $label (threshold $THRESHOLD reached)"
+        if launchctl kickstart -k "gui/$UID_NUM/$label" 2>>"$LOG_FILE"; then
+            set_state "$key" 0 "$NOW"
+        else
+            log "  kickstart failed for $label"
+            set_state "$key" "$failures" "$last_restart"
+        fi
+    else
+        set_state "$key" "$failures" "$last_restart"
+    fi
+}
+
+check_and_restart "api" "http://localhost:8000/api/agents" "com.sk.dashboard.api"
+check_and_restart "web" "http://localhost:3000" "com.sk.dashboard.web"
