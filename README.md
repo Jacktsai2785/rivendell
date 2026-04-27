@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (81 skills)
+## Skills Catalog (87 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -67,6 +67,7 @@ cd ~/any-project && claude
 | **skill-creator** | 自動 | 建立、修改、評測 skills，含 eval 和 benchmark 工具 |
 | **skill-scout** | `/skill-scout` | 從 GitHub 與社群資源發現、評估、移植 Claude Code skills |
 | **sync-readme** | 自動 + hook | Keep README.md sections in sync with code structure across repos |
+| **workflow-retro** | 自動 | Weekly observability retrospective for the rivendell skills + agents system. |
 
 ### workflow/ — 工作流程與規劃
 
@@ -76,10 +77,12 @@ cd ~/any-project && claude
 | **autoresearch** | `/autoresearch` 或自動 | Autonomous goal-directed iteration loop for Claude Code agents. |
 | **candidate-analysis** | `/candidate-analysis` 或自動 | 面試候選人管理：PDF 履歷解析、GitHub repo 程式品質分析、候選人 profile markdown 產出 |
 | **claude-to-telegram** | `/claude-to-im setup` | 設定 Telegram 橋接器遠端控制 Claude Code，支援兩種實作方式 |
+| **client-kickoff-docs** | 自動 | 新客戶 kickoff 時（NDA 簽過、首次討論前），讀客戶提供的 homework 檔 → 建立 `scope.md` + `deadline. |
 | **context-recovery** | 自動 + hook | Session 壓縮後自動復原工作上下文，使用 Git 狀態與專案 metadata |
 | **crm-projection** | `/crm-projection` | Project nx_client + nx_deal data to local markdown files at materials/clients/. |
 | **customer-intel** | `/customer-intel` 或自動 | B2B 客戶情蒐：公司名 → WebSearch + Playwright → 結構化報告（概覽、管理層、財務、競爭、痛點、策略建議） |
 | **dispatching-parallel-agents** | 自動 | 3+ 個獨立問題時，派 subagent 並行處理 |
+| **env-doctor** | 自動 | 為專案產生 `doctor.sh`（或 `doctor. |
 | **executing-plans** | 自動 | 分批執行計畫，每批有 review checkpoint |
 | **gdrive-to-skills** | `/gdrive-to-skills` | 讀取 Google Drive 文件，分類並自動建立 knowledge skills |
 | **headless-agent** | 自動 | 將 Claude Code 作為非互動式 agent 執行，含排程、結構化日誌、auto-commit/push、QA gate、branch workflow、multi-role agents |
@@ -89,7 +92,10 @@ cd ~/any-project && claude
 | **launchd-agent** | 自動 | 建立、設定、除錯 macOS launchd agents（plist 產生、排程、launchctl 生命週期管理） |
 | **material-health** | `/material-health` | Health check for the sales materials library — detects missing frontmatter |
 | **mockup** | `/mockup` 或自動 | 三階段 UI mockup（ASCII → 靜態 HTML → 互動 HTML），讀取 design system，支援 Figma 匯出 |
+| **mops-financial-scraper** | 自動 | 自動化從 MOPS（`mopsov.twse.com. |
 | **planning-with-files** | `/planning-with-files` | Manus 風格的檔案式規劃，用 task_plan.md 追蹤進度，支援 session 恢復 |
+| **presales-pipeline** | 自動 | 以檔案系統（`01_presales/<client-slug>/`）管理 B2B 售前 pipeline：`new-client. |
+| **repro-exam** | 自動 | 依照專案的核心邏輯（如 backtest engine、portfolio strategy）產生一組 deterministic 測驗（input → |
 | **requirement** | `/requirement` 或自動 | 定義需求：user story、acceptance criteria、scope boundary |
 | **sales-material** | `/sales-material` | Assemble client-specific sales presentations by matching customer intelligence |
 | **settings-audit** | 自動 | 審查清理 .claude/settings.local.json — 移除無效 permissions、修正 JSON 語法、偵測一次性指令誤存為永久權限 |
