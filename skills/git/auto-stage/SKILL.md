@@ -1,8 +1,16 @@
 ---
 name: auto-stage
-description: PostToolUse hook that automatically git-stages files after Claude edits or writes them. Skips .env, node_modules, and other non-stageables.
+description: >
+  PostToolUse hook that automatically git-stages files after Claude edits or
+  writes them. Skips .env, node_modules, and other non-stageables.
+  TRIGGER: Fires automatically as a PostToolUse hook after every Edit, Write,
+  or MultiEdit. There is no slash command — installation is via the hooks
+  system, and this skill exists for catalog visibility.
+  DO NOT TRIGGER manually — the hook is the only invocation path. To disable
+  for a session, remove the PostToolUse entry from .claude/settings.json or
+  rename auto-stage.sh; do not invoke this skill from a prompt.
 tags: [git, hook, automation]
-version: 1
+version: 1.0.0
 source: harvest-hooks-research
 user_invocable: false
 ---

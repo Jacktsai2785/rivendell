@@ -1,6 +1,5 @@
 {
   "2026-03-15:sqlite-to-postgres": "dismissed",
-  "2026-03-15:launchd-agent": "dismissed",
   "2026-03-15:codebase-storage-audit": "dismissed",
   "2026-03-15:streamlit-dashboard": "dismissed",
   "2026-03-15:env-secret-finder": "dismissed",
@@ -52,5 +51,12 @@
   "2026-04-01:pipeline-monitoring-dashboard": "dismissed",
   "2026-04-02:gantt-slide": "dismissed",
   "2026-04-10:personal-workspace": "dismissed",
-  "2026-04-10:proposal-opportunity-scan": "dismissed"
+  "2026-04-10:proposal-opportunity-scan": "dismissed",
+  "2026-04-07:docker-compose-setup": "accepted",
+  "2026-04-22:mops-financial-scraper": "accepted",
+  "2026-04-22:presales-pipeline": "accepted",
+  "2026-04-21:env-doctor": "accepted",
+  "2026-04-21:repro-exam": "accepted",
+  "2026-04-20:client-kickoff-docs": "accepted",
+  "2026-03-15:launchd-agent": "dismissed"
 }

@@ -1,8 +1,19 @@
 ---
 name: protect-secrets
-description: PreToolUse hook that blocks Read/Edit/Write/Bash access to .env files (with real secrets), private keys, credentials.json, and other sensitive files. Prevents accidental secret exposure.
+description: >
+  PreToolUse hook that blocks Read/Edit/Write/Bash access to .env files (with
+  real secrets), private keys, credentials.json, and other sensitive files.
+  Prevents accidental secret exposure or exfiltration.
+  TRIGGER: Fires automatically as a PreToolUse hook before every Read, Edit,
+  Write, or Bash call. There is no slash command — installation is via the
+  hooks system, and this skill exists for catalog visibility.
+  DO NOT TRIGGER manually — the hook is the only invocation path. The block
+  is intentionally hard to bypass; if you need to legitimately read a secret
+  (e.g., to validate format), edit .claude/settings.json to remove the
+  PreToolUse entry for the duration, then restore. Do not invoke this skill
+  from a prompt.
 tags: [quality, security, hook]
-version: 1
+version: 1.0.0
 source: harvest-hooks-research
 user_invocable: false
 ---

@@ -5,10 +5,20 @@
 # other failure mode: process alive, port listening, but the service is hung
 # (deadlocked event loop, frozen worker, etc.) so requests time out.
 #
-# Designed to run every 60s via launchd. State (consecutive failure count and
-# last restart timestamp per service) lives in reports/.watchdog-state.
-# Restart triggers after THRESHOLD consecutive failures, then GRACE_SECONDS
-# of silence before the next check on that service.
+# Two-tier recovery:
+#  1. Standard restart: launchctl kickstart -k after THRESHOLD consecutive
+#     failures (~3 minutes of red).
+#  2. Deep recovery: when the same service has been restarted ESCALATE_THRESHOLD
+#     times in the same calendar day without staying healthy, the kickstart is
+#     not fixing the underlying problem. Trigger a service-specific deep fix
+#     (rebuild .next for web; reinstall venv for api) before kickstarting.
+#     Catches the 04-27 failure mode: 27 futile restarts over 80 minutes against
+#     a poisoned .next build cache.
+#
+# State (per service):
+#   <key>:<consecutive_failures>:<last_restart_ts>:<restarts_today>:<today_date>
+# State file: reports/.watchdog-state — survives across invocations
+# Log file:   reports/watchdog.log    — silent on healthy, written on FAIL/RESTART/RECOVER/DEEP
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,41 +27,94 @@ STATE_FILE="$STATE_DIR/.watchdog-state"
 LOG_FILE="$STATE_DIR/watchdog.log"
 THRESHOLD=3
 GRACE_SECONDS=60
+ESCALATE_THRESHOLD=5
 
 mkdir -p "$STATE_DIR"
 touch "$STATE_FILE"
 
 UID_NUM="$(id -u)"
 NOW=$(date +%s)
+TODAY=$(date '+%Y-%m-%d')
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
+# Returns "<failures>:<last_restart>:<restarts_today>:<today_date>" or empty
 get_state() {
     local key="$1"
-    # grep exits 1 when no match — guard the pipeline so pipefail+set -e doesn't kill us
-    { grep "^$key:" "$STATE_FILE" 2>/dev/null | cut -d: -f2,3 | head -1; } || true
+    { grep "^$key:" "$STATE_FILE" 2>/dev/null | head -1 | cut -d: -f2-; } || true
 }
 
 set_state() {
-    local key="$1" failures="$2" last_restart="$3"
+    local key="$1" failures="$2" last_restart="$3" restarts_today="$4" today_date="$5"
     local tmp
     tmp=$(mktemp)
     grep -v "^$key:" "$STATE_FILE" 2>/dev/null > "$tmp" || true
-    echo "$key:$failures:$last_restart" >> "$tmp"
+    echo "$key:$failures:$last_restart:$restarts_today:$today_date" >> "$tmp"
     mv "$tmp" "$STATE_FILE"
+}
+
+# Service-specific deep recovery. Called when standard kickstarts are clearly
+# not fixing the root cause. Each handler should return 0 on success.
+deep_recovery_web() {
+    log "  DEEP web: rm -rf .next && npm run build"
+    local web_dir="$REPO_DIR/dashboard-next"
+    if [ ! -d "$web_dir" ]; then
+        log "  DEEP web: $web_dir not found — skipping"
+        return 1
+    fi
+    (
+        cd "$web_dir"
+        rm -rf .next
+        if npm run build >> "$LOG_FILE" 2>&1; then
+            touch .next/.build-complete
+            return 0
+        fi
+        return 1
+    ) || return 1
+}
+
+deep_recovery_api() {
+    # api recovers reliably from plain kickstart (uvicorn is stateless). The
+    # one failure mode worth handling deeply is a corrupted venv — reinstall
+    # deps before the kickstart.
+    log "  DEEP api: reinstall deps in .venv"
+    local api_dir="$REPO_DIR/dashboard-next/api"
+    if [ ! -d "$api_dir/.venv" ]; then
+        log "  DEEP api: .venv not found — skipping"
+        return 1
+    fi
+    (
+        cd "$api_dir"
+        if "$api_dir/.venv/bin/pip" install -q -r requirements.txt >> "$LOG_FILE" 2>&1; then
+            return 0
+        fi
+        return 1
+    ) || return 1
 }
 
 check_and_restart() {
     local key="$1" url="$2" label="$3"
-    local state failures last_restart
+    local state failures last_restart restarts_today today_date
     state=$(get_state "$key")
-    failures="${state%%:*}"
-    last_restart="${state##*:}"
+    failures="$(echo "$state" | cut -d: -f1)"
+    last_restart="$(echo "$state" | cut -d: -f2)"
+    restarts_today="$(echo "$state" | cut -d: -f3)"
+    today_date="$(echo "$state" | cut -d: -f4)"
+
     failures="${failures:-0}"
     last_restart="${last_restart:-0}"
+    restarts_today="${restarts_today:-0}"
+    today_date="${today_date:-$TODAY}"
 
+    # Reset daily counter on day rollover
+    if [ "$today_date" != "$TODAY" ]; then
+        restarts_today=0
+        today_date="$TODAY"
+    fi
+
+    # Grace period after restart — gives the new process time to come up
     if [ "$last_restart" -gt 0 ] && [ $((NOW - last_restart)) -lt "$GRACE_SECONDS" ]; then
         return 0
     fi
@@ -59,7 +122,7 @@ check_and_restart() {
     if curl -fs --max-time 5 -o /dev/null "$url" 2>/dev/null; then
         if [ "$failures" -gt 0 ]; then
             log "OK $key (recovered after $failures failures)"
-            set_state "$key" 0 "$last_restart"
+            set_state "$key" 0 "$last_restart" "$restarts_today" "$today_date"
         fi
         return 0
     fi
@@ -67,16 +130,31 @@ check_and_restart() {
     failures=$((failures + 1))
     log "FAIL $key (consecutive=$failures, url=$url)"
 
-    if [ "$failures" -ge "$THRESHOLD" ]; then
-        log "RESTART $label (threshold $THRESHOLD reached)"
-        if launchctl kickstart -k "gui/$UID_NUM/$label" 2>>"$LOG_FILE"; then
-            set_state "$key" 0 "$NOW"
-        else
-            log "  kickstart failed for $label"
-            set_state "$key" "$failures" "$last_restart"
-        fi
+    if [ "$failures" -lt "$THRESHOLD" ]; then
+        set_state "$key" "$failures" "$last_restart" "$restarts_today" "$today_date"
+        return 0
+    fi
+
+    # Threshold reached — restart. Decide whether to escalate to deep recovery
+    # first, based on how many times we've already restarted this service today.
+    if [ "$restarts_today" -ge "$ESCALATE_THRESHOLD" ]; then
+        log "ESCALATE $label ($restarts_today same-day restarts — running deep recovery)"
+        case "$key" in
+            web) deep_recovery_web || log "  deep_recovery_web failed" ;;
+            api) deep_recovery_api || log "  deep_recovery_api failed" ;;
+        esac
+        # Reset the daily counter so we don't re-escalate every minute. If the
+        # deep recovery worked the service should now stay healthy; if it didn't,
+        # we'll get another ESCALATE_THRESHOLD restarts to retry.
+        restarts_today=0
+    fi
+
+    log "RESTART $label (threshold $THRESHOLD reached)"
+    if launchctl kickstart -k "gui/$UID_NUM/$label" 2>>"$LOG_FILE"; then
+        set_state "$key" 0 "$NOW" "$((restarts_today + 1))" "$today_date"
     else
-        set_state "$key" "$failures" "$last_restart"
+        log "  kickstart failed for $label"
+        set_state "$key" "$failures" "$last_restart" "$restarts_today" "$today_date"
     fi
 }
 

@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Scheduled workflow retrospective — runs the workflow-retro skill via headless
+# Claude. Designed for Sunday 23:00 so the report is fresh Monday morning.
+#
+# Pattern mirrors sk-harvest-cron: dispatch a prompt that points Claude at the
+# skill, write to reports/workflow-retro-YYYY-WW.md, record run via sk-exec-lib.
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+PROJECT_NAME="$(basename "$REPO_DIR")"
+REPORT_DIR="$REPO_DIR/reports"
+NOW="$(date '+%Y-%m-%d_%H%M')"
+ISO_WEEK="$(date '+%G-W%V')"
+REPORT_FILE="$REPORT_DIR/workflow-retro-${ISO_WEEK}.md"
+
+mkdir -p "$REPORT_DIR"
+
+# Source exec lib for _sk_exec_record_run (best effort)
+set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
+
+# --- Network pre-check ---
+if ! curl -so /dev/null --max-time 3 "https://api.anthropic.com" 2>/dev/null; then
+    echo "[$NOW] Waiting for network..."
+    for i in $(seq 1 24); do
+        sleep 5
+        curl -so /dev/null --max-time 3 "https://api.anthropic.com" 2>/dev/null && break
+    done
+    if ! curl -so /dev/null --max-time 3 "https://api.anthropic.com" 2>/dev/null; then
+        echo "[$NOW] Network unavailable — aborting."
+        exit 1
+    fi
+fi
+
+# --- Build prompt ---
+PROMPT="Run the workflow-retro skill at $REPO_DIR/skills/meta/workflow-retro/SKILL.md.
+
+Follow its instructions exactly: pull data from the dashboard API
+(http://localhost:8000/api/skills/usage, /api/agents, /api/tokens), read recent
+reports under $REPO_DIR/reports/ (skill-audit-*, test-*, harvest-*, watchdog.log),
+read $REPO_DIR/.learnings/LEARNINGS.md, and produce one ISO-week report at
+$REPORT_FILE.
+
+The skill defines a strict report structure (TL;DR, 使用度, 重複痛點, 集中度,
+下週 Actions). Use that template. Do not pad sections with weak content — the
+skill explicitly says 'three real actions beat ten speculative ones' and that
+'empty' is a valid section.
+
+If the dashboard API is down, fall back to file-based sources only and flag
+the API outage as a finding under 集中度.
+
+Compare against last week's retro at reports/workflow-retro-*.md if one exists,
+and fill in the '對照上週' section with completion rate of last week's actions.
+
+Write in Traditional Chinese (繁體中文)."
+
+# --- Run Claude in headless mode ---
+start_epoch=$(date +%s)
+
+claude -p "$PROMPT" \
+    --output-format text \
+    < /dev/null \
+    > "$REPORT_FILE" \
+    2> "$REPORT_DIR/workflow-retro-${ISO_WEEK}-error.log" \
+    && run_exit=0 || run_exit=$?
+
+end_epoch=$(date +%s)
+
+# --- Record to dashboard DB ---
+_sk_exec_record_run "$PROJECT_NAME" "workflow-retro" "$start_epoch" "$end_epoch" \
+    "$run_exit" "" "" "" "" "" ""
+
+echo "[$NOW] Retro complete (week $ISO_WEEK). Report: $REPORT_FILE"
+exit "$run_exit"
