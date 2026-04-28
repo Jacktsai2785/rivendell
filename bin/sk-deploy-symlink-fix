@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# sk-deploy-symlink-fix — Repair missing skill symlinks in ~/.claude/skills/.
+#
+# Daily structural drift: when a new skill is added (skills/<cat>/<name>/SKILL.md)
+# without running `./bin/sk deploy`, ~/.claude/skills/<name> doesn't exist and the
+# tester reports a WARN. This script idempotently creates the missing symlink
+# without touching anything else (no plist installs, no permissions sync).
+#
+# Silent on healthy state. Writes reports/symlink-fix.log only when it actually
+# repaired something.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SKILLS_DIR="$REPO_DIR/skills"
+TARGET_DIR="$HOME/.claude/skills"
+LOG_FILE="$REPO_DIR/reports/symlink-fix.log"
+
+mkdir -p "$TARGET_DIR"
+
+fixed=0
+log_buffer=""
+
+while IFS= read -r skill_md; do
+    skill_dir="$(dirname "$skill_md")"
+    skill_name="$(basename "$skill_dir")"
+    target="$TARGET_DIR/$skill_name"
+
+    # Skip if already symlinked correctly (idempotent fast path)
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "$skill_dir" ]; then
+        continue
+    fi
+
+    # If a real directory already occupies the target, only replace it when its
+    # contents are byte-identical to the repo version. Otherwise leave it alone
+    # and flag it so the user can resolve the divergence manually.
+    if [ -d "$target" ] && [ ! -L "$target" ]; then
+        if diff -rq "$skill_dir" "$target" >/dev/null 2>&1; then
+            rm -rf "$target"
+            ln -s "$skill_dir" "$target"
+            log_buffer+="[$(date '+%Y-%m-%d %H:%M:%S')] CONVERTED $skill_name (identical dir → symlink)"$'\n'
+            fixed=$((fixed + 1))
+        else
+            log_buffer+="[$(date '+%Y-%m-%d %H:%M:%S')] DIVERGED $skill_name (real dir differs from repo, manual review needed)"$'\n'
+        fi
+        continue
+    fi
+
+    # Anything else non-symlink (a file, a broken type) — don't clobber, just flag
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+        log_buffer+="[$(date '+%Y-%m-%d %H:%M:%S')] SKIP $skill_name (target exists, not a symlink or directory)"$'\n'
+        continue
+    fi
+
+    # Missing or stale symlink → recreate
+    rm -f "$target"
+    ln -s "$skill_dir" "$target"
+    log_buffer+="[$(date '+%Y-%m-%d %H:%M:%S')] FIXED $skill_name -> $skill_dir"$'\n'
+    fixed=$((fixed + 1))
+done < <(find "$SKILLS_DIR" -mindepth 3 -maxdepth 3 -name SKILL.md 2>/dev/null)
+
+# Only write log when something actually changed (silent on healthy)
+if [ -n "$log_buffer" ]; then
+    printf '%s' "$log_buffer" >> "$LOG_FILE"
+fi
+
+# Exit 0 always — this is a maintenance script, not a health check
+exit 0
