@@ -1,5 +1,15 @@
 # Learnings
 
+## 2026-04-28 — Diff-before-replace when "fixing" symlinks against pre-existing real directories
+
+- **Category**: best_practice
+- **Context**: While building `bin/sk-deploy-symlink-fix` to repair the 11 missing-symlink WARNs in tester reports, discovered that the targets in `~/.claude/skills/` weren't *missing* — they were real directories (Apr 7-14 timestamps), pre-symlink-convention copies. A naive symlink-fix script would either (a) skip them all because "something exists" (the v1 of my script did this), leaving the WARN unresolved, or (b) clobber them, potentially losing local edits the user had made post-copy.
+- **Pattern**: When a maintenance script wants to enforce "this path should be a symlink to X", and the path is currently a real directory, run `diff -rq <repo_dir> <target_dir>`:
+  - **No output** → byte-identical, safe to `rm -rf` and replace with symlink. Log as `CONVERTED`.
+  - **Any output** → diverged, leave alone and log as `DIVERGED, manual review`. Never auto-clobber divergence — the user may have made intentional edits in the deployed copy.
+- **Verification**: All 11 in this case were byte-identical (recursive diff returned nothing for SKILL.md and bundled subdirs alike), so they all converted cleanly. The script is idempotent — re-running it on healthy state produces zero output and zero changes.
+- **Generalization**: This applies to any "switch from copy-deployment to symlink-deployment" migration. The diff is the safety check; without it you have to choose between leaving stale state forever or risking clobber of user edits.
+
 ## 2026-04-27 — Half-built `.next` (BUILD_ID present, chunks missing) makes Next.js 500 on every request — watchdog restart can't fix it
 
 - **Category**: best_practice
