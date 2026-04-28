@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (87 skills)
+## Skills Catalog (89 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -155,7 +155,9 @@ cd ~/any-project && claude
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
 | **discovery-interview** | 自動 | Run a structured Discovery interview with a potential consulting client to find |
+| **doc-coauthoring** | `/doc-coauthoring` 或自動 | Structured workflow for collaboratively co-authoring documentation through |
 | **gdoc-report-builder** | 自動 | Build structured reports in Google Docs/Slides via MCP tools — batch table |
+| **internal-comms** | `/internal-comms` 或自動 | Templates and formats for ongoing organizational communications during and |
 | **iot-factory-report** | 自動 | Analyze factory IoT/SCADA time-series data (CSV/Excel) and produce visual |
 | **mcp-builder** | 自動 | 建立 MCP server 的指南（Python FastMCP / Node MCP SDK） |
 | **metadata-workshop** | 自動 | Run a structured Metadata Workshop with a consulting client to convert their |
