@@ -566,7 +566,7 @@
         {
           "num": 8,
           "label": "Pre-commit 審查",
-          "desc": "提交前 diff 審查",
+          "desc": "提交前 diff 審查 — 改動 backend endpoint 時順手檢查：/docs 仍可開啟、response_model 已寫、production 環境的 docs/openapi URL 有 gate",
           "mandatory": [
             "gstack-review"
           ],
@@ -623,7 +623,7 @@
         {
           "num": 3,
           "label": "Diff 審查",
-          "desc": "提交前 diff 審查",
+          "desc": "提交前 diff 審查 — 改動 backend endpoint 時順手檢查：/docs 仍可開啟、response_model 已寫、production 環境的 docs/openapi URL 有 gate",
           "mandatory": [
             "gstack-review"
           ],
