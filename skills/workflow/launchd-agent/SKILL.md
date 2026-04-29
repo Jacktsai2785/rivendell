@@ -349,6 +349,74 @@ Diagnoses failing agents by reading stderr/stdout logs and applies known fixes:
 
 Integrates with `sk-tester-cron` — tester auto-triggers doctor when agent health check fails.
 
+### Cron-Script Conventions (rivendell flavor)
+
+Every cron-style script under `bin/sk-*-cron` (or any `bin/sk-*` invoked by a
+launchd agent) follows the same shape. Following these conventions means the
+fleet behaves predictably — anomalies surface naturally and re-runs are safe.
+
+```bash
+#!/usr/bin/env bash
+# sk-<name> — <one-line purpose>
+#
+# <2-3 line explanation of what it does and what failure mode it solves>
+set -euo pipefail
+
+# Resolve repo root from script location, NOT from $PWD — launchd's cwd is unreliable
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+STATE_DIR="$REPO_DIR/reports"
+STATE_FILE="$STATE_DIR/.<name>-state"   # gitignored runtime state
+LOG_FILE="$STATE_DIR/<name>.log"
+
+mkdir -p "$STATE_DIR"
+
+# Optional: hook into dashboard observability
+set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
+
+# ... do the work ...
+
+# Always exit 0 for maintenance scripts; failures live in the log, not the
+# launchd exit code. Use exit 1 only when the script itself broke (config
+# missing, prerequisite absent), not when "nothing was wrong to fix".
+exit 0
+```
+
+**Five conventions worth treating as load-bearing:**
+
+1. **Silent on healthy.** Only write to `LOG_FILE` when something actually
+   changed (`FIXED`, `RESTART`, `ARCHIVED`). A healthy fleet produces empty
+   logs, which makes anomalies obvious. A noisy log buries the signal.
+
+2. **State in `reports/.<name>-state`.** Hidden file, gitignored. Format is
+   plain text, parseable by `grep`/`cut`. Anything stateful (last-run timestamp,
+   counters) goes here. Examples in this repo: `.watchdog-state`,
+   `.harvest-state`, `.harvest-done`.
+
+3. **Pipefail trap defense.** With `set -euo pipefail`, a `grep` that finds no
+   match returns 1 and kills the whole script. Wrap risky pipelines:
+   ```bash
+   { grep "^$key:" "$STATE_FILE" 2>/dev/null | cut -d: -f2-; } || true
+   ```
+   The `{ ...; } || true` catches the pipeline's exit and gives back 0. Common
+   trap when reading state files that may be empty on first run.
+
+4. **Idempotent re-run.** Running the script twice in a row on already-clean
+   state must be a no-op. Validate this manually before deploying the agent:
+   ```bash
+   ./bin/sk-<name>; echo "first: $?"
+   ./bin/sk-<name>; echo "second: $?"   # both 0, no log change between them
+   ```
+   This is what makes `launchctl kickstart` safe and lets the cron's interval
+   be tuned freely.
+
+5. **`exit 0` always for maintenance.** Maintenance scripts are not health
+   checks. If you exit 1 when "nothing needed fixing", launchd will retry
+   aggressively and `launchctl list` will show alarming failure counts that
+   mean nothing. Reserve non-zero exit codes for "the script itself broke."
+
+**See live examples:** `bin/sk-watchdog`, `bin/sk-deploy-symlink-fix`,
+`bin/sk-reports-janitor`, `bin/sk-workflow-retro-cron`. All follow this shape.
+
 ### Debugging the Fleet
 
 ```bash

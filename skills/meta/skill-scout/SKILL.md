@@ -127,6 +127,11 @@ Ask user to confirm which skills to port.
 
 For each skill the user approves:
 
+> **Read first:** `references/port-checklist.md` — concrete frontmatter
+> mapping table (anthropic format → rivendell format), platform-ref
+> stripping checklist, `cp`-vs-Edit auto-stage trap, and post-port
+> verification checklist. Saves ad-hoc thinking on every port.
+
 ### 3.1 Create Directory
 
 ```bash
