@@ -318,6 +318,10 @@ export default function SkillsPage() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+          <p className="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+            ⚠️ 此計數**系統性低估**真實使用量。只計入兩種訊號：(1) Claude 透過 <code>Read</code> 工具讀 SKILL.md，(2) 使用者透過 <code>Skill</code> 工具呼叫。
+            最常見的「description-match auto-trigger」（Claude Code harness 直接把 SKILL.md 注入 context）跟 Hook 觸發（auto-stage、protect-secrets、sync-readme…）兩條路徑都不留 tool call 紀錄，因此**完全看不見**。實際使用量通常是這裡顯示的 3-5 倍。
+          </p>
         </div>
       )}
 
