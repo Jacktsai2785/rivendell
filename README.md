@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (89 skills)
+## Skills Catalog (90 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -167,6 +167,7 @@ cd ~/any-project && claude
 | **office-xlsx** | 自動 | 試算表 (.xlsx/.csv) 建立、編輯、分析，支援公式與資料視覺化 |
 | **pitch-deck** | 自動 | Create professional business pitch decks and investor presentations with |
 | **rfq-writer** | 自動 | Generate Request for Quotation (RFQ / 報價單) for consulting projects. |
+| **slide-office-hours** | 自動 | Red-team review for a B2B presales deck storyline (storyline. |
 | **slide-template-extractor** | 自動 | Extract design system from an existing PPTX or Google Slides deck and produce a |
 | **slide-workflow** | 自動 | Step-by-step presentation creation workflow with confirmation gates. |
 | **sow-writer** | 自動 | Generate professional Taiwan-format Statement of Work (工作說明書 / SOW) for |

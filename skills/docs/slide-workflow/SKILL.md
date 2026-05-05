@@ -16,7 +16,36 @@ allowed-tools: "Read, Write, Edit, Bash, Glob, Grep"
 
 # Slide Workflow
 
-Seven gates, each requires user confirmation before proceeding. Never skip a gate unless the user explicitly says to.
+Eight gates, each requires user confirmation before proceeding. Never skip a gate unless the user explicitly says to.
+
+## Gate 0: storyline.md preflight
+
+**這道 gate 是 2026-05-03 加上的，原因：cd63836f session（光泉 deck）浪費 5 個 edit cycle 在「邊做邊發現 storyline 薄弱點」。沒簽核 storyline 就動工 = 浪費時間。**
+
+```bash
+ls -la storyline.md 2>/dev/null
+```
+
+判斷：
+
+| 狀況 | 動作 |
+|------|------|
+| 存在 + frontmatter `status: signed-off` | 進 Gate 1 |
+| 存在但 status 是 `draft` 或缺漏 | STOP — 「找到 storyline.md 但還沒簽核。先跑 `/slide-office-hours` red-team 完才能進來。」 |
+| 不存在 | STOP — 「沒找到 storyline.md。deck 沒 storyline 動工會浪費時間（參見 cd63836f 教訓）。從 `/slide-office-hours` 開始，會給你 template。」 |
+
+**Override**: 用戶說「跳過 storyline gate」/「我知道，直接做」/「--skip-storyline」 — warn once：
+> ⚠️ 跳過 storyline gate。如果中途發現結構/猜題/事實要改，那不是 bug，是這個決定的後果。
+
+然後進 Gate 1。
+
+**例外免 storyline 的場景**（自動跳過 Gate 0，不需 override）：
+- 純內部 deck（不對外）
+- 用戶明確說這是 quick mode + 「我已經想好了」
+
+> 等待 storyline 簽核或 override 後才進入 Gate 1。
+
+---
 
 ## Gate 1: 確認目的與受眾
 
