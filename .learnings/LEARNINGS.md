@@ -1,5 +1,58 @@
 # Learnings
 
+## 2026-05-05 — `~/.claude/stats-cache.json` is no longer maintained by Claude Code; dashboards depending on it get stale
+
+- **Category**: knowledge_gap (Claude Code behavior change discovered while debugging dashboard)
+- **Context**: User reported「tool call 紀錄是不是有期限？感覺怪怪的」. Investigation found `~/.claude/stats-cache.json` had `lastComputedDate: 2026-02-16` and file mtime stuck at 2026-02-18 — **77 days frozen** on an active machine. Meanwhile `~/.claude/projects/*.jsonl` had 27 files modified in the last 2 days (active). Claude Code clearly stopped writing to stats-cache.json at some point in early 2026 (probably a CLI version upgrade) but kept writing JSONL session logs as before. The dashboard's `tokens.py` still treated stats-cache as the primary source, supplemented by `_parse_recent_sessions()` which filtered JSONL files by **mtime ≥ lastComputedDate** and attributed each entry's date to the **file's mtime, not the per-line timestamp**. Result: a multi-week black hole in the daily breakdown (entire month of March 2026 invisible) plus mis-attributed dates for sessions whose JSONL file was rewritten on a different day than the original work.
+- **Rule**: For Claude Code telemetry/usage dashboards, **trust `~/.claude/projects/*.jsonl` only**. `stats-cache.json` is on the deprecation glide path and silently freezes when a CLI version no longer writes it. Per-line `entry.timestamp` is the only reliable date attribution — `path.stat().st_mtime` lies because the JSONL file gets rewritten on session-resume.
+- **Symptoms the same trap will produce in other places**:
+  - Daily activity charts with month-shaped gaps
+  - Token totals frozen at some past date despite active CLI usage
+  - "Earliest date" stuck on a past month while everything else is current
+  - Per-day model breakdown that's empty or zero-token for recent days
+- **Fix pattern (this session)**: Refactored `dashboard/lib/tokens.py` so `get_daily_usage`, `get_model_summary`, `get_total_stats` all delegate to `get_filtered_usage()` (which already parses JSONL with per-line timestamps correctly). Added a 60-second TTL in-process cache (`_cached_full_usage()`) since full parse is ~1.1s for 500MB / 1108 files — fast enough not to need anything fancier. Deleted dead helpers `_parse_recent_sessions`, `_parse_one_session`, `_parse_one_session_for_project`, the `STATS_CACHE` constant, and `_read_stats_cache`.
+- **JSONL retention is a hard floor**: Claude Code rotates old session JSONL files. On this machine the JSONL horizon was **2026-03-31** (today is 2026-05-05). Anything earlier is unrecoverable from JSONL alone. If a dashboard truly needs deeper history, it has to **persist its own aggregated copy** during the JSONL retention window rather than re-parse on demand.
+- **Generalization**: Any rivendell tool that today reads `stats-cache.json` (search the codebase for `STATS_CACHE` / `stats-cache`) is at risk of the same silent freeze. Check on each repo audit. The `audit_importer.py` in this same dashboard imports a non-existent `upsert_usage` from tokens.py — likely also a casualty of an earlier refactor; flagged but not touched in this fix.
+
+## 2026-05-03 — Storyline review IS the leverage point for deck-building (slide-office-hours = red-team gate, not generator)
+
+- **Category**: best_practice (user-converged through 5 rounds of refinement)
+- **Context**: Designing slide-office-hours skill from cd63836f session evidence. Through iteration the user converged on: 力成 deck ran smoothly because **storyline was clear before动工**; 光泉 deck wasted 5 edit cycles because storyline was being figured out *during* slide work.
+- **Rule**: For deck-building, the storyline review/establishment process IS the leverage point. Everything downstream (slide layout, copy expansion, PPTX export, spacing) runs cheap when storyline is locked, expensive when it isn't.
+- **Implications for skill design**:
+  - slide-office-hours must be a **review gate**, not a generator. User writes storyline.md → skill red-teams it against known failure modes → reject / accept.
+  - AI must NOT propose storyline content. Default AI voice = 公開資料 voice = exactly the failure mode this skill exists to catch. AI's job is challenge, not creation.
+  - The skill is upstream of slide-workflow (which already does outline → content → generate). slide-office-hours produces the signed-off storyline.md that slide-workflow consumes.
+  - Workflow chain: customer-intel (AI市調) → user writes storyline.md → slide-office-hours (red-team review) → slide-workflow (AI generates slides) → visual收尾 (AI spacing tweaks)
+- **Review checklist structure (3 layers)**:
+  - Universal failures: 公開資料 voice anywhere; exit criteria missing/vague; organizing structure absent/inconsistent; 5 fact-check items missing or unsourced; solution = capability雜燴 with no focused angle
+  - Stage-specific: first-call needs ≥3 operator猜題; post-discovery needs "Discovery learned X, proposal changed to Y"; proposal needs scope紅線+退場機制; final-pitch needs explicit competitor differentiation
+  - Profile-specific: 大型科技廠 (力成) operator猜題 must be backed by cross-customer pattern + must name differentiation target (同業/顧問/雲端商/自建); 傳產中小 (光泉) needs ≥3 operator猜題; 公部門 needs法規+預算科目+首長對象
+- **Generalization**: This review-gate pattern applies to other "creative output" skills where AI's default voice is the failure mode (pitch-deck, sales-material, sow-writer's narrative sections, internal-comms). The skill's value comes from refusing to do the part AI is bad at, while ruthlessly catching that part when human introduces it.
+
+## 2026-05-03 — Presales deck content edge: operator-level猜製程/業務流程 > 公開資料合理推測
+
+- **Category**: best_practice (user-validated, contradicted my initial framing)
+- **Context**: Analyzing the cd63836f session (光泉 first-call deck, 2026-04-29 → 04-30) for slide-office-hours skill design. From the last 30 edits I proposed splitting deck content into "fact-based (公開資料推測) vs speculative (猜題)". User immediately corrected: **「公開資料合理推測 目前效果都不好，我自己猜生產製程跟業務流程得到的結果反饋通常會更好」.**
+- **Rule**: For B2B first-call / pitch decks, the content edge comes from **operator-level guesses about the customer's 生產製程 / 業務流程**, not from公開資料推測. The latter is actively bad — it signals you didn't think specifically about this customer.
+- **Why公開資料推測 underperforms**:
+  - Generic — customer can't tell you've thought specifically about them
+  - 「你 google 一下也寫得出來」— no demonstrated edge
+  - Gets polite acknowledgement, never moves the conversation
+  - Framing the slide as「依公開資料合理推測」literally tells customer you didn't go deeper
+- **Why operator-level猜測 wins**:
+  - Demonstrates you've thought like someone who runs their floor / pipeline
+  - If wrong → customer corrects you = free Discovery data + customer feels heard (correcting feels good)
+  - If right → instant credibility (「你怎麼知道？」)
+  - Either outcome makes the deck distinctive in the room
+- **cd63836f evidence supporting this**: Cycle 1 (05:58) created the「光泉潛在議題」slide framed as「依公開資料 + 食品業趨勢初步設想」. Cycle 4 (07:11–07:18) rewrote it with operator猜測（酪農 SOP / 飼料 GenAI / 配貨預測 / 跨通路 SKU mix / 自家牧場 vs 契作酪農 distinction）. The rewrite was the upgrade — and cycle 4's content is what should have been in cycle 1.
+- **Implications for slide-office-hours skill design**:
+  - DO NOT include a "fact-based vs speculative" forcing question — the binary is wrong.
+  - DO include: 「對這個客戶的生產製程 / 業務流程最大膽的 3 個 operator 猜測是什麼？(不准抄公開資料)」
+  - Fact-check question stays, but reframed: 「最不能搞錯的 5 個基本事實是什麼？」— these are table stakes (own-goal prevention), separate from the content edge
+  - Reserve公開資料 only for: market sizing, regulatory context, basic company facts. Never for the議題 / 解法 slides.
+- **Generalization**: Applies to all rivendell skills that touch presales decks — pitch-deck, sales-material, presales-pipeline, slide-workflow, and the proposed slide-office-hours.
+
 ## 2026-04-28 — Diff-before-replace when "fixing" symlinks against pre-existing real directories
 
 - **Category**: best_practice

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# sk-token-snapshot — Persist daily JSONL usage totals into SQLite history.
+#
+# Why: ~/.claude/projects/*.jsonl gets rotated by Claude Code (~5 weeks
+# horizon on this machine). Without this snapshotter, anything older than
+# the rotation window disappears from the dashboard. By writing each
+# completed day's totals to data/rivendell.db (token_usage table), the
+# dashboard merges JSONL (live) + SQLite (history) and shows continuous
+# data even after JSONL rotation.
+#
+# Idempotent: re-running for the same days overwrites with current values.
+# Skips today (incomplete) — only finished days are snapshotted.
+#
+# Silent on healthy state (only logs the count to reports/token-snapshot.log
+# when it actually wrote rows). Designed to run daily ~02:30 via launchd.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+LOG_FILE="$REPO_DIR/reports/token-snapshot.log"
+TODAY="$(date '+%Y-%m-%d')"
+
+mkdir -p "$(dirname "$LOG_FILE")"
+
+cd "$REPO_DIR/dashboard"
+
+# Run the snapshotter via Python — leverages existing tokens.py functions
+written=$(python3 <<PY
+import sys
+sys.path.insert(0, '.')
+from lib.tokens import get_filtered_usage, upsert_daily_usage
+
+full = get_filtered_usage()
+today = "$TODAY"
+
+count = 0
+for d in full.daily:
+    if d.date >= today:
+        continue  # skip today (incomplete) and any future dates
+    upsert_daily_usage(d)
+    count += 1
+
+print(count)
+PY
+)
+
+if [ "$written" -gt 0 ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] snapshot wrote $written days" >> "$LOG_FILE"
+fi

@@ -1,16 +1,24 @@
-"""Token usage data from Claude Code stats-cache.json and session JSONL files."""
+"""Token usage data from Claude Code session JSONL files.
+
+Previously also read ~/.claude/stats-cache.json, but Claude Code stopped
+maintaining that cache in early 2026 (frozen at 2026-02-16 for this user),
+so the dashboard relied on a half-dead source and showed gaps. JSONL is
+now the sole source; an in-process TTL cache amortizes the full-tree
+parse across requests.
+"""
 
 from __future__ import annotations
 
 import json
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-STATS_CACHE = Path.home() / ".claude" / "stats-cache.json"
 PROJECTS_DIR = Path.home() / ".claude" / "projects"
+_CACHE_TTL = 60.0  # seconds; full JSONL parse takes ~1-2s for 500MB
 
 # Pricing per million tokens
 PRICING: dict[str, dict[str, float]] = {
@@ -67,100 +75,158 @@ def _estimate_cost(model: str, input_t: int, output_t: int,
     )
 
 
-def _read_stats_cache() -> dict:
-    if not STATS_CACHE.exists():
-        return {}
-    return json.loads(STATS_CACHE.read_text())
+_CACHE: dict[str, Any] = {"ts": 0.0, "result": None}
+
+
+def _cached_full_usage() -> "FilteredUsage":
+    """Cached all-time JSONL parse. Refreshes every _CACHE_TTL seconds."""
+    now = time.time()
+    if _CACHE["result"] is None or now - _CACHE["ts"] > _CACHE_TTL:
+        _CACHE["result"] = get_filtered_usage()
+        _CACHE["ts"] = now
+    return _CACHE["result"]
 
 
 def get_daily_usage(days: int | None = 30) -> list[DailyUsage]:
-    """Get daily usage from stats-cache.json + recent JSONL sessions."""
-    data = _read_stats_cache()
-    if not data:
-        return []
+    """Daily usage merged from SQLite history (older dates) + JSONL (recent).
 
-    cutoff = ""
-    if days:
-        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    JSONL is authoritative for dates it covers (Claude Code rotates older
+    sessions out — typically ~5 weeks back). SQLite `token_usage` stores
+    per-day snapshots written by `bin/sk-token-snapshot` so totals survive
+    JSONL rotation. JSONL wins on overlap.
+    """
+    full = _cached_full_usage()
+    by_date: dict[str, DailyUsage] = {d.date: d for d in full.daily}
 
-    # From stats-cache: dailyActivity + dailyModelTokens
-    activity_by_date = {d["date"]: d for d in data.get("dailyActivity", [])}
-    tokens_by_date = {d["date"]: d.get("tokensByModel", {})
-                      for d in data.get("dailyModelTokens", [])}
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d") if days else ""
+    history = read_daily_history(start_date=cutoff or None)
+    for h in history:
+        by_date.setdefault(h.date, h)  # JSONL wins on overlap
 
-    all_dates = sorted(set(list(activity_by_date.keys()) + list(tokens_by_date.keys())))
-    results = []
-
-    for date in all_dates:
-        if cutoff and date < cutoff:
-            continue
-        act = activity_by_date.get(date, {})
-        models = tokens_by_date.get(date, {})
-        total_tokens = sum(models.values())
-
-        results.append(DailyUsage(
-            date=date,
-            sessions=act.get("sessionCount", 0),
-            messages=act.get("messageCount", 0),
-            tool_calls=act.get("toolCallCount", 0),
-            tokens_total=total_tokens,
-            cost_usd=0.0,  # Per-day cost not available from cache
-            models=models,
-        ))
-
-    # Supplement with recent JSONL data (after lastComputedDate)
-    last_computed = data.get("lastComputedDate", "")
-    if last_computed:
-        recent = _parse_recent_sessions(last_computed)
-        existing_dates = {r.date for r in results}
-        for r in recent:
-            if cutoff and r.date < cutoff:
-                continue
-            if r.date not in existing_dates:
-                results.append(r)
-
-    results.sort(key=lambda x: x.date)
+    results = sorted(by_date.values(), key=lambda x: x.date)
+    if cutoff:
+        results = [d for d in results if d.date >= cutoff]
     return results
 
 
 def get_model_summary() -> list[ModelSummary]:
-    """Get per-model token breakdown with estimated costs."""
-    data = _read_stats_cache()
-    model_usage = data.get("modelUsage", {})
-
-    results = []
-    for model, counts in model_usage.items():
-        input_t = counts.get("inputTokens", 0)
-        output_t = counts.get("outputTokens", 0)
-        cache_read = counts.get("cacheReadInputTokens", 0)
-        cache_create = counts.get("cacheCreationInputTokens", 0)
-        cost = _estimate_cost(model, input_t, output_t, cache_read, cache_create)
-        results.append(ModelSummary(
-            model=model,
-            input_tokens=input_t,
-            output_tokens=output_t,
-            cache_read_tokens=cache_read,
-            cache_create_tokens=cache_create,
-            cost_usd=cost,
-        ))
-
-    return sorted(results, key=lambda x: x.cost_usd, reverse=True)
+    """Per-model totals from JSONL session files."""
+    return list(_cached_full_usage().models)
 
 
 def get_total_stats() -> dict[str, Any]:
-    """Get high-level totals."""
-    data = _read_stats_cache()
-    models = get_model_summary()
+    """High-level totals merged from JSONL + SQLite history."""
+    full = _cached_full_usage()
+    history = read_daily_history()
+    jsonl_dates = {d.date for d in full.daily}
+    history_only = [h for h in history if h.date not in jsonl_dates]
+
+    history_cost = sum(h.cost_usd for h in history_only)
+    history_messages = sum(h.messages for h in history_only)
+    history_sessions = sum(h.sessions for h in history_only)
+
+    all_dates = sorted({d.date for d in full.daily} | {h.date for h in history})
+    first_date = all_dates[0] if all_dates else ""
+    last_date = all_dates[-1] if all_dates else ""
+
     return {
-        "total_sessions": data.get("totalSessions", 0),
-        "total_messages": data.get("totalMessages", 0),
-        "first_session": data.get("firstSessionDate", ""),
-        "last_computed": data.get("lastComputedDate", ""),
-        "total_cost_usd": sum(m.cost_usd for m in models),
-        "total_input": sum(m.input_tokens for m in models),
-        "total_output": sum(m.output_tokens for m in models),
-        "total_cache_read": sum(m.cache_read_tokens for m in models),
+        "total_sessions": full.total_sessions + history_sessions,
+        "total_messages": full.total_messages + history_messages,
+        "first_session": first_date,
+        "last_computed": last_date,
+        "total_cost_usd": full.total_cost_usd + history_cost,
+        "total_input": sum(m.input_tokens for m in full.models),
+        "total_output": sum(m.output_tokens for m in full.models),
+        "total_cache_read": sum(m.cache_read_tokens for m in full.models),
     }
+
+
+# ─── Daily history persistence ──────────────────────────────────────────────
+# JSONL files get rotated by Claude Code (~5 weeks back). These functions
+# persist completed-day snapshots to SQLite so totals survive rotation.
+
+def _history_db_path() -> Path:
+    return Path(__file__).parent.parent / "data" / "rivendell.db"
+
+
+def upsert_daily_usage(usage: DailyUsage) -> None:
+    """Write/overwrite a single day's snapshot to the token_usage table.
+
+    Idempotent: re-running for the same date overwrites. Caller decides
+    which days to snapshot (typically: every completed day except today).
+    """
+    import sqlite3
+    db_path = _history_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    details = json.dumps({
+        "tool_calls": usage.tool_calls,
+        "models": usage.models,
+    })
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS token_usage (
+                date TEXT PRIMARY KEY,
+                sessions INTEGER,
+                api_calls INTEGER,
+                tokens_total INTEGER,
+                cost_usd REAL,
+                details_json TEXT
+            )
+        """)
+        conn.execute("""
+            INSERT INTO token_usage(date, sessions, api_calls, tokens_total, cost_usd, details_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                sessions=excluded.sessions,
+                api_calls=excluded.api_calls,
+                tokens_total=excluded.tokens_total,
+                cost_usd=excluded.cost_usd,
+                details_json=excluded.details_json
+        """, (usage.date, usage.sessions, usage.messages,
+              usage.tokens_total, usage.cost_usd, details))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def read_daily_history(start_date: str | None = None,
+                       end_date: str | None = None) -> list[DailyUsage]:
+    """Read per-day snapshots from token_usage. Empty list if table absent."""
+    import sqlite3
+    db_path = _history_db_path()
+    if not db_path.exists():
+        return []
+    conn = sqlite3.connect(str(db_path))
+    try:
+        sql = "SELECT date, sessions, api_calls, tokens_total, cost_usd, details_json FROM token_usage"
+        clauses, params = [], []
+        if start_date:
+            clauses.append("date >= ?")
+            params.append(start_date)
+        if end_date:
+            clauses.append("date <= ?")
+            params.append(end_date)
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY date"
+        try:
+            rows = conn.execute(sql, params).fetchall()
+        except sqlite3.OperationalError:
+            return []  # table doesn't exist yet
+        results = []
+        for date, sessions, api_calls, tokens, cost, details in rows:
+            d = json.loads(details) if details else {}
+            results.append(DailyUsage(
+                date=date, sessions=sessions or 0,
+                messages=api_calls or 0,
+                tool_calls=d.get("tool_calls", 0),
+                tokens_total=tokens or 0, cost_usd=cost or 0.0,
+                models=d.get("models", {}),
+            ))
+        return results
+    finally:
+        conn.close()
 
 
 _SKIP_PARENT_DIRS = {"Documents", "Projects", "Desktop", "repos", "src", "code", "dev"}
@@ -429,130 +495,3 @@ def _parse_jsonl_unified(
 def get_project_usage() -> list[ProjectUsage]:
     """Get token usage aggregated by project from JSONL session files."""
     return get_filtered_usage().projects
-
-
-def _parse_one_session_for_project(path: Path, project: str, projects: dict) -> None:
-    """Parse a session JSONL and aggregate into the project bucket."""
-    try:
-        with open(path) as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                msg = entry.get("message", {})
-                usage = msg.get("usage")
-                if not usage:
-                    continue
-
-                model = msg.get("model", "unknown")
-                session_id = entry.get("sessionId", str(path))
-
-                d = projects[project]
-                d["sessions"].add(session_id)
-                d["messages"] += 1
-
-                if msg.get("role") == "assistant":
-                    content = msg.get("content", [])
-                    if isinstance(content, list):
-                        d["tool_calls"] += sum(
-                            1 for c in content
-                            if isinstance(c, dict) and c.get("type") == "tool_use"
-                        )
-
-                d["by_model"][model]["input"] += usage.get("input_tokens", 0)
-                d["by_model"][model]["output"] += usage.get("output_tokens", 0)
-                d["by_model"][model]["cache_read"] += usage.get("cache_read_input_tokens", 0)
-                d["by_model"][model]["cache_create"] += usage.get("cache_creation_input_tokens", 0)
-    except Exception:
-        pass
-
-
-def _parse_recent_sessions(after_date: str) -> list[DailyUsage]:
-    """Parse JSONL session files modified after a given date."""
-    cutoff_ts = datetime.strptime(after_date, "%Y-%m-%d").timestamp()
-
-    daily: dict[str, dict] = defaultdict(lambda: {
-        "sessions": set(),
-        "messages": 0,
-        "tool_calls": 0,
-        "by_model": defaultdict(lambda: {
-            "input": 0, "output": 0, "cache_read": 0, "cache_create": 0,
-        }),
-    })
-
-    for project_dir in PROJECTS_DIR.iterdir():
-        if not project_dir.is_dir():
-            continue
-        for jsonl_path in project_dir.glob("*.jsonl"):
-            if jsonl_path.stat().st_mtime < cutoff_ts:
-                continue
-            _parse_one_session(jsonl_path, daily)
-
-    results = []
-    for date_str in sorted(daily):
-        if date_str <= after_date:
-            continue
-        d = daily[date_str]
-        total_tokens = sum(
-            m["input"] + m["output"]
-            for m in d["by_model"].values()
-        )
-        cost = sum(
-            _estimate_cost(model, m["input"], m["output"], m["cache_read"], m["cache_create"])
-            for model, m in d["by_model"].items()
-        )
-        models = {model: m["input"] + m["output"] for model, m in d["by_model"].items()}
-
-        results.append(DailyUsage(
-            date=date_str,
-            sessions=len(d["sessions"]),
-            messages=d["messages"],
-            tool_calls=d["tool_calls"],
-            tokens_total=total_tokens,
-            cost_usd=cost,
-            models=models,
-        ))
-
-    return results
-
-
-def _parse_one_session(path: Path, daily: dict) -> None:
-    """Parse a single JSONL session file for token usage."""
-    file_date = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
-    try:
-        with open(path) as f:
-            for line in f:
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-
-                msg = entry.get("message", {})
-                usage = msg.get("usage")
-                if not usage:
-                    continue
-
-                model = msg.get("model", "unknown")
-                session_id = entry.get("sessionId", str(path))
-                date_str = file_date
-
-                d = daily[date_str]
-                d["sessions"].add(session_id)
-                d["messages"] += 1
-
-                if msg.get("role") == "assistant":
-                    content = msg.get("content", [])
-                    if isinstance(content, list):
-                        d["tool_calls"] += sum(
-                            1 for c in content
-                            if isinstance(c, dict) and c.get("type") == "tool_use"
-                        )
-
-                d["by_model"][model]["input"] += usage.get("input_tokens", 0)
-                d["by_model"][model]["output"] += usage.get("output_tokens", 0)
-                d["by_model"][model]["cache_read"] += usage.get("cache_read_input_tokens", 0)
-                d["by_model"][model]["cache_create"] += usage.get("cache_creation_input_tokens", 0)
-    except Exception:
-        pass
