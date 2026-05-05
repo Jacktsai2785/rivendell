@@ -1,7 +1,7 @@
 ---
-date: 2026-04-28
+date: 2026-05-03
 iso_week: 2026-W18
-period: 2026-04-21 to 2026-04-27 (last 7 days)
+period: 2026-04-27 to 2026-05-03 (last 7 days)
 source: workflow-retro
 ---
 
@@ -9,94 +9,58 @@ source: workflow-retro
 
 ## TL;DR
 
-本週最重要的事件是 04-27 出現 **80 分鐘的 watchdog 死循環**：watchdog 連續觸發 27 次 `kickstart -k` 重啟 web service，每 3 分鐘一輪，但都修不好（根因是 `.next` 半損 build，重啟救不了，需要 `rm -rf .next && npm run build`）。Watchdog 抓到了症狀，卻沒有「重啟多次仍失敗 → 升級為 deeper recovery」的能力。這是本週真正值得做的下一步。其他面向：skill 使用量健康（28 種 skill 觸發、長尾合理）、agent 排程零失敗、structural WARN 數穩定下降中（13→11）。
+本週主軸是 **deck-building**：`slide-workflow` (6) + `office-pptx` (4) + `pitch-deck` (3) + `slide-template-extractor` (2) + `sales-material` (2) 合計 17 次觸發；同時今天新增 `slide-office-hours` skill 並 codify「storyline review = leverage point」哲學。系統健康面：所有 13 個 launchd agent exit 0、tester 連續 PASS、但 dashboard 本週經歷 6 次 watchdog 事件（含 4/27 半損 .next build 連鎖崩潰、5/1 一次延遲 1 小時復原）。Token 集中度高：news-stock + Peter-Work 兩專案吃掉 66% 週費用。
 
 ## 使用度
 
-| 分類 | 數量 | 代表 |
-|------|------|------|
-| 高頻 (5+ this week) | 2 | crm-projection (6x), planning-with-files (5x) |
-| 低頻 (1-4 this week) | 26 | requirement, office-pptx, investment-research 各 4x |
-| 沉寂 (30+ days) | 12 | 多為外部/實驗性 skills（claude-automation-recommender、playground、dcg 等） |
+| Status | Skills | Agents |
+|--------|--------|--------|
+| 高頻 (5+) | `slide-workflow` (6) | — |
+| 低頻 (2-4) | `office-pptx` (4)、`pitch-deck` (3)、`crm-projection` (3)、`customer-intel` (2)、`investment-research` (2)、`session-harvest` (2)、`skill-scout` (2)、`slide-template-extractor` (2)、`subsidy-scraper` (2)、`requirement` (2)、`sales-material` (2)、`gstack-office-hours` (2) | 13/13 全部 loaded、exit 0（rivendell 7 + news_stock 2 + sales-assistant 4） |
+| 沉寂 (30+ days) | `knowledge-graph` (49d, 已建未用)、`ui-ux-pro-max` (54d, frontend-design 取代)、`mcp-builder`/`swiftui-patterns` (54-55d, 仍合理)、`telegram-bot`/`claude-to-telegram` (49d)、`audit-fix`/`ci-pipeline`/`setup-permissions`/`init-project`/`plan-check-style`/`qa-testing`/`headless-agent` (32-50d)、`gdrive-to-skills` (49d)、`destructive-command-guard`/`code-reviewer`/`security-review`/`review-pr` (>50d, 已被 gstack-* 取代) | 7 個 project-side agent 顯示 ○ unloaded（news_stock 的 maintainer/tester/developer + sales-assistant 全部 4 個）— 是排程未啟動，不是失敗 |
 
-**解讀：** 高頻 skill 都是 sales-assistant / news-stock / 規劃類的核心工作流，與 daily commit history 一致。沉寂 skill 大多是早期匯入的外部/示範品，不是 rivendell 自己的 skill — 不需要本週處理，但下次該加個 filter 區分「自家 skill」vs「外部/示範」。session-harvest 本週 1x，verify 自身 skill（workflow-retro）尚未首次觸發，預期下週會出現。
+**值得注意**：
+- 本週新增/活躍編輯了 5 個 skill（`slide-office-hours` 新建未 commit、`launchd-agent` 5 次修訂、`auto-stage`/`protect-secrets`/`skill-scout` 各 2 次）— 是 skill 維運高峰週。
+- `knowledge-graph` 建立於 2026-03-11、最後觸發 2026-03-15 後再無使用。其他「沉寂」skill 多數是已被 gstack-* 系列覆蓋（合理），但 knowledge-graph 是「建好沒人用」— 需檢查是 description 沒對齊還是真不需要。
+- `slide-office-hours`（今天剛建）已被使用 1 次、`workflow-retro`（本月 7 號建）今天才被觸發 — 兩個 meta skill 的 dogfood 還在熱身。
 
 ## 重複痛點
 
-### Theme 1: launchd / TCC / macOS process boundary（3+ 次）
+### Theme 1: Dashboard / Next.js build 穩定性
+- **頻率**: 4 次跨 sources（`.learnings/` 2026-04-26 KeepAlive 不抓 hung process、2026-04-27 half-built .next、2026-04-28 diff-before-replace；`reports/watchdog.log` 6 次事件）
+- **類別**: **Architectural** — watchdog 修補了 hung process 這個 class，但「壞 build cache → restart 也救不回」這個 class 還活著。
+- **代表性事件**: 2026-04-27 11:35–12:03 web 連續 9 次 RESTART 失敗（.next 半損）；2026-05-01 18:53 API fail 拖到 19:54 才復原（1 小時延遲）；2026-05-03 10:54 api+web 同步 fail。
+- **建議**: 實作 `.learnings/LEARNINGS.md` 2026-04-27 已寫好的 sentinel file pattern（`.next/.build-complete` 取代 `BUILD_ID` 作為 build commit point），讓 `start-web.sh` 真的能偵測半損 build 而不是看 BUILD_ID 假性 OK。
 
-- **頻率**: 3 條 .learnings 條目（2026-03-18 repo rename、2026-03-24 TCC blocks /bin/bash、2026-04-26 KeepAlive 限制）
-- **類別**: Architectural
-- **代表性事件**: KeepAlive 不抓 hung process、TCC 阻擋 launchd 讀 ~/Documents/、process 邊界導致路徑/環境變數不一致
-- **建議**: 已部分自我緩解（`sk-agent-run` C wrapper、watchdog skill）。下一步 candidate 是寫一個 `launchd-troubleshoot.md` ref 文件聚合這三個教訓，未來踩坑時 1 個 grep 找得到。
+### Theme 2: 通路商 (channel-partner) 客戶分層的 skill 缺口
+- **頻率**: 3 次跨 harvest（2026-04-24 `channel-partner-intake` Moderate、2026-04-30 `channel-partner-deck-pack` Moderate→Strong、04-30 customer-intel session 中華電 master deck 反向萃取 119 次 Edit）
+- **類別**: **Editorial** — 既有 `presales-pipeline` 採平坦 `01_presales/<client-slug>/`，不表達「通路商→終端客戶」雙層結構；customer-intel 因此被 meta-work 污染。
+- **代表性事件**: 中華電 master deck → `BRAND.md` + `tokens.json` + `EXAMPLE-2-FOOD-INDUSTRY.md` 三件式 pack（光泉、永豐紙業、立積電子等多客戶共用）。
+- **建議**: 不立即新建 skill — 等「另一個通路」（非中華電）出現時才抽取 `channel-partner-pipeline`，避免把中華電的特殊規格寫死成假設。現階段在 `presales-pipeline` README 補一節說明雙層資料夾與 brand pack 抽取流程（成本低）。
 
-### Theme 2: Build artifact / cache 半損狀態（2 次，未過 3 門檻但近期度高）
-
-- **頻率**: 2 條 .learnings 條目（2026-04-23 stale Docker container、2026-04-27 .next half-built）— 本週 watchdog log 80 分鐘死循環是同一類問題的延伸
-- **類別**: Architectural
-- **代表性事件**: 半完成的 build / 過時的 daemon listener 被誤認為 healthy、自動 recovery 機制無法處理
-- **建議**: 下次再撞到就升級為 Theme 1 等級的「重複痛點」。本週的 sentinel-file fix（`d836a94`）是 `.next` 這個案例的特定解，不是通用解。
-
-**3+ 門檻外的 .learnings 條目（單次出現，列出供下週對照）：** auto-stage 風險、git pipefail 陷阱、g0v API field name、settings 一次性權限污染。
+### Theme 3: Skill audit 報告自身的描述錯置（資料品質）
+- **頻率**: 5+ 次（`reports/skill-audit-2026-05-03.md` 的「全部 Skills 功能一覽」表中至少 6 個 skill 描述明顯錯置 — `workflow-retro` 顯示 sync-readme 的描述、`client-kickoff-docs` 顯示 telegram-bot、`env-doctor` 顯示 dispatching-parallel-agents、`mops-financial-scraper`/`presales-pipeline`/`repro-exam` 顯示 mockup/planning-with-files、`slide-office-hours` 顯示 rfq-writer）
+- **類別**: **Mechanical** — audit 產生器的 frontmatter 解析錯（疑似分類路徑/檔名 mapping bug）。連續 6 天的 audit 都呈現同樣問題。
+- **建議**: 修 `bin/sk audit` 的 frontmatter 讀取邏輯。優先級不高（人類靠檔名也能對應），但 audit 本身是給人類讀的，這個 bug 持續產出錯誤資訊會侵蝕 audit 報告的信任度。
 
 ## 集中度
 
-- **Token / cost**: 過去 7 天 dashboard 累計 ≈ **USD 9,024**（188 sessions、26K messages、18.5M tokens）。`/api/tokens/filtered` 沒回傳 per-project 拆解，但比對 04-25 audit 報的 7 日花費 USD 3,252 — **本週是上週的 ~2.8x**，需要查清是真實使用增長還是計費 / 抓取問題。**這是本週唯一未解的可量化異常。**
-- **失敗集中**: 本週所有 launchd agent 排程執行 0 次非 0 退出（過濾後 list 空）。Agent 層健康。
-- **Dashboard 健康**: 04-27 watchdog log 顯示 **27 次 RESTART 在 80 分鐘內**，全部都是同一個 root cause（`.next` 半損）。Restart event 過去 24h 已經結束 — 但這代表 watchdog 沒有「重複失敗 → 升級 recovery」邏輯。
+- **Token 集中**: news-stock $1533 (35%) + Peter-Work $1334 (31%) = 66% 週費用。news-stock 受「六大指標 grading pipeline」推動本週 28 個 commit；Peter-Work 受 customer-intel + 中華電 master deck 反向萃取推動。兩者都是「正在重度建設」階段，預期下週收斂；但若同樣比例維持兩週以上，值得問「這是該專案最該用的工具嗎」。
+- **單日峰值**: 2026-05-03 (今天) 7.55M tokens / $3803 / 22 sessions（含本次 retro 對話），是本週最高 — 主要來自 deck-building + slide-office-hours skill design。
+- **失敗集中**: 0 個 agent 有 non-zero exit。Dashboard 是唯一失敗集中點 — 6 次 watchdog event（5 次自動復原、1 次延遲到 1 小時 = 5/1 18:53）。
+- **Dashboard 健康**: 每週 6 次 watchdog fire 不是穩態。重啟頻率 = 「watchdog 在工作但根因沒解」。
+- **Audit issues**: 18 個（較 2026-04-27 的 29 個下降 38%）— 主要改善是部署從 11 missing → 0、symlink 100% OK。剩餘多為 missing tags / version frontmatter。
 
-### Structural WARN 趨勢（test 報告）
+## 下週 Actions (max 3, prioritized)
 
-| 日期 | WARN 數 |
-|------|---------|
-| 04-21 | 13 |
-| 04-22 | 12 |
-| 04-23 | 13 |
-| 04-24 | 12 |
-| 04-25 | 13 |
-| 04-26 | 12 |
-| 04-27 | **11** |
+1. **修 `dashboard-next/start-web.sh` 的 sentinel file build 偵測** — Why now: `.learnings/` 2026-04-27 已寫明完整方案（`.next/.build-complete` sentinel）、watchdog 5/1 + 5/3 持續見到此 class of bug、修法是 1 行 sentinel + 1 個 if 判斷。Est. effort: 30 min。Expected impact: 消除 watchdog event 主要來源，dashboard 自我修復能力從「重啟 process」升級到「重新 build」。
 
-11 個是 symlink missing — `./bin/sk deploy` 已經會修，只是沒人定期跑。
+2. **`presales-pipeline` README 補「通路媒介客戶」段落** — Why now: harvest 連續 2 週浮現 channel-partner pattern、customer-intel session 因此持續被 meta-work 污染。先用文字 codify 慣例（`YYYYMM_通路商/終端客戶名/` + brand pack 三件式），等下次第二個通路出現再決定是否抽 skill。Est. effort: 1 hr markdown。Expected impact: 防止 customer-intel skill 自身被在客戶研究 session 中反覆改寫。
 
-### Skill audit 待解 issue
+3. **檢查 `knowledge-graph` skill description 對齊度** — Why now: 建立 49 天無觸發、最近一次使用是建立後 4 天。要嘛 description 沒對齊真實 trigger 詞、要嘛這個 skill 真的沒 fit。Est. effort: 15 min（讀 SKILL.md 對照 .learnings 找未觸發但應觸發的 case）。Expected impact: 決策保留 / 改 description / 退休 — 三選一，不再放著佔空間。
 
-| 日期 | issues |
-|------|--------|
-| 04-22 | 29 |
-| 04-23 | 30 |
-| 04-24 | 29 |
-| 04-25 | 30 |
-| 04-26 | 29 |
-
-數字平的 — 沒人在處理。
-
-## 下週 Actions（max 3, prioritized）
-
-### 1. 建 `sk-deploy-symlink-fix` agent（daily）— 砍掉 11 個 WARN
-**為什麼現在做：** test report 連續 7 天紅 11 個 WARN，全是 symlink 缺失。`./bin/sk deploy` 一個指令就修完。  
-**Effort:** ~30 行 bash + 一條 agents.conf row。  
-**Expected impact:** structural WARN 從 11 → 0，未來 audit / test 報告更乾淨，真正異常不會被淹沒。
-
-### 2. Watchdog 升級「重複失敗 → deeper recovery」邏輯
-**為什麼現在做：** 04-27 的 80 分鐘死循環是 watchdog 的設計盲點 — 連續 N 次 kickstart 都失敗時，目前還是繼續 kickstart。應該在第 N 次（例如 5 次）後升級到 deeper recovery（對 web 是 `rm -rf .next && npm run build`、對 api 可能是其他動作）。  
-**Effort:** ~20 行 bash 加進 `bin/sk-watchdog`，state file 多紀錄一個 `total_restarts_today` 欄位。  
-**Expected impact:** 下次撞到任何半損 build / 半損 cache 類問題不需要人工介入。  
-**Tradeoff:** 自動 rebuild 成本高（30-60 秒 + 阻斷服務），不能太積極 — N 設大一點（例如 ≥5 次連續失敗才升級）。
-
-### 3. 查清 token 花費 2.8x 跳動
-**為什麼現在做：** 一週 USD 9k 是不小的數字，如果是真實工作量，當參考點；如果是抓取或計費 bug，會誤導未來決策。  
-**Effort:** 開 dashboard `/tokens` 頁面、看哪天 / 哪 project 暴漲。15 分鐘以內。  
-**Expected impact:** 未來成本對話有正確基線。
+> 備註：Theme 3（audit 報告描述錯置）本週不列入 actions — 影響範圍僅限可讀性、且修 audit 解析器需要的 effort（>1 hr）跟 impact 比不上前三項。記錄在此供下週若仍存在再升級。
 
 ## 對照上週
 
-第一次 retro，無上週對照。下週 retro 時應該驗證：
-
-- [ ] Action 1（symlink-fix agent）— WARN 數應該降到 0
-- [ ] Action 2（watchdog 升級）— 不會再看到 27x 同一日 restart loop
-- [ ] Action 3（token 花費調查）— 知道 9k 是真實還是異常
-
----
-
-*產生工具：`skills/meta/workflow-retro` v1.0.0（首次執行）*
+跳過 — 本檔為第一次正式 retro（找不到 `reports/workflow-retro-2026-W17.md` 或更早的）。下週會回填上週 actions 完成度。
