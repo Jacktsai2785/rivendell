@@ -174,6 +174,54 @@ cd ~/any-project && claude
 | **telegram-bot** | 自動 | grammY / python-telegram-bot 機器人開發指南：架構、Bot API、部署模式 |
 
 
+## Built-in Claude Code Skills (not in this repo)
+
+These ship compiled into the `claude` binary itself — invisible to `./bin/sk` and the catalog above, but available everywhere Claude Code runs. **Onboard new colleagues with these — easy to miss.**
+
+### Skills (registered via `T$({name:...})`)
+
+| Skill | 用途 |
+|-------|------|
+| `update-config` | 改 `.claude/settings.json` — hooks / permissions / env vars。**任何「以後每次 X 都自動 Y」的需求都靠這個**（memory 不會 enforce 自動行為，hook 才會） |
+| `fewer-permission-prompts` | 掃 transcript，把常用 read-only command 加進 allowlist，少點擊確認 |
+| `simplify` | Pre-commit 自動 review changed code |
+| `loop` | 把 prompt / slash 命令設成定時重複（如「每 5 分鐘 /foo」） |
+| `schedule` | Cron 排程遠端 agent 跑 routine（rivendell 的 schedule skill 是同名 wrapper） |
+| `keybindings-help` | 自訂鍵盤快捷鍵（`~/.claude/keybindings.json`） |
+| `claude-api` | Anthropic SDK / Claude API 開發助手，含 prompt caching |
+| `batch` | 大規模平行改動：分派 5-30 個 worktree agent，各自開 PR |
+| `claude-in-chrome` | 用 Chrome 瀏覽器操作網頁（不同於 Playwright MCP） |
+| `debug` | 開啟 debug logging 診斷 issue |
+| `dream` | 描述未公開（可能 feature-gated） |
+
+### Slash commands (registered as builtin prompts)
+
+| Command | 用途 |
+|---------|------|
+| `/init` | 為現有 codebase 生成 CLAUDE.md |
+| `/init-verifiers` | 自動建立 verifier skill — 跟 rivendell 的 QA pipeline 互補 |
+| `/insights` | 分析你的 Claude Code session，產 usage report |
+| `/review` | Review 一個 PR |
+| `/commit` | 快速 git commit |
+
+### Feature gating
+
+不是每個內建 skill 都會出現在每個 session 的 available-skills 列表。如 `batch` / `claude-in-chrome` / `debug` / `dream` / `/insights` / `/init-verifiers` / `/commit` 在某些設定下會被隱藏（feature flag / 版本旗標 / env var）。
+
+### Self-discovery
+
+```bash
+# Skills (T$ registration)
+strings $(which claude) | grep -oE 'T\$\(\{name:"[a-z][a-z0-9-]+"' | sort -u
+
+# Slash commands
+strings $(which claude) | grep -oE '\{type:"prompt",name:"[a-z][a-z0-9-]+"[^}]+source:"builtin"' \
+  | grep -oE 'name:"[^"]+"' | sort -u
+```
+
+升級 Claude Code 後再跑一次，可看出新增的內建。
+
+
 ## How Deploy Works
 
 Each skill directory gets symlinked individually into `~/.claude/skills/`. Edits to skill files take effect immediately — re-deploy only when adding new skills.
