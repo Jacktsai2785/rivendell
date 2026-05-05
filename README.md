@@ -337,5 +337,9 @@ cd ~/any-project && claude
 
 ## Prerequisites
 
-- Python 3 — for ui-ux-pro-max search CLI
-- `agent-skills-cli` — for importing from SkillsMP: `npm install -g agent-skills-cli`
+- **Claude Code** — install from Anthropic first; rivendell runs on top
+- **Python 3** — for ui-ux-pro-max search CLI + dashboard api
+- **Node + npm** — for dashboard web frontend
+- **`agent-skills-cli`** (optional) — for importing from SkillsMP: `npm install -g agent-skills-cli`
+
+For first-time install on a new machine or onboarding a colleague: see **[`docs/SETUP.md`](docs/SETUP.md)** — full runbook + gotchas (turbopack, `.next/` cache, IPv4/IPv6 conflicts).
