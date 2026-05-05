@@ -1256,11 +1256,11 @@ def api_skills_usage() -> dict[str, Any]:
 
 @app.get("/api/skills/{name}", tags=["Skills"])
 def api_skill_content(name: str) -> dict[str, Any]:
-    """Return SKILL.md content + metadata for a single skill."""
-    skill_md = Path.home() / ".claude" / "skills" / name / "SKILL.md"
-    if not skill_md.is_file():
-        raise HTTPException(404, f"Skill '{name}' not found")
-    content = skill_md.read_text(encoding="utf-8")
+    """Return SKILL.md content + metadata for a single skill.
+
+    Built-in Claude Code skills (category="builtin") have no SKILL.md on
+    disk — synthesize a placeholder content from the metadata we have.
+    """
     meta: dict[str, Any] = {}
     for s in list_skills():
         if s.name == name:
@@ -1272,6 +1272,29 @@ def api_skill_content(name: str) -> dict[str, Any]:
                 "lifecycle": s.lifecycle,
             }
             break
+
+    if meta.get("category") == "builtin":
+        content = (
+            f"# {name}\n\n"
+            f"> Built-in Claude Code skill — no SKILL.md on disk. "
+            f"Compiled into the `claude` binary itself.\n\n"
+            f"## Description\n\n"
+            f"{meta.get('summary') or '(description not surfaced in binary)'}\n\n"
+            f"## How to invoke\n\n"
+            f"`/{name}` — same as any other slash command.\n\n"
+            f"## Why no source file\n\n"
+            f"Built-in skills ship with Claude Code itself rather than as files in this repo. "
+            f"They auto-update with each Claude Code version bump (no `./bin/sk deploy` needed). "
+            f"To inspect the source, decompile the binary at `$(which claude)` — but it's not "
+            f"meant to be modified by users.\n\n"
+            f"See README.md → \"Built-in Claude Code Skills\" section for the full inventory.\n"
+        )
+        return {"name": name, "content": content, **meta}
+
+    skill_md = Path.home() / ".claude" / "skills" / name / "SKILL.md"
+    if not skill_md.is_file():
+        raise HTTPException(404, f"Skill '{name}' not found")
+    content = skill_md.read_text(encoding="utf-8")
     return {"name": name, "content": content, **meta}
 
 
