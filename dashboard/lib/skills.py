@@ -1,14 +1,34 @@
-"""Merge TSV metadata + SKILL.md files for rivendell."""
+"""Merge TSV metadata + SKILL.md files for rivendell.
+
+Also surfaces Claude Code's compiled-in built-in skills (e.g. update-config,
+fewer-permission-prompts, /insights) that have no SKILL.md on disk — by
+scanning the `claude` binary with `strings`. Without this, the dashboard
+silently hides ~16 skills that ship with the CLI itself.
+"""
 
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 SKILLS_DIR = Path.home() / ".claude" / "skills"
 TSV_PATH = Path(__file__).parent.parent.parent / "data" / "skill-summaries-zh.tsv"
+
+# Descriptions for built-ins where the binary stores them via getter / split string
+# (so the strings(1) regex misses them). Updated when Claude Code ships new built-ins.
+_BUILTIN_FALLBACK_DESC: dict[str, str] = {
+    "update-config": "Configure .claude/settings.json — hooks, permissions, env vars. Required for any \"from now on when X\" automation (memory cannot enforce hooks).",
+    "keybindings-help": "Customize keyboard shortcuts in ~/.claude/keybindings.json.",
+    "loop": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo).",
+    "schedule": "Cron-style scheduled remote agents (routines).",
+    "claude-api": "Build, debug, and optimize Claude API / Anthropic SDK apps with prompt caching.",
+    "dream": "(Description not surfaced in binary — likely feature-gated.)",
+    "init": "Initialize a new CLAUDE.md file with codebase documentation.",
+}
 
 
 @dataclass
@@ -141,4 +161,87 @@ def list_skills(
             lifecycle=lifecycle,
         ))
 
+    result.extend(_get_builtins_cached())
     return result
+
+
+# ─── Built-in skill discovery (compiled into `claude` binary) ───────────────
+
+_BUILTIN_CACHE: list[SkillInfo] | None = None
+
+
+def _get_builtins_cached() -> list[SkillInfo]:
+    """Cache built-ins for process lifetime. Binary doesn't change live —
+    api restart picks up new built-ins on Claude Code upgrade.
+    """
+    global _BUILTIN_CACHE
+    if _BUILTIN_CACHE is None:
+        _BUILTIN_CACHE = _extract_builtin_skills()
+    return _BUILTIN_CACHE
+
+
+def _extract_builtin_skills() -> list[SkillInfo]:
+    """Parse the `claude` binary for compiled-in skills + slash commands.
+
+    Two registration patterns:
+    - T$({name:"...",description:"..."})   → 11 skills (update-config etc.)
+    - {type:"prompt",name:"...",description:"...",source:"builtin"}  → 5 commands
+
+    Falls back to /usr/bin/strings; if missing or claude not on PATH, returns [].
+    """
+    claude_path = shutil.which("claude")
+    if not claude_path:
+        return []
+    try:
+        out = subprocess.check_output(
+            ["strings", claude_path], stderr=subprocess.DEVNULL, timeout=10,
+        ).decode("utf-8", errors="replace")
+    except Exception:
+        return []
+
+    seen: set[str] = set()
+    skills: list[SkillInfo] = []
+
+    # Pass 1: discover names. Two registration forms.
+    name_pattern_a = re.compile(r'T\$\(\{name:"([a-z][a-z0-9-]+)"')
+    name_pattern_b = re.compile(
+        r'\{type:"prompt",name:"([a-z][a-z0-9-]+)"[^}]{0,400}source:"builtin"'
+    )
+    candidate_names: list[str] = []
+    for m in name_pattern_a.finditer(out):
+        candidate_names.append(m.group(1))
+    for m in name_pattern_b.finditer(out):
+        candidate_names.append(m.group(1))
+    # Always include init (uses a getter for description, doesn't match pattern_b)
+    candidate_names.append("init")
+
+    # Pass 2: for each name, try harder to extract description (single OR double
+    # quote). If still empty, fall back to the hardcoded dict.
+    for name in candidate_names:
+        if name in seen:
+            continue
+        seen.add(name)
+        desc = _extract_builtin_description(out, name) or _BUILTIN_FALLBACK_DESC.get(name, "")
+        skills.append(SkillInfo(
+            name=name, category="builtin",
+            summary=desc[:300], line_count=0,
+            invocable=True, lifecycle="builtin",
+        ))
+
+    return skills
+
+
+def _extract_builtin_description(blob: str, name: str) -> str:
+    """Find the description literal for a built-in skill. Tries both single
+    and double quotes; returns first non-empty match."""
+    escaped = re.escape(name)
+    # Look in 600-char window after the name registration
+    for quote in ('"', "'"):
+        q = re.escape(quote)
+        pat = re.compile(
+            rf'name:"{escaped}"[^{q}]{{0,600}}?description:{q}([^{q}]{{1,500}}){q}'
+        )
+        m = pat.search(blob)
+        if m:
+            return m.group(1)
+    return ""

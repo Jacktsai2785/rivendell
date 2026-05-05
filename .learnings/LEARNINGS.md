@@ -1,5 +1,30 @@
 # Learnings
 
+## 2026-05-05 — Some Claude Code skills are built into the binary, not file-based — invisible to rivendell skill audits
+
+- **Category**: knowledge_gap
+- **Context**: User asked which skill helps reduce permission prompts. `fewer-permission-prompts` is in the available-skills list but `find skills/ -name fewer-permission-prompts` returns nothing in rivendell, `~/.claude/skills/`, or `~/.claude/plugins/`. User asked「為什麼 rivendell 查不到」.
+- **Root cause**: Claude Code ships ~9 skills compiled directly into the `claude` binary as JS. Confirmed via `strings $(which claude) | grep fewer-permission` — the skill registration call (`T$({name:"fewer-permission-prompts", description:"...", userInvocable:true, ...})`) is in the bundled JavaScript, not on disk anywhere.
+- **Full inventory of built-in skills (Claude Code circa 2026-05)** — 15+ items split across THREE registration mechanisms:
+  - **Category A — `T$({name:...})` skill registrations** (11): `batch`, `claude-api`, `claude-in-chrome`, `debug`, `dream`, `fewer-permission-prompts`, `keybindings-help`, `loop`, `schedule`, `simplify`, `update-config`
+  - **Category B — `{type:"prompt", source:"builtin"}` slash commands** (5): `/commit`, `/init`, `/init-verifiers`, `/insights`, `/review`
+  - **Category C — plugin-bundled** (varies per install): `/security-review`, etc.
+- **Feature-gated subset**: only some appear in any given session's available-skills system reminder. On this machine (2026-05-05), `batch`, `claude-in-chrome`, `debug`, `dream`, `/commit`, `/init-verifiers`, `/insights` were NOT advertised — they're gated by feature flag, env var, or version. Run `strings $(which claude) | grep -oE 'T\\\$\\(\\{name:"[a-z][a-z0-9-]+"' | sort -u` (and the equivalent for category B) after each Claude Code upgrade to see the full set, then probe the gated ones (e.g. type `/insights` and see if it resolves) to discover what's actually invocable.
+- **Most-missed-by-rivendell-users**: `update-config` (only way to set hooks — memory cannot enforce automated behavior; the harness needs settings.json), `fewer-permission-prompts`, `/insights` (per-session usage analysis), `/init-verifiers` (auto-create verifier skills, complements rivendell's QA tooling). Tell new colleagues about these — they're invisible in the rivendell skill audit.
+- **Implications**:
+  - Skill audits (`bin/sk audit`, README catalog generator) only see the rivendell tree and won't list these. That's correct — rivendell isn't responsible for them — but a maintainer might wrongly assume the audit is exhaustive.
+  - Skill counts in dashboards and catalogs reflect rivendell-managed only. Add a footnote when reporting "total skills" if precision matters.
+  - Built-in skills auto-update with Claude Code version bumps. No deploy / symlink-fix needed for them.
+  - You **can't override or modify** a built-in skill's prompt without overshadowing it via a same-name rivendell skill — but that splits the namespace and is rarely worth it.
+- **Diagnostic recipe**: To check if a skill is file-based or built-in:
+  ```
+  find ~/Documents/Projects/rivendell/skills ~/.claude/skills ~/.claude/plugins \
+       -maxdepth 5 -type d -name "<skill-name>" 2>/dev/null
+  # if empty: probably built-in; verify with
+  strings $(which claude) | grep '"<skill-name>"'
+  ```
+- **Generalization**: Skills in Claude Code come from **three sources** (rivendell, plugins, built-in). When a skill name doesn't match the rivendell tree, it's not a missing skill — check the other two before chasing the file.
+
 ## 2026-05-05 — `~/.claude/stats-cache.json` is no longer maintained by Claude Code; dashboards depending on it get stale
 
 - **Category**: knowledge_gap (Claude Code behavior change discovered while debugging dashboard)
