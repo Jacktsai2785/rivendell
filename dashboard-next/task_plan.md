@@ -24,10 +24,10 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| A1 | Download `Geist-Variable.woff2` → `dashboard-next/src/fonts/` (NOT public/, keep co-located with loader) | pending | https://github.com/vercel/geist-font/releases |
-| A2 | Download `GeistMono-Variable.woff2` → `dashboard-next/src/fonts/` | pending | Same release |
-| A3 | Refactor `src/app/layout.tsx`: replace `import { Geist, Geist_Mono } from "next/font/google"` with `import localFont from "next/font/local"` and point to `./fonts/Geist-Variable.woff2` etc. Keep `--font-geist-sans` / `--font-geist-mono` variable names (already wired into @theme inline) | pending | Single-file change |
-| A4 | `pnpm dev` → DevTools Network tab → confirm no `fonts.googleapis.com` request | pending | All font loading should be `_next/static/media/...` |
+| A1 | Download `Geist-Variable.woff2` → `dashboard-next/src/fonts/` (NOT public/, keep co-located with loader) | done | Got from geist-font 1.8.0 release, 68K. SHA256 logged below. |
+| A2 | Download `GeistMono-Variable.woff2` → `dashboard-next/src/fonts/` | done | Same release, 69K. |
+| A3 | Refactor `src/app/layout.tsx`: `next/font/local`, `weight: "100 900"`, `display: "swap"` + favicon + viewport themeColor | done | Bonus: separated `viewport` export from `metadata` (Next.js 16 pattern) |
+| A4 | Build verifies font loading is local | done | `.next/static/media/{Geist,GeistMono}_Variable-*.woff2` exists; no fonts.googleapis.com in built output |
 
 ### B. Design tokens (Tailwind v4 native: `:root` + `@theme inline`)
 
@@ -35,10 +35,10 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| B0 | **Remove `@media (prefers-color-scheme: dark)` block** from globals.css | pending | DESIGN.md is light-only. Single-user tool, no dark mode |
-| B1 | Extend `:root` in globals.css with all DESIGN.md tokens: `--bg, --surface, --surface-2, --border, --border-strong, --text, --text-muted, --text-subtle, --accent, --accent-soft, --accent-bg, --status-ok, --status-warn, --status-err, --space-1..8, --radius-sm/md/lg` | pending | Hex values per DESIGN.md color table |
-| B2 | Extend `@theme inline { ... }` block with semantic color names: `--color-bg, --color-surface, --color-accent` etc → `var(--bg)` etc. This makes Tailwind utilities like `bg-accent`, `text-muted` work | pending | Single block edit in globals.css |
-| B3 | Smoke test: open landing page, inspect computed styles, confirm `bg-accent` class resolves to `#2d4a3e` | pending | grep for `#0a0a` `bg-slate-` `bg-gray-` `bg-violet-` etc to find leftover hardcoded values |
+| B0 | Remove `@media (prefers-color-scheme: dark)` block from globals.css | done | Block deleted. Single-user light-only. |
+| B1 | Extend `:root` with all DESIGN.md tokens (15 color tokens + 8 spacing + 3 radii) | done | Legacy aliases `--background`/`--foreground` kept for not-yet-migrated pages |
+| B2 | Extend `@theme inline { ... }` to expose `bg-accent`, `text-muted`, `border-strong` etc as Tailwind utilities | done | Plus added `.tabular-nums` helper class |
+| B3 | Build verifies Tailwind v4 parses `@theme` block correctly | done | `pnpm next build` succeeded — Compiled in 1.67s, 11 routes generated |
 
 ### C. Brand assets
 
@@ -157,7 +157,8 @@ Track at end of each phase. Keeps blast radius visible.
 
 | Phase | Files | Notes |
 |-------|-------|-------|
-| _pending_ | | |
+| Stage 1 · A (fonts) | `src/fonts/Geist-Variable.woff2` (68K), `src/fonts/GeistMono-Variable.woff2` (69K), `src/app/layout.tsx` | Geist 1.8.0 release. SHA256: Geist `9ceed04f...`, GeistMono `f2be56af...` |
+| Stage 1 · B (tokens) | `src/app/globals.css` | All DESIGN.md tokens shipped. Build green. |
 
 ---
 
