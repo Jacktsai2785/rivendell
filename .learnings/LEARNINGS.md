@@ -1,5 +1,16 @@
 # Learnings
 
+## 2026-05-07 — Logo-first beats full aesthetic redesign for personal dev tools; user reframe rescued 4 iterations of mythic-library overengineering
+
+- **Category**: best_practice (user-converged after burning 4 visual iterations)
+- **Context**: User asked to redesign rivendell dashboard ("醜且亂", workflow map needs tree). Ran `/gstack-design-consultation`. Iterated v1 dark industrial → v2 light + charts → v3 Mythic Library (Tolkien parchment + Cormorant Garamond + scroll cards + Bezier connectors) → v3.1 Mythic with toned-down typography. Each iteration the user gave more specific feedback. At v3.1 the user asked: "Rivendell 是不是換個 logo 就好？" — which reframed the entire problem.
+- **Reframe**: rivendell character does not need to be carried by every surface of the dashboard. Logo + a single accent color (forest green) + one footer ornament gets you 90% of the brand identity for 10% of the cost. Vercel, Linear, Raycast all do this — their dashboards are neutral; their identity lives in the logo + brand color.
+- **Why I missed it earlier**: I treated the design problem as "what aesthetic should the dashboard adopt" instead of "where should brand identity live, and how cheaply can we put it there". The skill itself biases toward full-stack proposals (aesthetic + decoration + layout + motion), so without explicit pushback toward minimalism, you escalate decoration. ROI question was never asked until the user asked it.
+- **Rule**: Before iterating on an aesthetic proposal beyond v2, surface the question: "is the dashboard chrome the right place for brand identity, or should the logo carry it?" — especially for **internal / personal / dev tools** where chrome is supposed to disappear into the work.
+- **Diagnostic**: If you find yourself proposing parchment textures, custom serif typography, hand-drawn connectors, or any "decorative layer" on a dashboard for a single user with no marketing surface, stop and ask the lever question. The lever is almost always the logo + 1 accent color, not the entire surface.
+- **Generalization**: Same trap exists for B2B SaaS dashboards (where brand consistency matters but admins care about function), DX surfaces like CI dashboards, and internal admin tools. Marketing sites and consumer products are the opposite — chrome IS the brand. Calibrate by user-type.
+- **Final outcome**: v4 = light neutral dashboard + twin-leaves logo in forest green + Geist + Geist Mono + ❦ footer ornament + one Tolkien-flavored line. Design system written to `dashboard-next/DESIGN.md`, logo SVGs to `public/logo.svg` and `public/logo-mono.svg`, scoped CLAUDE.md to `dashboard-next/CLAUDE.md`.
+
 ## 2026-05-07 — Storyline-first hard gate is intentionally NOT enforced via hook; slide-workflow Gate 0 + flow doc is the right level
 
 - **Category**: best_practice (deliberate "stop here" decision — recording so it doesn't get relitigated)
