@@ -1,5 +1,15 @@
 # Learnings
 
+## 2026-05-07 — Skill audit ≠ skill orchestration audit: a "should we add a skill?" question is often a "is the workflow written down?" question in disguise
+
+- **Category**: correction
+- **Context**: User asked「目前的 skills 是不是有值得建立的，尤其是在簡報端？」. I read harvest-2026-05-06-followup.md + skill-audit-2026-05-06.md, found the slide ecosystem has 11 overlapping skills (slide-workflow, slide-office-hours, pitch-deck, sales-material, slide-template-extractor, office-pptx, gdoc-report-builder, iot-factory-report, customer-intel, metadata-workshop, de-slopify) and concluded "no new slide skill needed, audit just shows description-sync issues". User pushed back:「重點應該是要怎麼在建立簡報的 flow 中把不同的 skills 組合再一起吧 / 所以其實是 skills workflow 簡報建置的設計問題」.
+- **Mistake**: I treated the question as a coverage/gap question (what's missing?) when the actual problem was orchestration (how do these compose?). The skill ecosystem was already mature — the missing artifact was the **flow document**, equivalent to the existing `### UI Feature / New Page` section in ~/.claude/CLAUDE.md but for decks.
+- **Diagnostic**: When the user asks "do we need a new skill for X?" and the audit shows ≥3 overlapping skills already in that domain, the answer is almost never "add another skill". The right next question to surface is: **is there a written flow that says when each one fires?** Check ~/.claude/CLAUDE.md for a `### X Flow` section. If absent, that's the actionable gap, not a new skill.
+- **Rule**: Before recommending skill creation, check whether ~/.claude/CLAUDE.md has a flow section covering the work-type. A documented flow (gating questions, skill chain, hard gates like signed-off storyline) is higher leverage than another single-purpose skill, because it forces routing to be explicit and reduces "工人智慧 selecting the right skill mid-task".
+- **Generalization**: Same trap will appear for any domain with many small skills (presales pipeline, customer research, deployment, QA). The signal is description-overlap warnings in skill-audit (`[docs,workflow]: ... — 建議檢查邊界是否清楚`) — those overlaps are evidence of an undocumented flow, not necessarily of skill bloat. Fix the flow doc first; only consolidate skills if the flow doc itself can't disambiguate them.
+- **This-session fix**: Added `### Slide / Deck Building` section to ~/.claude/CLAUDE.md mirroring the structure of `### UI Feature / New Page` — deck-type routing question first (A/B/C run their own skill's internal flow, D follows generic 8-step pipeline), with `slide-office-hours` as a hard gate (storyline.md needs `status: signed-off` before generation). Did NOT create any new skill.
+
 ## 2026-05-05 — Some Claude Code skills are built into the binary, not file-based — invisible to rivendell skill audits
 
 - **Category**: knowledge_gap
