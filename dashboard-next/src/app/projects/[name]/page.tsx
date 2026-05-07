@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -19,60 +19,111 @@ import {
   GitBranch,
   GitCommit as GitCommitIcon,
 } from "lucide-react";
+import StatusDot from "@/components/StatusDot";
 
-function StatusDot({ agent }: { agent: AgentInfo }) {
-  if (agent.pid)
-    return <span className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" title="Running" />;
+const cardStyle: React.CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+};
+
+function AgentDot({ agent }: { agent: AgentInfo }) {
+  if (agent.pid) return <StatusDot status="ok" />;
   if (agent.exit_code !== null && agent.exit_code !== 0)
-    return <span className="h-2.5 w-2.5 rounded-full bg-red-500" title={`Exit ${agent.exit_code}`} />;
-  if (agent.loaded)
-    return <span className="h-2.5 w-2.5 rounded-full bg-green-500" title="Loaded" />;
-  return <span className="h-2.5 w-2.5 rounded-full bg-zinc-400" title="Not loaded" />;
+    return <StatusDot status="err" />;
+  if (agent.loaded) return <StatusDot status="ok" />;
+  return <StatusDot status="idle" />;
 }
 
 function AgentRow({ agent }: { agent: AgentInfo }) {
   return (
     <Link
       href={`/agents/${encodeURIComponent(agent.label)}`}
-      className="flex items-center gap-4 rounded-lg border border-zinc-200 bg-white p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/30 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-800 dark:hover:bg-blue-950/20"
+      className="flex items-center gap-4 p-4 transition-colors"
+      style={{
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = "var(--accent-soft)";
+        e.currentTarget.style.background = "var(--accent-bg)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--border)";
+        e.currentTarget.style.background = "var(--surface)";
+      }}
     >
-      <StatusDot agent={agent} />
+      <AgentDot agent={agent} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-semibold">{agent.name}</span>
+          <span
+            className="font-medium font-mono"
+            style={{ color: "var(--text)" }}
+          >
+            {agent.name}
+          </span>
           {agent.role_badge && (
-            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+            <span
+              className="px-2 py-0.5 text-[10px] font-mono"
+              style={{
+                borderRadius: 99,
+                background: "var(--surface-2)",
+                color: "var(--text-muted)",
+              }}
+            >
               {agent.role_badge}
             </span>
           )}
         </div>
         {agent.description && (
-          <p className="mt-0.5 text-xs text-zinc-500 truncate">{agent.description}</p>
+          <p
+            className="mt-0.5 text-xs truncate"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {agent.description}
+          </p>
         )}
       </div>
-      <div className="hidden sm:flex items-center gap-1.5 text-xs text-zinc-500">
+      <div
+        className="hidden sm:flex items-center gap-1.5 text-xs font-mono"
+        style={{ color: "var(--text-muted)" }}
+      >
         <Clock size={12} />
         <span>{agent.schedule_display || "—"}</span>
       </div>
-      <div className="text-xs">
+      <div className="text-xs font-mono tabular-nums">
         {agent.exit_code === null || agent.exit_code === undefined ? (
-          <span className="text-zinc-400">—</span>
+          <span style={{ color: "var(--text-subtle)" }}>—</span>
         ) : agent.exit_code === 0 ? (
-          <span className="text-green-600">✓</span>
+          <span style={{ color: "var(--status-ok)" }}>✓</span>
         ) : (
-          <span className="text-red-500">Exit {agent.exit_code}</span>
+          <span style={{ color: "var(--status-err)" }}>
+            Exit {agent.exit_code}
+          </span>
         )}
       </div>
       {agent.current_activity && (
-        <div className="hidden md:flex items-center gap-1.5 max-w-48 text-xs text-blue-600 dark:text-blue-400 truncate">
+        <div
+          className="hidden md:flex items-center gap-1.5 max-w-48 text-xs truncate"
+          style={{ color: "var(--accent)" }}
+        >
           <Activity size={12} />
           <span>{agent.current_activity.label}</span>
           {agent.current_activity.detail && (
-            <span className="text-zinc-400 truncate">{agent.current_activity.detail}</span>
+            <span
+              className="truncate"
+              style={{ color: "var(--text-subtle)" }}
+            >
+              {agent.current_activity.detail}
+            </span>
           )}
         </div>
       )}
-      <ChevronRight size={16} className="text-zinc-300 dark:text-zinc-600" />
+      <ChevronRight
+        size={16}
+        style={{ color: "var(--text-subtle)" }}
+      />
     </Link>
   );
 }
@@ -81,28 +132,57 @@ function GitStatusSection({ git }: { git: ProjectDetailData["git"] }) {
   if (!git || !git.is_git) return null;
 
   const syncColor =
-    git.behind > 0 ? "text-red-500" : git.ahead > 0 ? "text-amber-600" : "text-green-600";
+    git.behind > 0
+      ? "var(--status-err)"
+      : git.ahead > 0
+        ? "var(--status-warn)"
+        : "var(--status-ok)";
   const syncLabel =
     git.behind > 0
       ? `↓${git.behind} behind origin`
       : git.ahead > 0
         ? `↑${git.ahead} unpushed`
-        : "✓ synced with origin";
+        : "synced with origin";
 
   return (
-    <div className="mt-4 rounded-lg border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/30">
+    <div
+      className="mt-4 p-4"
+      style={{
+        background: "var(--surface-2)",
+        borderRadius: "var(--radius-sm)",
+      }}
+    >
       <div className="flex items-center gap-2 text-sm">
-        <GitBranch size={14} className="text-zinc-400" />
-        <span className="font-mono font-medium">{git.branch}</span>
-        <span className={`text-xs font-medium ${syncColor}`}>{syncLabel}</span>
+        <GitBranch
+          size={14}
+          style={{ color: "var(--text-muted)" }}
+        />
+        <span
+          className="font-mono font-medium"
+          style={{ color: "var(--text)" }}
+        >
+          {git.branch}
+        </span>
+        <span
+          className="text-xs font-mono font-medium tabular-nums"
+          style={{ color: syncColor }}
+        >
+          {syncLabel}
+        </span>
       </div>
       {git.last_commit_msg && (
-        <p className="mt-1.5 text-xs text-zinc-500">
+        <p
+          className="mt-1.5 text-xs"
+          style={{ color: "var(--text-muted)" }}
+        >
           {git.last_commit_ago} — {git.last_commit_msg}
         </p>
       )}
       {git.recent_files.length > 0 && (
-        <p className="mt-1 font-mono text-xs text-zinc-400">
+        <p
+          className="mt-1 font-mono text-xs"
+          style={{ color: "var(--text-subtle)" }}
+        >
           最近修改：{git.recent_files.join(", ")}
         </p>
       )}
@@ -110,7 +190,11 @@ function GitStatusSection({ git }: { git: ProjectDetailData["git"] }) {
   );
 }
 
-function MissionSection({ mission }: { mission: ProjectDetailData["mission"] }) {
+function MissionSection({
+  mission,
+}: {
+  mission: ProjectDetailData["mission"];
+}) {
   if (!mission) return null;
   const hasContent =
     mission.goal ||
@@ -125,20 +209,43 @@ function MissionSection({ mission }: { mission: ProjectDetailData["mission"] }) 
   if (!hasContent) return null;
 
   const row = (label: string, value: string | string[]) => {
-    if (!value || (Array.isArray(value) && value.length === 0)) return null;
+    if (!value || (Array.isArray(value) && value.length === 0))
+      return null;
     const text = Array.isArray(value) ? value.join("、") : value;
     return (
       <div key={label} className="flex gap-2 text-sm">
-        <span className="w-24 shrink-0 text-right text-xs text-zinc-400">{label}</span>
-        <span className="text-zinc-700 dark:text-zinc-300">{text}</span>
+        <span
+          className="w-24 shrink-0 text-right text-xs font-mono"
+          style={{ color: "var(--text-subtle)" }}
+        >
+          {label}
+        </span>
+        <span style={{ color: "var(--text)" }}>{text}</span>
       </div>
     );
   };
 
   return (
     <div className="mt-6">
-      <h2 className="mb-3 text-lg font-semibold">🎯 使命</h2>
-      <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+      <h2
+        className="mb-3"
+        style={{
+          fontSize: 18,
+          fontWeight: 500,
+          color: "var(--text)",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        使命
+      </h2>
+      <div
+        className="p-4"
+        style={{
+          background: "var(--accent-bg)",
+          border: "1px solid var(--accent-soft)",
+          borderRadius: "var(--radius-md)",
+        }}
+      >
         <div className="space-y-2">
           {row("目標", mission.goal)}
           {row("期限", mission.deadline)}
@@ -157,13 +264,35 @@ function MissionSection({ mission }: { mission: ProjectDetailData["mission"] }) 
 
 function CommitRow({ commit }: { commit: GitCommit }) {
   return (
-    <div className="flex items-start gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
-      <GitCommitIcon size={13} className="mt-0.5 shrink-0 text-zinc-400" />
+    <div
+      className="flex items-start gap-3 py-2 last:border-0"
+      style={{ borderBottom: "1px solid var(--border)" }}
+    >
+      <GitCommitIcon
+        size={13}
+        className="mt-0.5 shrink-0"
+        style={{ color: "var(--text-muted)" }}
+      />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-zinc-700 dark:text-zinc-300">{commit.message}</p>
-        <p className="text-xs text-zinc-400">{commit.author} · {commit.ago}</p>
+        <p
+          className="truncate text-sm"
+          style={{ color: "var(--text)" }}
+        >
+          {commit.message}
+        </p>
+        <p
+          className="text-xs font-mono"
+          style={{ color: "var(--text-subtle)" }}
+        >
+          {commit.author} · {commit.ago}
+        </p>
       </div>
-      <span className="shrink-0 font-mono text-xs text-zinc-400">{commit.hash}</span>
+      <span
+        className="shrink-0 font-mono text-xs tabular-nums"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {commit.hash}
+      </span>
     </div>
   );
 }
@@ -176,101 +305,214 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    apiFetch<ProjectDetailData>(`/api/projects/${encodeURIComponent(name)}`)
+    apiFetch<ProjectDetailData>(
+      `/api/projects/${encodeURIComponent(name)}`
+    )
       .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-    apiFetch<GitLogData>(`/api/projects/${encodeURIComponent(name)}/git-log`)
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : String(e))
+      );
+    apiFetch<GitLogData>(
+      `/api/projects/${encodeURIComponent(name)}/git-log`
+    )
       .then((d) => setCommits(d.commits))
       .catch(() => setCommits([]));
   }, [name]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    apiFetch<ProjectDetailData>(
+      `/api/projects/${encodeURIComponent(name)}`
+    )
+      .then(setData)
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : String(e))
+      );
+    apiFetch<GitLogData>(
+      `/api/projects/${encodeURIComponent(name)}/git-log`
+    )
+      .then((d) => setCommits(d.commits))
+      .catch(() => setCommits([]));
+  }, [name]);
 
   useEffect(() => {
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
   }, [load]);
 
-  if (error) return <p className="text-red-500">Error: {error}</p>;
-  if (!data) return <p className="text-zinc-400">載入中...</p>;
+  if (error)
+    return (
+      <p style={{ color: "var(--status-err)" }}>Error: {error}</p>
+    );
+  if (!data)
+    return <p style={{ color: "var(--text-muted)" }}>載入中...</p>;
 
   const agents = data.agent_details || [];
   const running = agents.filter((a) => a.pid);
-  const healthy = agents.filter((a) => a.loaded && (a.exit_code === 0 || a.exit_code === null));
-  const failing = agents.filter((a) => a.exit_code !== null && a.exit_code !== 0);
+  const healthy = agents.filter(
+    (a) => a.loaded && (a.exit_code === 0 || a.exit_code === null)
+  );
+  const failing = agents.filter(
+    (a) => a.exit_code !== null && a.exit_code !== 0
+  );
 
   return (
     <div className="mx-auto max-w-4xl">
       <Link
         href="/projects"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm transition-colors"
+        style={{ color: "var(--text-muted)" }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.color = "var(--text)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.color = "var(--text-muted)")
+        }
       >
         <ArrowLeft size={16} /> 返回專案列表
       </Link>
 
       {/* Header */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="p-6" style={cardStyle}>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <FolderOpen size={24} className="text-blue-500" />
+            <FolderOpen
+              size={24}
+              style={{ color: "var(--accent)" }}
+            />
             <div>
-              <h1 className="text-xl font-bold">{data.name}</h1>
+              <h1
+                className="tracking-tight"
+                style={{
+                  fontSize: 24,
+                  fontWeight: 500,
+                  color: "var(--text)",
+                  letterSpacing: "-0.02em",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                {data.name}
+              </h1>
               {data.description && (
-                <p className="mt-0.5 text-sm text-zinc-500">{data.description}</p>
+                <p
+                  className="mt-0.5 text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {data.description}
+                </p>
               )}
-              <p className="mt-1 font-mono text-xs text-zinc-400">{data.repo}</p>
+              <p
+                className="mt-1 font-mono text-xs"
+                style={{ color: "var(--text-subtle)" }}
+              >
+                {data.repo}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="mt-4 flex gap-6 text-sm">
-          <div>
-            <span className="text-xs text-zinc-500">Agents</span>
-            <p className="font-semibold">{agents.length}</p>
-          </div>
-          <div>
-            <span className="text-xs text-zinc-500">Running</span>
-            <p className="font-semibold text-blue-600">{running.length}</p>
-          </div>
-          <div>
-            <span className="text-xs text-zinc-500">Healthy</span>
-            <p className="font-semibold text-green-600">{healthy.length}</p>
-          </div>
-          {failing.length > 0 && (
-            <div>
-              <span className="text-xs text-zinc-500">Failing</span>
-              <p className="font-semibold text-red-500">{failing.length}</p>
+          {[
+            {
+              label: "Agents",
+              value: agents.length,
+              color: "var(--text)",
+            },
+            {
+              label: "Running",
+              value: running.length,
+              color: "var(--accent)",
+            },
+            {
+              label: "Healthy",
+              value: healthy.length,
+              color: "var(--status-ok)",
+            },
+            ...(failing.length > 0
+              ? [
+                  {
+                    label: "Failing",
+                    value: failing.length,
+                    color: "var(--status-err)",
+                  },
+                ]
+              : []),
+            ...(data.total_cost_usd > 0
+              ? [
+                  {
+                    label: "Cost",
+                    value: `$${data.total_cost_usd.toFixed(2)}`,
+                    color: "var(--text)",
+                  },
+                ]
+              : []),
+          ].map((m) => (
+            <div key={m.label}>
+              <span
+                className="font-mono text-[10px] uppercase"
+                style={{
+                  color: "var(--text-subtle)",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                {m.label}
+              </span>
+              <p
+                className="font-mono tabular-nums"
+                style={{ color: m.color, fontWeight: 500, fontSize: 16 }}
+              >
+                {m.value}
+              </p>
             </div>
-          )}
-          {data.total_cost_usd > 0 && (
-            <div>
-              <span className="text-xs text-zinc-500">Cost</span>
-              <p className="font-semibold">${data.total_cost_usd.toFixed(2)}</p>
-            </div>
-          )}
+          ))}
         </div>
 
         <GitStatusSection git={data.git} />
       </div>
 
-      {/* Mission */}
       <MissionSection mission={data.mission} />
 
       {/* Agents */}
       <div className="mt-6 space-y-2">
-        <h2 className="mb-3 text-lg font-semibold">Agents</h2>
+        <h2
+          className="mb-3"
+          style={{
+            fontSize: 18,
+            fontWeight: 500,
+            color: "var(--text)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Agents
+        </h2>
         {agents.length > 0 ? (
-          agents.map((agent) => <AgentRow key={agent.label} agent={agent} />)
+          agents.map((agent) => (
+            <AgentRow key={agent.label} agent={agent} />
+          ))
         ) : (
-          <p className="text-sm text-zinc-500">此專案尚無 agent。</p>
+          <p
+            className="text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
+            此專案尚無 agent。
+          </p>
         )}
       </div>
 
       {/* Recent commits */}
       {commits.length > 0 && (
         <div className="mt-6">
-          <h2 className="mb-3 text-lg font-semibold">最近 Commits</h2>
-          <div className="rounded-lg border border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <h2
+            className="mb-3"
+            style={{
+              fontSize: 18,
+              fontWeight: 500,
+              color: "var(--text)",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            最近 Commits
+          </h2>
+          <div className="px-4" style={cardStyle}>
             {commits.map((c) => (
               <CommitRow key={c.hash} commit={c} />
             ))}
