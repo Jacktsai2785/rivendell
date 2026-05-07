@@ -17,33 +17,60 @@ import {
 } from "recharts";
 import { ChevronLeft, Zap } from "lucide-react";
 
-// ── Helpers ───────────────────────────────────────────────────────────
+const ACCENT = "#2d4a3e";
+const ACCENT_SOFT = "#5b7a6a";
+const SURFACE = "#ffffff";
+const SURFACE_2 = "#f3f4f6";
+const BORDER = "#e5e7eb";
+const TEXT_SUBTLE = "#9ca3af";
 
 const LIFECYCLE_COLORS: Record<string, string> = {
-  manual: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  hook: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  agent: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  unknown: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+  manual: ACCENT,
+  hook: ACCENT_SOFT,
+  agent: "#b8772f",
+  unknown: TEXT_SUBTLE,
 };
 
 function LifecycleBadge({ lifecycle }: { lifecycle: string }) {
+  const color = LIFECYCLE_COLORS[lifecycle] ?? LIFECYCLE_COLORS.unknown;
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${LIFECYCLE_COLORS[lifecycle] ?? LIFECYCLE_COLORS.unknown}`}
+      className="inline-block px-2 py-0.5 text-xs font-medium font-mono"
+      style={{
+        borderRadius: 99,
+        background: SURFACE_2,
+        color,
+        border: `1px solid ${color}`,
+        fontSize: 10,
+      }}
     >
       {lifecycle}
     </span>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+};
+
+const tooltipStyle: React.CSSProperties = {
+  background: SURFACE,
+  border: `1px solid ${BORDER}`,
+  borderRadius: 4,
+  fontFamily: "monospace",
+  fontSize: 12,
+};
 
 export default function SkillDetailPage() {
   const params = useParams();
   const name = decodeURIComponent(params.name as string);
 
   const [detail, setDetail] = useState<SkillDetail | null>(null);
-  const [usageDays, setUsageDays] = useState<{ date: string; count: number }[]>([]);
+  const [usageDays, setUsageDays] = useState<
+    { date: string; count: number }[]
+  >([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,7 +85,6 @@ export default function SkillDetailPage() {
       .catch((e: Error) => setErr(e.message));
   }, [name]);
 
-  // Generate last 30 days with zeros for missing dates
   const chartData = useMemo(() => {
     const today = new Date();
     const map: Record<string, number> = {};
@@ -73,51 +99,90 @@ export default function SkillDetailPage() {
 
   const total7 = useMemo(
     () => chartData.slice(-7).reduce((s, d) => s + d.count, 0),
-    [chartData],
+    [chartData]
   );
   const total30 = useMemo(
     () => chartData.reduce((s, d) => s + d.count, 0),
-    [chartData],
+    [chartData]
   );
   const totalAll = useMemo(
     () => usageDays.reduce((s, d) => s + d.count, 0),
-    [usageDays],
+    [usageDays]
   );
 
-  if (err) return <p className="text-red-500">Error: {err}</p>;
-  if (!detail) return <p className="text-zinc-400">載入中...</p>;
+  if (err)
+    return <p style={{ color: "var(--status-err)" }}>Error: {err}</p>;
+  if (!detail)
+    return <p style={{ color: "var(--text-muted)" }}>載入中...</p>;
 
-  const body = detail.content.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "").trim();
+  const body = detail.content
+    .replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, "")
+    .trim();
 
   return (
     <div className="max-w-3xl">
-      {/* Back */}
       <Link
         href="/skills"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+        className="mb-4 inline-flex items-center gap-1 text-sm transition-colors"
+        style={{ color: "var(--text-muted)" }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.color = "var(--text)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.color = "var(--text-muted)")
+        }
       >
         <ChevronLeft size={16} />
         Skills
       </Link>
 
-      {/* Header */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold">{name}</h1>
-        {detail.lifecycle && <LifecycleBadge lifecycle={detail.lifecycle} />}
+        <h1
+          className="tracking-tight"
+          style={{
+            fontSize: 28,
+            fontWeight: 500,
+            color: "var(--text)",
+            letterSpacing: "-0.02em",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {name}
+        </h1>
+        {detail.lifecycle && (
+          <LifecycleBadge lifecycle={detail.lifecycle} />
+        )}
         {detail.category && (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+          <span
+            className="px-2 py-0.5 text-xs font-mono"
+            style={{
+              borderRadius: 99,
+              background: "var(--surface-2)",
+              color: "var(--text-muted)",
+            }}
+          >
             {detail.category}
           </span>
         )}
         {detail.invocable && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-300">
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono"
+            style={{
+              borderRadius: 99,
+              background: "var(--accent-bg)",
+              color: "var(--accent)",
+            }}
+          >
             <Zap size={10} />
             invocable
           </span>
         )}
       </div>
       {detail.summary && (
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <p
+          className="mt-2 text-sm"
+          style={{ color: "var(--text-muted)" }}
+        >
           {detail.summary}
         </p>
       )}
@@ -129,19 +194,39 @@ export default function SkillDetailPage() {
           { label: "最近 30 天", value: total30 },
           { label: "累計全部", value: totalAll },
         ].map(({ label, value }) => (
-          <div
-            key={label}
-            className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
-          >
-            <p className="text-xs text-zinc-500">{label}</p>
-            <p className="mt-1 text-2xl font-bold">{value}</p>
+          <div key={label} className="p-4" style={cardStyle}>
+            <p
+              className="font-mono text-[10px] uppercase"
+              style={{
+                color: "var(--text-subtle)",
+                letterSpacing: "0.1em",
+              }}
+            >
+              {label}
+            </p>
+            <p
+              className="mt-1 tabular-nums"
+              style={{
+                color: "var(--text)",
+                fontSize: 24,
+                fontWeight: 500,
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              {value}
+            </p>
           </div>
         ))}
       </div>
 
       {/* Time series chart */}
-      <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="mb-3 text-sm font-semibold">呼叫次數（近 30 天）</h2>
+      <div className="mt-4 p-4" style={cardStyle}>
+        <h2
+          className="mb-3 text-sm"
+          style={{ color: "var(--text)", fontWeight: 500 }}
+        >
+          呼叫次數（近 30 天）
+        </h2>
         <div className="h-36 w-full">
           <ResponsiveContainer width="100%" height={144}>
             <BarChart
@@ -150,26 +235,28 @@ export default function SkillDetailPage() {
             >
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 9 }}
+                tick={{ fontSize: 9, fill: TEXT_SUBTLE, fontFamily: "monospace" }}
                 interval={4}
                 tickLine={false}
                 axisLine={false}
               />
               <YAxis
-                tick={{ fontSize: 9 }}
+                tick={{ fontSize: 9, fill: TEXT_SUBTLE, fontFamily: "monospace" }}
                 allowDecimals={false}
                 tickLine={false}
                 axisLine={false}
               />
               <Tooltip
+                contentStyle={tooltipStyle}
                 formatter={(v) => [v, "呼叫次數"]}
                 labelFormatter={(l) => `日期：${l}`}
+                cursor={{ fill: SURFACE_2 }}
               />
               <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                 {chartData.map((entry, i) => (
                   <Cell
                     key={i}
-                    fill={entry.count > 0 ? "#3b82f6" : "#e4e4e7"}
+                    fill={entry.count > 0 ? ACCENT : BORDER}
                   />
                 ))}
               </Bar>
@@ -179,11 +266,20 @@ export default function SkillDetailPage() {
       </div>
 
       {/* SKILL.md content */}
-      <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <div className="mt-6 p-6" style={cardStyle}>
+        <p
+          className="mb-4 font-mono text-[10px] uppercase"
+          style={{
+            color: "var(--text-subtle)",
+            letterSpacing: "0.12em",
+          }}
+        >
           SKILL.md
         </p>
-        <div className="prose prose-sm prose-zinc max-w-none dark:prose-invert prose-pre:bg-zinc-100 prose-pre:text-xs dark:prose-pre:bg-zinc-800">
+        <div
+          className="prose prose-sm max-w-none"
+          style={{ color: "var(--text)" }}
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
         </div>
       </div>
