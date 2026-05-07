@@ -18,22 +18,27 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 
 ## Stage 1 — Foundation + Workflow Map
 
-### A. Font self-hosting
+### A. Font self-hosting (use Next.js `next/font/local`, not raw @font-face)
+
+> **Review note (2026-05-07):** project uses Next.js 16 + `next/font/google` already. Switch to `next/font/local` — Next.js handles all the @font-face plumbing, asset hashing, and CSS variable wiring. No raw @font-face needed.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| A1 | Download `Geist-Variable.woff2` → `dashboard-next/public/fonts/` | pending | https://github.com/vercel/geist-font/releases |
-| A2 | Download `GeistMono-Variable.woff2` → `dashboard-next/public/fonts/` | pending | Same release |
-| A3 | Add `@font-face` declarations for both to `src/app/globals.css` | pending | `font-display: swap`, variable weight ranges per DESIGN.md |
-| A4 | `pnpm dev` → DevTools Network tab → confirm fonts load from local | pending | No more `fonts.googleapis.com` requests |
+| A1 | Download `Geist-Variable.woff2` → `dashboard-next/src/fonts/` (NOT public/, keep co-located with loader) | pending | https://github.com/vercel/geist-font/releases |
+| A2 | Download `GeistMono-Variable.woff2` → `dashboard-next/src/fonts/` | pending | Same release |
+| A3 | Refactor `src/app/layout.tsx`: replace `import { Geist, Geist_Mono } from "next/font/google"` with `import localFont from "next/font/local"` and point to `./fonts/Geist-Variable.woff2` etc. Keep `--font-geist-sans` / `--font-geist-mono` variable names (already wired into @theme inline) | pending | Single-file change |
+| A4 | `pnpm dev` → DevTools Network tab → confirm no `fonts.googleapis.com` request | pending | All font loading should be `_next/static/media/...` |
 
-### B. Design tokens as CSS variables
+### B. Design tokens (Tailwind v4 native: `:root` + `@theme inline`)
+
+> **Review note (2026-05-07):** Tailwind v4 already configured. globals.css already has `:root` + `@theme inline` block. Extend the EXISTING block, do not create new infrastructure. No `tailwind.config.ts` needed — v4 uses CSS @theme directives.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| B1 | Add `:root { --bg, --surface, --surface-2, --border, --border-strong, --text, --text-muted, --text-subtle, --accent, --accent-soft, --accent-bg, --status-ok, --status-warn, --status-err, --space-1..8, --radius-sm/md/lg }` to `globals.css` | pending | Hex values per DESIGN.md table |
-| B2 | Extend `tailwind.config.ts` `theme.extend.colors` with `bg`, `surface`, `accent` etc → reading from CSS vars (`'rgb(var(--accent))'` pattern OR direct `var()` ref) | pending | Pick one strategy, document in DESIGN.md |
-| B3 | Smoke test: open landing page, inspect computed styles, confirm tokens resolve | pending | grep `#0a0a` etc — should not appear hardcoded after B4 |
+| B0 | **Remove `@media (prefers-color-scheme: dark)` block** from globals.css | pending | DESIGN.md is light-only. Single-user tool, no dark mode |
+| B1 | Extend `:root` in globals.css with all DESIGN.md tokens: `--bg, --surface, --surface-2, --border, --border-strong, --text, --text-muted, --text-subtle, --accent, --accent-soft, --accent-bg, --status-ok, --status-warn, --status-err, --space-1..8, --radius-sm/md/lg` | pending | Hex values per DESIGN.md color table |
+| B2 | Extend `@theme inline { ... }` block with semantic color names: `--color-bg, --color-surface, --color-accent` etc → `var(--bg)` etc. This makes Tailwind utilities like `bg-accent`, `text-muted` work | pending | Single block edit in globals.css |
+| B3 | Smoke test: open landing page, inspect computed styles, confirm `bg-accent` class resolves to `#2d4a3e` | pending | grep for `#0a0a` `bg-slate-` `bg-gray-` `bg-violet-` etc to find leftover hardcoded values |
 
 ### C. Brand assets
 
@@ -48,42 +53,45 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 | # | Task | Status | Notes |
 |---|------|--------|-------|
 | D1 | Build `src/components/Logo.tsx` — twin-leaves SVG inline + wordmark, props `{ size, variant: 'full' \| 'mark' \| 'mono' }` | pending | Use `<Image>` for SVG OR inline `<svg>` (inline preferred for currentColor) |
-| D2 | Build `src/components/Sidebar.tsx` — logo at top + tagline + nav links + collapse toggle | pending | Active route highlighting via `usePathname` |
+| D2 | **Refactor existing** `src/components/Sidebar.tsx` — replace existing layout with logo at top + tagline + nav links + collapse toggle. Already imported in layout.tsx | pending | Active route highlighting via `usePathname` |
 | D3 | Refactor `src/app/layout.tsx` to render `<Sidebar />` + `<main>` shell | pending | Replace whatever is there now |
 | D4 | Build `src/components/StatusDot.tsx` — `{ status: 'ok' \| 'warn' \| 'err', label?: string }` | pending | 8px circle, semantic color, optional inline label |
 | D5 | Build `src/components/SkillChip.tsx` — `{ name, variant?: 'default' \| 'optional' \| 'highlighted', onClick?: () => void }` | pending | Mono 10px, dashed border for `optional` |
 | D6 | Build `src/components/PageHeader.tsx` — h2 with accent leader bar (per DESIGN.md `h2::before` pattern) | pending | Reusable section / page heading |
 
-### E. Workflow data SSOT
+### E. Workflow data — DEFERRED to parking lot K2
+
+> **Review decision (2026-05-07):** API already returns typed `WorkflowData` via `apiFetch("/workflow")` in `src/app/workflow/page.tsx`. Stage 1 = readonly view. Freezing into a JSON file SSOT only matters when UI starts writing back (drag/edit, parking lot K2). **All E1-E4 deferred to K2** — keep using the API in Stage 1.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| E1 | Design `workflow.json` schema: `{ tracks: CoreTrack[], domains: DomainFlow[], maintenance: Maintenance[], situational: Situational[], orphans: Orphan[] }` | pending | Mirror existing TypeScript interfaces in `src/app/workflow/page.tsx` |
-| E2 | Move existing inline workflow data from `src/app/workflow/page.tsx` into `dashboard-next/data/workflow.json` | pending | Pure data extraction, no logic change |
-| E3 | Write `src/lib/workflow.ts` — `loadWorkflow(): Promise<Workflow>`, type-only via `import type` | pending | Server-side `fs.readFileSync` or import-as-JSON; pick one |
-| E4 | Add unit-style sanity check (or just dev-time console log) verifying counts match: tracks, domains, etc. | pending | Catches accidental data loss during E2 |
+| E1-E4 | _deferred to K2 in parking lot_ | deferred | When React Flow drag/edit lands, then design the JSON SSOT + write loader |
 
-### F. Workflow page rebuild
+### F. Workflow page rebuild (HTML/CSS/SVG, no React Flow yet)
+
+> **Review decision (2026-05-07):** React Flow's value is drag/connect/edit. Stage 1 is readonly tree view. v4 mockup proves HTML + flexbox + SVG Bezier connectors render the same visual. **Skip React Flow installation.** Defer to K2 in parking lot when drag/edit lands. Saves ~30% Stage 1 complexity.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| F1 | `pnpm add reactflow` | pending | Pin version |
-| F2 | Build `src/components/workflow/StepNode.tsx` — custom React Flow node renderer matching mockup (step-num, step-label, stacked SkillChips) | pending | Width 165px, padding per DESIGN.md |
-| F3 | Build `src/components/workflow/TrackRow.tsx` — renders one track: name + horizontal flow of StepNodes + Bezier connectors | pending | One React Flow instance per track, OR one global with multi-track layout |
-| F4 | Build `src/components/workflow/CrossReferencePanel.tsx` — `{ skillName }` → reads workflow.json, computes references, renders aside panel | pending | Mini-stats can be stubbed initially (firings = 0 until token data wired) |
-| F5 | Refactor `src/app/workflow/page.tsx` — load workflow.json, render top-bar (breadcrumb + search + Tree/Graph toggle), tracks list, cross-ref panel | pending | Tree = default; Graph = stub button for now |
-| F6 | Wire SkillChip click → set `selectedSkill` state → CrossReferencePanel re-renders | pending | Lift state to workflow page |
-| F7 | Smoke test at 1440×900: tracks visible, no horizontal overflow except inside flow canvas, click flow works | pending | Use `gstack-browse` or just open in browser |
-| F8 | Edge case: empty cross-reference panel state when no skill selected | pending | Show "select a skill to see references" placeholder |
+| F1 | _deferred to K2 in parking lot_ — no React Flow install in Stage 1 | deferred | |
+| F2 | Build `src/components/workflow/StepNode.tsx` — pure HTML/CSS card matching mockup (step-num, step-label, stacked SkillChips). Width 165px, padding per DESIGN.md | pending | Direct port from `dashboard-next/mockups/workflow-map-v4.html` `.step-node` markup |
+| F3 | Build `src/components/workflow/TrackRow.tsx` — renders one track: name + flexbox row of StepNodes + absolutely-positioned SVG layer with Bezier `<path>` connectors | pending | Connector SVG sits behind nodes (z-index 0), nodes z-index 1. Pattern in mockup |
+| F4 | Build `src/components/workflow/CrossReferencePanel.tsx` — `{ skillName, workflow }` props. Computes references in-component. Renders aside panel | pending | Mini-stats can stub firings=0 until token data wired |
+| F5 | Refactor `src/app/workflow/page.tsx` — keep `apiFetch("/workflow")`, render top-bar (breadcrumb + search + Tree/Graph toggle), tracks list, cross-ref panel | pending | Tree = default; Graph = `<button disabled>` stub for now |
+| F6 | Wire SkillChip click → lift state to workflow page → CrossReferencePanel re-renders | pending | Standard React `useState` lift |
+| F7 | Smoke test at 1440×900: tracks visible, only flow-canvas scrolls horizontally, click flow works | pending | Just open in browser |
+| F8 | Empty state for cross-reference panel when no skill selected | pending | "Pick a skill to see where it appears" placeholder |
+| F9 | Loading state: while `apiFetch("/workflow")` resolves, render skeleton (per DESIGN.md spirit — no spinner, just muted placeholder boxes) | pending | Was missing from original plan |
 
 ### G. Stage 1 wrap
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
+| G0 | **Stage 1 prereq** (promoted from K5): verify `/skills/[name]` route exists in `src/app/skills/`. If not, scaffold a minimal route — cross-ref panel CTA depends on it. | pending | `ls src/app/skills/\\[name\\]/page.tsx 2>/dev/null` |
 | G1 | Type check + lint: `pnpm tsc --noEmit && pnpm lint` | pending | No errors before commit |
 | G2 | `/gstack-review` on staged diff | pending | Pre-commit |
 | G3 | Commit: `feat(dashboard-next): land design tokens + workflow map v4` | pending | Single squash or split per logical chunk |
-| G4 | If Stage 1 reveals DESIGN.md gaps, update Decision Log | pending | E.g. picked tailwind-vs-css-vars strategy |
+| G4 | If Stage 1 reveals DESIGN.md gaps, update Decision Log | pending | E.g. confirm next/font/local pattern |
 
 ---
 
@@ -126,11 +134,12 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 ## Parking lot (deferred, not in this scope)
 
 - **K1.** Graph view (skill-as-center DAG) for workflow map — implement Tree first, Graph after
-- **K2.** React Flow drag/edit/connect-by-handle interactivity — needs `workflow.json` round-trip design (UI write back to JSON)
-- **K3.** Auto-sync between `workflow.json` and `~/.claude/CLAUDE.md` flow doc — script or hook
+- **K2.** React Flow integration: drag/edit/connect-by-handle + `data/workflow.json` SSOT + loader (was tasks E1-E4 + F1) + auto-write API endpoint for round-trip
+- **K3.** Auto-sync between `workflow.json` (or API) and `~/.claude/CLAUDE.md` flow doc — script or hook
 - **K4.** `bin/sk rename` tool for skill renaming (raised in earlier conversation, not blocking this redesign)
-- **K5.** Skills page detail-route (`/skills/[name]`) deep links from cross-ref CTA — confirm it exists; if not, build before Stage 1 ships
+- **K5.** _PROMOTED to G0 (Stage 1 prereq)._ Skills page `/skills/[name]` deep-link route. Cross-ref CTA depends on it.
 - **K6.** Mobile RWD — explicitly out of scope (desktop tool)
+- **K7.** ⌘K skill search (shown in v4 mockup top-bar) — nice-to-have. Stage 1 = static placeholder text. Real implementation needs fuzzy search lib (Fuse.js or similar)
 
 ---
 
@@ -149,3 +158,29 @@ Track at end of each phase. Keeps blast radius visible.
 | Phase | Files | Notes |
 |-------|-------|-------|
 | _pending_ | | |
+
+---
+
+## Plan Review Report (tight eng review · 2026-05-07)
+
+| Decision | Verdict | Principle |
+|----------|---------|-----------|
+| Tailwind ↔ CSS vars strategy | Auto-decided: use Tailwind v4 native `@theme` + `:root` (already partially in place) | P3 pragmatic — v4's pattern IS the right answer, A/B from findings.md is obsolete |
+| `workflow.json` SSOT | Taste decision → user picked **defer to K2** | P5 explicit/simple — readonly view doesn't need the SSOT round-trip yet |
+| React Flow integration | Taste decision → user picked **defer to K2**, use HTML/CSS/SVG for Stage 1 | P3 pragmatic + P5 explicit — v4 mockup proves HTML/CSS reaches readonly target |
+
+**Auto-fixes applied to task_plan.md:**
+- A1-A4: switched from raw @font-face → `next/font/local` (Next.js native)
+- B0 added: remove `prefers-color-scheme: dark` block from globals.css
+- B1-B2: extend existing `:root` + `@theme inline` (not create new infrastructure)
+- D2: refactor existing Sidebar.tsx (not build from scratch)
+- E1-E4: deferred to parking lot K2
+- F1: deferred to parking lot K2 (no React Flow in Stage 1)
+- F2-F4: rewritten to plain HTML/CSS/SVG components
+- F9 added: API loading skeleton (was missing from original plan)
+- G0 added (Stage 1 prereq, promoted from K5): verify `/skills/[name]` route exists
+- K7 added: ⌘K search promoted to nice-to-have parking lot item
+
+**Net effect on Stage 1 scope**: ~25–30% smaller (drop reactflow install + 4 React Flow components + JSON SSOT setup). Stage 2 unchanged.
+
+**Recharts conflict noted, not blocking**: DESIGN.md says "inline SVG only", but `recharts ^3.8.0` is in package.json. Decision: keep recharts installed (might be used elsewhere) but H1-H3 chart components built fresh as inline SVG. Don't uninstall, don't expand recharts usage.
