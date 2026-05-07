@@ -16,7 +16,31 @@ allowed-tools: "Read, Write, Edit, Bash, Glob, Grep"
 
 # Slide Workflow
 
-Eight gates, each requires user confirmation before proceeding. Never skip a gate unless the user explicitly says to.
+Eight gates + a pre-flight router, each requires user confirmation before proceeding. Never skip a gate unless the user explicitly says to.
+
+> 上層 routing 邏輯（哪一類 deck → 哪個 skill 接手）見 `~/.claude/CLAUDE.md` 的 `### Slide / Deck Building` flow。本 SKILL.md 是該 flow 的 D 路徑（通用流程）的執行細節。
+
+## Pre-flight: Deck-Type Routing
+
+確認 `slide-workflow` 是否真的是這次 deck 的主 skill。先問：
+
+> 哪一類 deck？
+> A. 投資人 BP / 募資簡報              → 交給 `/pitch-deck`（含 discovery interview，自己跑完整流程）
+> B. 客戶客製提案                      → 交給 `/sales-material`（從素材庫組裝）
+> C. IoT / 廠務分析報告                → 交給 `/iot-factory-report`（時序資料 → PPTX）
+> D. B2B 首次拜訪 / 高階主管簡介 / 通用 → 由 slide-workflow 接手 → 繼續 Gate 0 ↓
+
+判斷：
+
+| 答案 | 動作 |
+|------|------|
+| A / B / C | STOP — 「請用 `/pitch-deck`（或對應 skill）」，結束 slide-workflow。不要重複跑流程。 |
+| D | 進 Gate 0 |
+| 用戶明說「不要那個 skill，就用 slide-workflow」 | 進 Gate 0（強制走 D） |
+
+> 等待用戶選擇後才進入 Gate 0。
+
+---
 
 ## Gate 0: storyline.md preflight
 
@@ -90,11 +114,14 @@ ls ../*/mockups/slide-templates/*.html 2>/dev/null
 | `cht-corporate.html` | 白底 + CHT 藍 + 企業風 | 中華電信合作簡報 |
 | （其他） | ... | ... |
 
-如果沒有匹配的 template：
-> 沒有找到適合的品牌 template。要不要：
-> 1. 用 `slide-template-extractor` 從既有簡報抽出？
-> 2. 用現有的最接近 template 改色？
-> 3. 建一個新的 neutral template？
+如果沒有匹配的 template，依「起點」選工具：
+
+| 起點 | 動作 | Skill |
+|------|------|-------|
+| 客戶有寄參考 PPTX / Google Slides | 抽出設計系統 → 鎖定 HTML template | `/slide-template-extractor` |
+| 沒有參考檔，要從零做品牌 | 設計色盤、字型、版面 | `/ui-ux-pro-max` + `/gstack-design-consultation` |
+| 已有 mockups/slide-templates/*.html 但要微調 | 改 `:root` CSS variables（顏色/字型）即可 | manual edit |
+| 預算/時間不夠，先用最接近的 | 用 neutral template + 換 logo | manual |
 
 **Gate 2 輸出**: 確認使用哪個 template（檔案名稱）。
 
@@ -196,21 +223,38 @@ open {output-dir}/{client}-deck.html
 
 **反覆循環** Gate 5-6 直到用戶滿意。
 
-> 用戶說「OK」或「可以了」後進入 Gate 7。
+> 用戶說「OK」或「可以了」後進入 Gate 6.5。
 
 ---
 
-## Gate 7: 輸出 PPTX
+## Gate 6.5: 文字打磨 + 視覺一致性（recommended，可省略）
 
-使用 `office-pptx` skill 的 html2pptx 流程：
+| 動作 | 工具 | 何時跳過 |
+|------|------|---------|
+| 移除 AI slop / 檢查繁中口吻（「值得注意的是」「進一步」「綜上所述」） | `/de-slopify` | 內部 deck 不對外 |
+| 視覺一致性檢查（行距、對齊、色彩濫用） | `/gstack-design-review` | 已用 locked template 且只動文字 |
+| 撰寫講者備註 | manual or `/office-pptx` speaker notes API | 純閱讀型 deck |
 
-1. Read `office-pptx` skill 的 html2pptx 指引
-2. 把 HTML slides 轉成 PPTX
-3. 存檔：`{output-dir}/{client}-deck.pptx`
+> 確認後進入 Gate 7。
+
+---
+
+## Gate 7: 輸出
+
+依交付場景選格式：
+
+| 格式 | 適用 | Skill |
+|------|------|-------|
+| **PPTX**（客戶交付 / 高階主管 / 公司模板） | 大多數 B2B 場景 | `/office-pptx`（html2pptx） |
+| **Google Slides**（多人協作編輯） | 客戶要邊看邊改 | `/gdoc-report-builder` |
+| **HTML deck**（線上分享 / 不要 PPTX 重量） | webinar / blog 內嵌 | `/gstack-design-html` |
+| **PDF**（email 附件 / 鎖定不能改） | 法務 / 投標附件 | print-to-PDF from HTML or PPTX export |
+
+存檔慣例：`{output-dir}/{client}-deck.{ext}`
 
 交付後確認：
-> 簡報已匯出：`{path}.pptx`
-> 需要其他格式嗎？（PDF / Google Slides 上傳）
+> 簡報已匯出：`{path}`
+> 需要其他格式嗎？
 
 ---
 
