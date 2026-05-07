@@ -1,5 +1,21 @@
 # Learnings
 
+## 2026-05-07 — Long-running `next-server` (production) on port 3000 won't pick up source edits; QA new code on a different dev port
+
+- **Category**: knowledge_gap (gotcha discovered while QAing dashboard-next)
+- **Context**: After landing Stage 1 (fonts + tokens + Logo + Sidebar refactor + workflow page rebuild), tried `pnpm dev` to QA the new code. Port 3000 was occupied by `next-server (v16.1.6)` PID 4668 running since 9:48AM — turned out to be a long-running `next start` (production server) the user had launched earlier in the day. Curl on port 3000 returned the OLD prerendered output (`x-nextjs-prerender: 1`, `x-nextjs-cache: HIT`) — Sidebar still had `bg-zinc-50 dark:bg-zinc-950`, project switcher still had `🌐 全部專案`, description was the old "Skills library agent dashboard". Production servers serve baked artifacts; they do not hot-reload source edits.
+- **Other ports were also taken**: 3001 had a "News Stock" project's node process. Free port found at 3020.
+- **Rule**: For QA after source changes on a project that may already have a long-running server somewhere, **never assume port 3000 is the right place to look**. Always:
+  1. `lsof -i :3000` and inspect the COMMAND — `next-server` (no `dev`) means production, will serve stale.
+  2. Find a free port: `for p in 3010 3020 3030; do ! lsof -i :$p >/dev/null 2>&1 && echo "FREE: $p" && break; done`
+  3. Start `pnpm next dev -p <free-port>` and curl that port.
+  4. **Do NOT auto-kill** the long-running production server — it's the user's daily dashboard, killing disrupts their tooling. Verify on a side port and tell them to rebuild + restart at their convenience.
+- **Diagnostic markers when curl returns stale**:
+  - `x-nextjs-prerender: 1` header — production prerender, not dev
+  - `x-nextjs-cache: HIT` — cache layer
+  - `_next/static/chunks/c04b94ce13225456.css` style-of hash that doesn't match new build's `src_app_f288d514._.css` — different artifact set
+- **Generalization**: Same trap exists for any framework with build-mode vs dev-mode (Next.js, Vite, Remix, Astro). If a port responds with HTTP 200 but shows old code, check whether that's actually `dev` or a long-running `start`/`preview`/`build` server.
+
 ## 2026-05-07 — /gstack-autoplan ROI threshold: when reviewer has full plan context already, 4-phase dual-voice review mostly reproduces what's already known
 
 - **Category**: best_practice
