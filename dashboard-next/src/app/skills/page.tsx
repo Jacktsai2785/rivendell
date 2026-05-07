@@ -17,55 +17,55 @@ import {
   YAxis,
 } from "recharts";
 
-// ── Category colors ──────────────────────────────────────────────────
+// DESIGN.md says: differentiate by label, not color. Categories all get the
+// same neutral chip; treemap uses sequential green shades for visual
+// distinction without a rainbow palette.
+const SEQ_GREENS = [
+  "#2d4a3e",
+  "#3e5c4f",
+  "#4f6f5f",
+  "#5b7a6a",
+  "#7a9489",
+  "#a3bbb1",
+  "#c8d4d0",
+  "#dfe7e3",
+];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  基礎建設: "#3b82f6",
-  品質: "#10b981",
-  工作流: "#f59e0b",
-  整合: "#f97316",
-  商業: "#6366f1",
-  前端: "#ec4899",
-  後端: "#06b6d4",
-  文件: "#8b5cf6",
-  Git: "#ef4444",
-  人資: "#14b8a6",
-};
+const ACCENT = "#2d4a3e";
+const ACCENT_SOFT = "#5b7a6a";
+const ACCENT_BG = "#e8efea";
+const SURFACE = "#ffffff";
+const SURFACE_2 = "#f3f4f6";
+const BORDER = "#e5e7eb";
+const TEXT_SUBTLE = "#9ca3af";
 
-const UNCATEGORIZED_COLOR = "#a1a1aa";
-
-function categoryColor(cat: string): string {
-  return CATEGORY_COLORS[cat] || UNCATEGORIZED_COLOR;
-}
-
-// ── Lifecycle colors ─────────────────────────────────────────────────
-
+// Lifecycle: 3 monochrome shades — manual=accent, hook=accent-soft, agent=status-warn
 const LIFECYCLE_COLORS: Record<string, string> = {
-  manual: "#3b82f6",
-  hook: "#f59e0b",
-  agent: "#8b5cf6",
+  manual: ACCENT,
+  hook: ACCENT_SOFT,
+  agent: "#b8772f", // sepia accent for the third tier
+  unknown: TEXT_SUBTLE,
 };
 
 function LifecycleBadge({ lifecycle }: { lifecycle: string }) {
-  const colors: Record<string, string> = {
-    manual: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-    hook: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-    agent:
-      "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-    unknown:
-      "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
-  };
+  const color = LIFECYCLE_COLORS[lifecycle] || LIFECYCLE_COLORS.unknown;
   return (
     <span
-      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[lifecycle] || colors.unknown}`}
+      className="inline-block px-2 py-0.5 text-xs font-medium font-mono"
+      style={{
+        borderRadius: 99,
+        background: SURFACE_2,
+        color,
+        border: `1px solid ${color}`,
+        fontSize: 10,
+      }}
     >
       {lifecycle}
     </span>
   );
 }
 
-// ── Treemap custom content ───────────────────────────────────────────
-
+// Treemap custom content — recolored
 function TreemapContent(props: {
   x: number;
   y: number;
@@ -85,10 +85,9 @@ function TreemapContent(props: {
         height={height}
         rx={4}
         fill={color}
-        stroke="#fff"
+        stroke={SURFACE}
         strokeWidth={2}
-        className="dark:stroke-zinc-900"
-        style={{ opacity: 0.85 }}
+        style={{ opacity: 0.95 }}
       />
       {width > 60 && height > 30 && (
         <text
@@ -96,9 +95,10 @@ function TreemapContent(props: {
           y={y + height / 2}
           textAnchor="middle"
           dominantBaseline="central"
-          fill="#fff"
+          fill={SURFACE}
           fontSize={Math.min(12, width / 6)}
-          fontWeight={600}
+          fontWeight={500}
+          fontFamily="monospace"
         >
           {name}
         </text>
@@ -107,6 +107,13 @@ function TreemapContent(props: {
   );
 }
 
+const tooltipStyle: React.CSSProperties = {
+  background: SURFACE,
+  border: `1px solid ${BORDER}`,
+  borderRadius: 4,
+  fontFamily: "monospace",
+  fontSize: 12,
+};
 
 export default function SkillsPage() {
   const [skills, setSkills] = useState<SkillInfo[] | null>(null);
@@ -119,13 +126,10 @@ export default function SkillsPage() {
     apiFetch<SkillInfo[]>("/api/skills")
       .then(setSkills)
       .catch((e) => setErr(e.message));
-    // Load usage in background — non-blocking
     apiFetch<SkillUsage>("/api/skills/usage")
       .then(setUsage)
       .catch(() => {});
   }, []);
-
-  // ── Derived data ─────────────────────────────────────────────────
 
   const categories = useMemo(() => {
     if (!skills) return [];
@@ -149,7 +153,6 @@ export default function SkillsPage() {
     });
   }, [skills, search, filterCategory]);
 
-  // Group skills by category, 未分類 last
   const grouped = useMemo(() => {
     const map = new Map<string, SkillInfo[]>();
     for (const s of filtered) {
@@ -157,15 +160,13 @@ export default function SkillsPage() {
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(s);
     }
-    const sorted = Array.from(map.entries()).sort(([a], [b]) => {
+    return Array.from(map.entries()).sort(([a], [b]) => {
       if (a === "未分類") return 1;
       if (b === "未分類") return -1;
       return a.localeCompare(b);
     });
-    return sorted;
   }, [filtered]);
 
-  // Treemap data (all skills, not filtered)
   const treemapData = useMemo(() => {
     if (!skills) return [];
     const counts = new Map<string, number>();
@@ -174,15 +175,14 @@ export default function SkillsPage() {
       counts.set(cat, (counts.get(cat) || 0) + 1);
     }
     return Array.from(counts.entries())
-      .map(([name, size]) => ({
+      .map(([name, size], i) => ({
         name: `${name} (${size})`,
         size,
-        color: categoryColor(name),
+        color: SEQ_GREENS[i % SEQ_GREENS.length],
       }))
       .sort((a, b) => b.size - a.size);
   }, [skills]);
 
-  // Lifecycle pie data
   const lifecycleData = useMemo(() => {
     if (!skills) return [];
     const counts = new Map<string, number>();
@@ -196,7 +196,6 @@ export default function SkillsPage() {
     }));
   }, [skills]);
 
-  // Top skills by total usage (all time)
   const topSkills = useMemo(() => {
     return Object.entries(usage)
       .map(([name, days]) => ({
@@ -208,32 +207,55 @@ export default function SkillsPage() {
       .slice(0, 12);
   }, [usage]);
 
-  // Metrics
   const metrics = useMemo(() => {
     if (!skills) return null;
     const invocableCount = skills.filter((s) => s.invocable).length;
     const avgLines = Math.round(
-      skills.reduce((sum, s) => sum + s.line_count, 0) / skills.length,
+      skills.reduce((sum, s) => sum + s.line_count, 0) / skills.length
     );
     return {
       total: skills.length,
-      categories: categories.length + (skills.some((s) => !s.category) ? 1 : 0),
-      invocableRate: `${Math.round((invocableCount / skills.length) * 100)}%`,
+      categories:
+        categories.length + (skills.some((s) => !s.category) ? 1 : 0),
+      invocableRate: `${Math.round(
+        (invocableCount / skills.length) * 100
+      )}%`,
       avgLines,
     };
   }, [skills, categories]);
 
-  // ── Render ───────────────────────────────────────────────────────
-
-  if (err) return <p className="text-red-500">Error: {err}</p>;
+  if (err)
+    return <p style={{ color: "var(--status-err)" }}>Error: {err}</p>;
   if (!skills || !metrics)
-    return <p className="text-zinc-400">載入中...</p>;
+    return <p style={{ color: "var(--text-muted)" }}>載入中...</p>;
+
+  const sectionH2: React.CSSProperties = {
+    fontSize: 18,
+    fontWeight: 500,
+    color: "var(--text)",
+    letterSpacing: "-0.01em",
+  };
+
+  const cardStyle: React.CSSProperties = {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-md)",
+  };
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Skill 總覽</h1>
+      <h1
+        className="mb-6 tracking-tight"
+        style={{
+          fontSize: 28,
+          fontWeight: 500,
+          color: "var(--text)",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        Skill 總覽
+      </h1>
 
-      {/* Metrics row */}
       <MetricsRow
         metrics={[
           { label: "總數", value: metrics.total },
@@ -245,24 +267,35 @@ export default function SkillsPage() {
 
       {/* Charts row */}
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {/* Treemap */}
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="mb-3 text-sm font-semibold">Category Map</h2>
+        <div className="p-4" style={cardStyle}>
+          <h2 className="mb-3 text-sm" style={{ color: "var(--text)", fontWeight: 500 }}>
+            Category Map
+          </h2>
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height={224}>
               <Treemap
                 data={treemapData}
                 dataKey="size"
                 aspectRatio={4 / 3}
-                content={<TreemapContent x={0} y={0} width={0} height={0} name="" color="" />}
+                content={
+                  <TreemapContent
+                    x={0}
+                    y={0}
+                    width={0}
+                    height={0}
+                    name=""
+                    color=""
+                  />
+                }
               />
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Donut pie */}
-        <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="mb-3 text-sm font-semibold">Lifecycle 分佈</h2>
+        <div className="p-4" style={cardStyle}>
+          <h2 className="mb-3 text-sm" style={{ color: "var(--text)", fontWeight: 500 }}>
+            Lifecycle 分佈
+          </h2>
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height={224}>
               <PieChart>
@@ -275,18 +308,22 @@ export default function SkillsPage() {
                   innerRadius="45%"
                   outerRadius="75%"
                   paddingAngle={3}
-                  label={({ name, value }: { name?: string; value?: number }) =>
-                    `${name ?? ""} (${value ?? 0})`
-                  }
+                  label={({
+                    name,
+                    value,
+                  }: {
+                    name?: string;
+                    value?: number;
+                  }) => `${name ?? ""} (${value ?? 0})`}
                 >
                   {lifecycleData.map((entry) => (
                     <Cell
                       key={entry.name}
-                      fill={LIFECYCLE_COLORS[entry.name] || "#a1a1aa"}
+                      fill={LIFECYCLE_COLORS[entry.name] || TEXT_SUBTLE}
                     />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={tooltipStyle} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -295,32 +332,73 @@ export default function SkillsPage() {
 
       {/* Top skills usage chart */}
       {topSkills.length > 0 && (
-        <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="mb-3 text-sm font-semibold">最常使用（累計呼叫次數）</h2>
+        <div className="mt-4 p-4" style={cardStyle}>
+          <h2 className="mb-3 text-sm" style={{ color: "var(--text)", fontWeight: 500 }}>
+            最常使用（累計呼叫次數）
+          </h2>
           <div style={{ height: topSkills.length * 28 + 16 }}>
-            <ResponsiveContainer width="100%" height={topSkills.length * 28 + 16}>
+            <ResponsiveContainer
+              width="100%"
+              height={topSkills.length * 28 + 16}
+            >
               <BarChart
                 data={topSkills}
                 layout="vertical"
                 margin={{ top: 0, right: 48, left: 0, bottom: 0 }}
               >
-                <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 10, fill: TEXT_SUBTLE, fontFamily: "monospace" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <YAxis
                   type="category"
                   dataKey="name"
                   width={160}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: "var(--text-muted)", fontFamily: "monospace" }}
                   tickLine={false}
                   axisLine={false}
                 />
-                <Tooltip formatter={(v) => [v, "呼叫次數"]} />
-                <Bar dataKey="count" fill="#3b82f6" radius={[0, 3, 3, 0]} label={{ position: "right", fontSize: 10, fill: "#71717a" }} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(v) => [v, "呼叫次數"]}
+                  cursor={{ fill: SURFACE_2 }}
+                />
+                <Bar
+                  dataKey="count"
+                  fill={ACCENT}
+                  radius={[0, 3, 3, 0]}
+                  label={{
+                    position: "right",
+                    fontSize: 10,
+                    fill: TEXT_SUBTLE,
+                    fontFamily: "monospace",
+                  }}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-            ⚠️ 此計數**系統性低估**真實使用量。只計入兩種訊號：(1) Claude 透過 <code>Read</code> 工具讀 SKILL.md，(2) 使用者透過 <code>Skill</code> 工具呼叫。
-            最常見的「description-match auto-trigger」（Claude Code harness 直接把 SKILL.md 注入 context）跟 Hook 觸發（auto-stage、protect-secrets、sync-readme…）兩條路徑都不留 tool call 紀錄，因此**完全看不見**。實際使用量通常是這裡顯示的 3-5 倍。
+          <p
+            className="mt-3 text-xs leading-relaxed"
+            style={{ color: "var(--text-muted)" }}
+          >
+            此計數系統性低估真實使用量。只計入兩種訊號：(1) Claude 透過{" "}
+            <code
+              className="font-mono"
+              style={{ color: "var(--text)" }}
+            >
+              Read
+            </code>{" "}
+            工具讀 SKILL.md，(2) 使用者透過{" "}
+            <code
+              className="font-mono"
+              style={{ color: "var(--text)" }}
+            >
+              Skill
+            </code>{" "}
+            工具呼叫。最常見的 description-match auto-trigger 與 Hook
+            觸發路徑都不留 tool call 紀錄，因此完全看不見。實際使用量通常是這裡顯示的 3-5 倍。
           </p>
         </div>
       )}
@@ -332,12 +410,26 @@ export default function SkillsPage() {
           placeholder="搜尋 skill..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="px-3 py-1.5 text-sm"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            color: "var(--text)",
+            fontFamily: "var(--font-mono)",
+          }}
         />
         <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="px-3 py-1.5 text-sm"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            color: "var(--text)",
+            fontFamily: "var(--font-mono)",
+          }}
         >
           <option value="">全部分類</option>
           {categories.map((c) => (
@@ -352,47 +444,79 @@ export default function SkillsPage() {
       <div className="mt-6 space-y-6">
         {grouped.map(([category, catSkills]) => (
           <section key={category}>
-            <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
-              <span
-                className="inline-block h-3 w-3 rounded-sm"
-                style={{ backgroundColor: categoryColor(category) }}
-              />
+            <h2
+              className="mb-3 flex items-center gap-2"
+              style={sectionH2}
+            >
               {category}
-              <span className="text-sm font-normal text-zinc-500">
+              <span
+                className="font-mono tabular-nums"
+                style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 400 }}
+              >
                 ({catSkills.length})
               </span>
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {catSkills.map((skill) => {
                 const skillUsage = usage[skill.name] ?? [];
-                const uses30 = skillUsage.reduce((s, d) => s + d.count, 0);
+                const uses30 = skillUsage.reduce(
+                  (s, d) => s + d.count,
+                  0
+                );
                 return (
                   <Link
                     key={skill.name}
                     href={`/skills/${encodeURIComponent(skill.name)}`}
-                    className="rounded-lg border border-zinc-200 bg-white transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+                    className="transition-shadow"
                     style={{
-                      borderLeftWidth: 3,
-                      borderLeftColor: categoryColor(category),
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      borderLeft: "3px solid var(--accent-soft)",
+                      borderRadius: "var(--radius-md)",
+                      display: "block",
                     }}
                   >
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-semibold">{skill.name}</h3>
+                        <h3
+                          className="text-sm"
+                          style={{
+                            color: "var(--text)",
+                            fontWeight: 500,
+                            fontFamily: "var(--font-mono)",
+                          }}
+                        >
+                          {skill.name}
+                        </h3>
                         <LifecycleBadge lifecycle={skill.lifecycle} />
                       </div>
                       {skill.summary && (
-                        <p className="mt-2 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                        <p
+                          className="mt-2 text-xs leading-relaxed"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           {skill.summary}
                         </p>
                       )}
-                      <div className="mt-3 flex items-center gap-3 text-xs text-zinc-400">
+                      <div
+                        className="mt-3 flex items-center gap-3 text-xs font-mono tabular-nums"
+                        style={{ color: "var(--text-subtle)" }}
+                      >
                         <span>{skill.line_count} lines</span>
                         {uses30 > 0 && (
-                          <span className="text-blue-500">{uses30}× / 30d</span>
+                          <span style={{ color: "var(--accent)" }}>
+                            {uses30}× / 30d
+                          </span>
                         )}
                         {skill.invocable && (
-                          <span className="rounded bg-green-100 px-1.5 py-0.5 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                          <span
+                            className="px-1.5 py-0.5"
+                            style={{
+                              background: "var(--accent-bg)",
+                              color: "var(--accent)",
+                              borderRadius: 2,
+                            }}
+                          >
                             invocable
                           </span>
                         )}
@@ -407,7 +531,9 @@ export default function SkillsPage() {
       </div>
 
       {filtered.length === 0 && (
-        <p className="mt-4 text-sm text-zinc-500">沒有符合條件的 skill</p>
+        <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
+          沒有符合條件的 skill
+        </p>
       )}
     </div>
   );
