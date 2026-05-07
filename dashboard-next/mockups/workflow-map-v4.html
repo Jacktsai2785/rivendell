@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>rivendell — Design System v4 (logo-first)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:           #fafafa;
+  --surface:      #ffffff;
+  --surface-2:    #f3f4f6;
+  --border:       #e5e7eb;
+  --border-strong:#d1d5db;
+  --text:         #0a0a0a;
+  --text-muted:   #6b7280;
+  --text-subtle:  #9ca3af;
+  --accent:       #2d4a3e;
+  --accent-soft:  #5b7a6a;
+  --accent-bg:    #e8efea;
+  --status-ok:    #10b981;
+  --status-warn:  #f59e0b;
+  --status-err:   #ef4444;
+
+  --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  --space-7: 48px; --space-8: 64px;
+
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px;
+
+  --font-display: 'Geist', system-ui, sans-serif;
+  --font-body:    'Geist', system-ui, sans-serif;
+  --font-mono:    'Geist Mono', 'SF Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; line-height: 1.55; }
+
+.container { max-width: 1280px; margin: 0 auto; padding: var(--space-7) var(--space-5); }
+
+h1, h2, h3 { font-family: var(--font-display); color: var(--text); letter-spacing: -0.02em; }
+h2 {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.15;
+  margin: var(--space-7) 0 var(--space-4);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  position: relative;
+}
+h2::before { content: ''; position: absolute; top: -1px; left: 0; width: 80px; height: 1px; background: var(--accent); }
+h3 { font-size: 18px; font-weight: 500; line-height: 1.2; margin: var(--space-5) 0 var(--space-3); }
+
+.note { color: var(--text-muted); font-size: 13px; margin: var(--space-3) 0 var(--space-5); max-width: 70ch; line-height: 1.6; }
+
+/* Hero / Logo lockup */
+.hero { display: flex; align-items: center; gap: var(--space-5); margin-bottom: var(--space-4); }
+.logo-mark { width: 56px; height: 56px; flex-shrink: 0; }
+.logo-mark svg { width: 100%; height: 100%; }
+.logo-wordmark { font-family: var(--font-display); font-size: 56px; font-weight: 600; line-height: 1; letter-spacing: -0.04em; color: var(--accent); }
+
+.tagline { font-family: var(--font-mono); color: var(--text-muted); font-size: 12px; margin-bottom: var(--space-7); letter-spacing: 0.05em; text-transform: lowercase; }
+.tagline-em { color: var(--accent); font-weight: 500; }
+
+/* Logo variants */
+.logo-variants { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); margin-top: var(--space-4); }
+.logo-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); text-align: center; }
+.logo-card.selected { border-color: var(--accent); border-width: 1.5px; box-shadow: 0 0 0 4px var(--accent-bg); }
+.logo-card-mark { width: 48px; height: 48px; margin: 0 auto var(--space-3); }
+.logo-card-mark svg { width: 100%; height: 100%; }
+.logo-card-name { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-2); }
+.logo-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+
+/* Palette */
+.palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-3); }
+.swatch { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3); }
+.swatch-color { width: 100%; height: 60px; border-radius: var(--radius-sm); margin-bottom: var(--space-2); border: 1px solid var(--border); }
+.swatch-name { font-size: 12px; font-family: var(--font-mono); color: var(--text); }
+.swatch-value { font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); }
+
+/* Typography specimen */
+.specimen-row { padding: var(--space-4) 0; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 200px 1fr; gap: var(--space-5); align-items: baseline; }
+.specimen-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.08em; }
+.specimen-display { font-family: var(--font-display); font-size: 48px; font-weight: 500; line-height: 1; color: var(--text); letter-spacing: -0.02em; }
+.specimen-body { font-family: var(--font-body); font-size: 16px; color: var(--text); line-height: 1.55; }
+.specimen-mono { font-family: var(--font-mono); font-size: 14px; font-feature-settings: 'tnum' 1; color: var(--text); }
+
+/* Components */
+.components-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.component { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); }
+.component-label { font-size: 11px; font-family: var(--font-mono); color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3); }
+.btn { display: inline-flex; align-items: center; padding: 7px 14px; border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s ease; }
+.btn-primary { background: var(--accent); color: var(--surface); }
+.btn-primary:hover { background: #1f3a30; }
+.btn-secondary { background: transparent; border-color: var(--border-strong); color: var(--text); }
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost { background: transparent; color: var(--text-muted); }
+.btn-ghost:hover { color: var(--text); }
+.btn-row { display: flex; gap: var(--space-2); }
+
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--space-2); }
+.status-ok { background: var(--status-ok); }
+.status-warn { background: var(--status-warn); }
+.status-err { background: var(--status-err); }
+.status-row { display: flex; flex-direction: column; gap: var(--space-2); font-family: var(--font-mono); font-size: 12px; color: var(--text); }
+
+table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; font-size: 12px; }
+th, td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
+th { color: var(--text-subtle); font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+td { color: var(--text); }
+td.num { text-align: right; }
+td.muted { color: var(--text-muted); }
+
+/* Charts */
+.charts-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-4); margin-bottom: var(--space-4); }
+.chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); }
+.chart-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-3); }
+.chart-title { font-family: var(--font-display); font-size: 18px; font-weight: 500; line-height: 1; color: var(--text); letter-spacing: -0.01em; }
+.chart-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.1em; }
+.chart-bignum { font-family: var(--font-mono); font-size: 28px; font-feature-settings: 'tnum' 1; font-weight: 500; color: var(--text); margin-bottom: var(--space-3); }
+.chart-bignum-delta { font-family: var(--font-mono); font-size: 12px; margin-left: var(--space-2); color: var(--accent); }
+
+.bar-chart { display: flex; flex-direction: column; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: 150px 1fr 50px; gap: var(--space-3); align-items: center; font-family: var(--font-mono); font-size: 12px; }
+.bar-label { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { background: var(--surface-2); height: 16px; border-radius: 2px; overflow: hidden; }
+.bar-fill { background: var(--accent); height: 100%; }
+.bar-value { color: var(--text-muted); font-feature-settings: 'tnum' 1; text-align: right; }
+
+.heatmap { display: grid; grid-template-columns: 100px repeat(7, 1fr); gap: 4px; font-family: var(--font-mono); font-size: 10px; }
+.heatmap-label { color: var(--text-muted); padding-right: var(--space-2); align-self: center; }
+.heatmap-day-h { color: var(--text-subtle); text-align: center; padding-bottom: var(--space-1); text-transform: uppercase; letter-spacing: 0.1em; }
+.heatmap-cell { aspect-ratio: 1; border-radius: 2px; }
+.cell-0 { background: var(--surface-2); }
+.cell-1 { background: #d1ddd5; }
+.cell-2 { background: #8aa399; }
+.cell-3 { background: var(--accent); }
+.cell-err { background: #fecaca; }
+
+/* Workflow Map - clean light */
+.flowchart { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.flowchart-topbar { padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface); }
+.breadcrumb { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.breadcrumb strong { color: var(--text); font-weight: 500; }
+.search-box { display: flex; align-items: center; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; font-family: var(--font-mono); font-size: 11px; color: var(--text-subtle); width: 200px; }
+.toggle { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px; }
+.toggle button { border: 0; background: transparent; padding: 4px 12px; border-radius: 2px; font-family: var(--font-body); font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
+.toggle button.active { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+
+.flow-body { display: grid; grid-template-columns: 1fr 320px; min-height: 540px; }
+.flow-canvas { background: var(--bg); padding: var(--space-6); overflow: auto; position: relative; }
+.flow-aside { background: var(--surface); border-left: 1px solid var(--border); padding: var(--space-5); }
+
+.track { margin-bottom: var(--space-7); position: relative; }
+.track-name { font-family: var(--font-display); font-size: 22px; font-weight: 500; line-height: 1; color: var(--text); margin-bottom: var(--space-4); letter-spacing: -0.02em; }
+.track-flow { position: relative; display: flex; align-items: stretch; gap: 0; padding: var(--space-3) 0; }
+
+.connector-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+
+.step-node { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); width: 165px; flex-shrink: 0; position: relative; z-index: 1; transition: border-color 0.15s ease; }
+.step-node.active { border-color: var(--accent); border-width: 1.5px; }
+.step-node + .step-node { margin-left: 60px; }
+.step-num { font-family: var(--font-mono); font-size: 10px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 2px; }
+.step-label { font-family: var(--font-display); font-size: 14px; font-weight: 500; line-height: 1.2; color: var(--text); margin: 4px 0 var(--space-2); letter-spacing: -0.01em; }
+.step-skills { display: flex; flex-direction: column; gap: 4px; }
+.skill-chip { font-family: var(--font-mono); font-size: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 2px; padding: 2px 6px; color: var(--text); display: inline-block; cursor: pointer; transition: all 0.15s ease; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill-chip:hover { border-color: var(--accent-soft); }
+.skill-chip.optional { color: var(--text-muted); border-style: dashed; }
+.skill-chip.highlighted { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+
+.aside-h { font-family: var(--font-display); font-size: 22px; font-weight: 500; line-height: 1.1; margin-bottom: var(--space-1); letter-spacing: -0.02em; color: var(--text); }
+.aside-skill { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); margin-bottom: var(--space-5); }
+.aside-skill strong { color: var(--text); font-weight: 500; }
+.aside-list-h { font-size: 10px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2); margin-top: var(--space-4); font-family: var(--font-mono); }
+.aside-ref { font-family: var(--font-body); font-size: 13px; padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+.aside-ref:last-child { border-bottom: 0; }
+.aside-ref-track { color: var(--text); font-weight: 500; margin-bottom: 2px; }
+.aside-ref-step { color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); }
+.aside-cta { display: block; margin-top: var(--space-5); text-align: center; padding: 9px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font-body); transition: all 0.15s ease; background: var(--surface); }
+.aside-cta:hover { color: var(--accent); border-color: var(--accent); }
+
+.aside-mini-stat { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); font-family: var(--font-mono); font-size: 11px; padding: 4px 0; color: var(--text-muted); }
+.aside-mini-stat strong { color: var(--text); font-weight: 500; }
+
+footer { margin-top: var(--space-8); padding-top: var(--space-5); border-top: 1px solid var(--border); color: var(--text-subtle); font-size: 12px; font-family: var(--font-mono); text-align: center; }
+footer .ornament { color: var(--accent); font-size: 18px; display: block; margin-bottom: var(--space-3); }
+footer .tolkien-line { font-style: italic; color: var(--text-muted); display: block; margin-bottom: var(--space-2); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="hero">
+    <div class="logo-mark">
+      <svg viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 18 12 C 12 18, 10 28, 14 38 C 20 34, 26 28, 26 18 C 26 16, 24 13, 18 12 Z" fill="#2d4a3e"/>
+        <path d="M 38 12 C 44 18, 46 28, 42 38 C 36 34, 30 28, 30 18 C 30 16, 32 13, 38 12 Z" fill="#2d4a3e" opacity="0.55"/>
+        <line x1="28" y1="14" x2="28" y2="46" stroke="#2d4a3e" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="logo-wordmark">rivendell</div>
+  </div>
+  <p class="tagline">council of <span class="tagline-em">90 skills</span> · refuge of work</p>
+</header>
+
+<section>
+  <h2>Logo · variants</h2>
+  <p class="note">The brand mark carries the rivendell character. The dashboard itself stays neutral and functional. Pick one — primary mark used everywhere (sidebar, favicon, login splash, OG image).</p>
+  <div class="logo-variants">
+    <div class="logo-card selected">
+      <div class="logo-card-mark">
+        <svg viewBox="0 0 48 48">
+          <path d="M 15 10 C 10 16, 8 26, 12 34 C 18 30, 23 25, 23 16 C 23 14, 21 11, 15 10 Z" fill="#2d4a3e"/>
+          <path d="M 33 10 C 38 16, 40 26, 36 34 C 30 30, 25 25, 25 16 C 25 14, 27 11, 33 10 Z" fill="#2d4a3e" opacity="0.55"/>
+          <line x1="24" y1="12" x2="24" y2="40" stroke="#2d4a3e" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="logo-card-name">A · twin leaves</div>
+      <div class="logo-card-desc">Council of two — primary recommendation. Mythic without being on-the-nose.</div>
+    </div>
+
+    <div class="logo-card">
+      <div class="logo-card-mark">
+        <svg viewBox="0 0 48 48">
+          <path d="M 24 6 L 14 22 L 18 22 L 10 36 L 17 36 L 17 42 L 31 42 L 31 36 L 38 36 L 30 22 L 34 22 Z" fill="#2d4a3e"/>
+        </svg>
+      </div>
+      <div class="logo-card-name">B · single tree</div>
+      <div class="logo-card-desc">Tree of Gondor energy. More direct LOTR reference, slightly more kitsch risk.</div>
+    </div>
+
+    <div class="logo-card">
+      <div class="logo-card-mark">
+        <svg viewBox="0 0 48 48">
+          <path d="M 32 8 A 18 18 0 1 0 32 40 A 14 14 0 1 1 32 8 Z" fill="#2d4a3e"/>
+          <circle cx="16" cy="14" r="1.2" fill="#2d4a3e"/>
+          <circle cx="13" cy="22" r="0.8" fill="#2d4a3e"/>
+          <circle cx="18" cy="32" r="1" fill="#2d4a3e"/>
+        </svg>
+      </div>
+      <div class="logo-card-name">C · crescent + stars</div>
+      <div class="logo-card-desc">Refuge / nightfall. Subtle and abstract. Works at favicon size.</div>
+    </div>
+
+    <div class="logo-card">
+      <div class="logo-card-mark">
+        <svg viewBox="0 0 48 48">
+          <text x="24" y="34" font-family="Geist" font-size="36" font-weight="700" fill="#2d4a3e" text-anchor="middle" letter-spacing="-2">r</text>
+          <line x1="14" y1="40" x2="34" y2="40" stroke="#2d4a3e" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <div class="logo-card-name">D · monogram</div>
+      <div class="logo-card-desc">Just lowercase r with an underline. Most restrained. Carries identity through color, not symbol.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Color</h2>
+  <p class="note">Light theme, neutral grays for content, elven forest green as the single accent. No purple, no blue, no rainbow. Status colors stay semantic and modern (no sepia). The brand color is the only place rivendell announces itself in the chrome.</p>
+  <div class="palette">
+    <div class="swatch"><div class="swatch-color" style="background:#fafafa"></div><div class="swatch-name">--bg</div><div class="swatch-value">#fafafa</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#ffffff"></div><div class="swatch-name">--surface</div><div class="swatch-value">#ffffff</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#f3f4f6"></div><div class="swatch-name">--surface-2</div><div class="swatch-value">#f3f4f6</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#e5e7eb"></div><div class="swatch-name">--border</div><div class="swatch-value">#e5e7eb</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#0a0a0a"></div><div class="swatch-name">--text</div><div class="swatch-value">#0a0a0a</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#6b7280"></div><div class="swatch-name">--text-muted</div><div class="swatch-value">#6b7280</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#2d4a3e"></div><div class="swatch-name">--accent</div><div class="swatch-value">#2d4a3e · brand</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#e8efea"></div><div class="swatch-name">--accent-bg</div><div class="swatch-value">#e8efea · soft</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Typography</h2>
+  <p class="note">Geist for everything except mono. Restrained. The Vercel-aligned modern sans. Geist Mono for skill IDs, data values, terminal-flavored numbers. No serifs anywhere — character lives in the logo.</p>
+  <div class="specimen-row">
+    <div class="specimen-label">Display · Geist 500</div>
+    <div class="specimen-display">Workflow Map</div>
+  </div>
+  <div class="specimen-row">
+    <div class="specimen-label">Body · Geist 400</div>
+    <div class="specimen-body">Manage skills, gate the work, read the dependency map between every track and every step. Body should disappear.</div>
+  </div>
+  <div class="specimen-row">
+    <div class="specimen-label">Mono · Geist Mono</div>
+    <div class="specimen-mono">/gstack-investigate · /slide-workflow · /requirement · 90 skills · 12 agents</div>
+  </div>
+  <div class="specimen-row">
+    <div class="specimen-label">Tabular Nums</div>
+    <div class="specimen-mono">2026-05-07 · 282.6M tokens · 1,089 calls · $3,687.09 · exit 0</div>
+  </div>
+</section>
+
+<section>
+  <h2>Charts</h2>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Token spend · 7 days</div>
+        <div class="chart-meta">USD · per day</div>
+      </div>
+      <div class="chart-bignum">$3,687.09 <span class="chart-bignum-delta">+18.4%</span></div>
+      <svg viewBox="0 0 600 180" style="width:100%; height: 180px;">
+        <defs>
+          <linearGradient id="gradFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#2d4a3e" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#2d4a3e" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <line x1="40" y1="20" x2="40" y2="160" stroke="#e5e7eb"/>
+        <line x1="40" y1="160" x2="600" y2="160" stroke="#e5e7eb"/>
+        <text x="36" y="25" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="end">$1.2k</text>
+        <text x="36" y="95" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="end">$600</text>
+        <text x="36" y="165" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="end">$0</text>
+        <path d="M 60 150 L 140 158 L 220 160 L 300 65 L 380 30 L 460 8 L 540 38 L 540 160 L 60 160 Z" fill="url(#gradFill)"/>
+        <path d="M 60 150 L 140 158 L 220 160 L 300 65 L 380 30 L 460 8 L 540 38" stroke="#2d4a3e" stroke-width="1.5" fill="none"/>
+        <circle cx="60" cy="150" r="2.5" fill="#2d4a3e"/>
+        <circle cx="140" cy="158" r="2.5" fill="#2d4a3e"/>
+        <circle cx="220" cy="160" r="2.5" fill="#2d4a3e"/>
+        <circle cx="300" cy="65" r="2.5" fill="#2d4a3e"/>
+        <circle cx="380" cy="30" r="2.5" fill="#2d4a3e"/>
+        <circle cx="460" cy="8" r="3.5" fill="#2d4a3e"/>
+        <circle cx="540" cy="38" r="2.5" fill="#2d4a3e"/>
+        <text x="60" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">04-30</text>
+        <text x="140" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">05-01</text>
+        <text x="220" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">05-02</text>
+        <text x="300" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">05-03</text>
+        <text x="380" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">05-04</text>
+        <text x="460" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">05-05</text>
+        <text x="540" y="178" font-family="Geist Mono" font-size="9" fill="#9ca3af" text-anchor="middle">05-06</text>
+      </svg>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-title">Top skills · this week</div>
+        <div class="chart-meta">firings</div>
+      </div>
+      <div class="bar-chart" style="margin-top: 10px;">
+        <div class="bar-row"><div class="bar-label">/gstack-investigate</div><div class="bar-track"><div class="bar-fill" style="width:92%"></div></div><div class="bar-value">47</div></div>
+        <div class="bar-row"><div class="bar-label">/slide-workflow</div><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><div class="bar-value">38</div></div>
+        <div class="bar-row"><div class="bar-label">/customer-intel</div><div class="bar-track"><div class="bar-fill" style="width:55%"></div></div><div class="bar-value">28</div></div>
+        <div class="bar-row"><div class="bar-label">/gstack-review</div><div class="bar-track"><div class="bar-fill" style="width:43%"></div></div><div class="bar-value">22</div></div>
+        <div class="bar-row"><div class="bar-label">/requirement</div><div class="bar-track"><div class="bar-fill" style="width:33%"></div></div><div class="bar-value">17</div></div>
+        <div class="bar-row"><div class="bar-label">/sales-material</div><div class="bar-track"><div class="bar-fill" style="width:25%"></div></div><div class="bar-value">13</div></div>
+        <div class="bar-row"><div class="bar-label">/de-slopify</div><div class="bar-track"><div class="bar-fill" style="width:18%"></div></div><div class="bar-value">9</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">Agent execution · 7 days</div>
+      <div class="chart-meta">12 agents · exit code</div>
+    </div>
+    <div class="heatmap">
+      <div></div>
+      <div class="heatmap-day-h">Wed</div><div class="heatmap-day-h">Thu</div><div class="heatmap-day-h">Fri</div><div class="heatmap-day-h">Sat</div><div class="heatmap-day-h">Sun</div><div class="heatmap-day-h">Mon</div><div class="heatmap-day-h">Tue</div>
+      <div class="heatmap-label">research-agent</div>
+      <div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-2"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div>
+      <div class="heatmap-label">harvest</div>
+      <div class="heatmap-cell cell-2"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-2"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-err"></div>
+      <div class="heatmap-label">maintain</div>
+      <div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div>
+      <div class="heatmap-label">tester</div>
+      <div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-2"></div><div class="heatmap-cell cell-2"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div><div class="heatmap-cell cell-3"></div>
+      <div class="heatmap-label">crm-projection</div>
+      <div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-0"></div><div class="heatmap-cell cell-0"></div><div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-1"></div>
+      <div class="heatmap-label">tender-scraper</div>
+      <div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-0"></div><div class="heatmap-cell cell-0"></div><div class="heatmap-cell cell-1"></div><div class="heatmap-cell cell-1"></div>
+    </div>
+    <div style="display: flex; gap: var(--space-4); margin-top: var(--space-4); font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">
+      <span><span class="heatmap-cell cell-0" style="display:inline-block; width:10px; height:10px; vertical-align: middle; margin-right:4px;"></span>idle</span>
+      <span><span class="heatmap-cell cell-1" style="display:inline-block; width:10px; height:10px; vertical-align: middle; margin-right:4px;"></span>1 run</span>
+      <span><span class="heatmap-cell cell-2" style="display:inline-block; width:10px; height:10px; vertical-align: middle; margin-right:4px;"></span>2 runs</span>
+      <span><span class="heatmap-cell cell-3" style="display:inline-block; width:10px; height:10px; vertical-align: middle; margin-right:4px;"></span>3+ runs</span>
+      <span><span class="heatmap-cell cell-err" style="display:inline-block; width:10px; height:10px; vertical-align: middle; margin-right:4px;"></span>error</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Components</h2>
+  <div class="components-grid">
+    <div class="component">
+      <div class="component-label">Buttons</div>
+      <div class="btn-row">
+        <button class="btn btn-primary">Run /gstack-ship</button>
+        <button class="btn btn-secondary">View diff</button>
+        <button class="btn btn-ghost">Cancel</button>
+      </div>
+    </div>
+    <div class="component">
+      <div class="component-label">Status</div>
+      <div class="status-row">
+        <div><span class="status-dot status-ok"></span>maintain · loaded · exit 0</div>
+        <div><span class="status-dot status-warn"></span>tester · drift detected</div>
+        <div><span class="status-dot status-err"></span>harvest · exit 1</div>
+      </div>
+    </div>
+    <div class="component" style="grid-column: 1 / -1;">
+      <div class="component-label">Skills table</div>
+      <table>
+        <thead><tr><th>Skill</th><th>Category</th><th class="num">Revisions</th><th class="num">Last edit</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>slide-workflow</td><td class="muted">docs</td><td class="num">2</td><td class="num muted">1d ago</td><td><span class="status-dot status-ok"></span>active</td></tr>
+          <tr><td>slide-office-hours</td><td class="muted">docs</td><td class="num">1</td><td class="num muted">1d ago</td><td><span class="status-dot status-ok"></span>active</td></tr>
+          <tr><td>auto-stage</td><td class="muted">git</td><td class="num">2</td><td class="num muted">8d ago</td><td><span class="status-dot status-warn"></span>review</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Workflow Map</h2>
+  <p class="note">Clean light flowchart. Nodes connected by forest-accent Bezier curves. Click a chip — right panel shows references like a citation note. Same data shape as before, less ceremony in the rendering.</p>
+  <div class="flowchart">
+    <div class="flowchart-topbar">
+      <div class="breadcrumb">rivendell / <strong>workflow map</strong></div>
+      <div class="search-box">⌘K · search skills</div>
+      <div class="toggle">
+        <button class="active">Tree</button>
+        <button>Graph</button>
+      </div>
+    </div>
+    <div class="flow-body">
+      <div class="flow-canvas">
+
+        <div class="track">
+          <div class="track-name">UI Feature / New Page</div>
+          <div class="track-flow">
+            <svg class="connector-svg" viewBox="0 0 1500 130" preserveAspectRatio="none">
+              <path d="M 165 65 C 195 50, 205 80, 235 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M 400 65 C 430 78, 440 50, 470 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M 635 65 C 665 52, 675 80, 705 65" stroke="#2d4a3e" stroke-width="2" fill="none" stroke-linecap="round"/>
+              <path d="M 870 65 C 900 78, 910 50, 940 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M 1105 65 C 1135 50, 1145 80, 1175 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            </svg>
+            <div class="step-node">
+              <div class="step-num">step 1</div>
+              <div class="step-label">Validate why</div>
+              <div class="step-skills">
+                <span class="skill-chip">/requirement</span>
+                <span class="skill-chip">/gstack-office-hours</span>
+              </div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 2</div>
+              <div class="step-label">User flow</div>
+              <div class="step-skills"><span class="skill-chip">/user-flow</span></div>
+            </div>
+            <div class="step-node active">
+              <div class="step-num">step 3 · current</div>
+              <div class="step-label">Design system</div>
+              <div class="step-skills"><span class="skill-chip highlighted">/gstack-design-consultation</span></div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 4</div>
+              <div class="step-label">Variants</div>
+              <div class="step-skills"><span class="skill-chip">/gstack-design-shotgun</span></div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 5</div>
+              <div class="step-label">Mockup → HTML</div>
+              <div class="step-skills">
+                <span class="skill-chip">/mockup</span>
+                <span class="skill-chip">/gstack-design-html</span>
+              </div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 6</div>
+              <div class="step-label">Plan</div>
+              <div class="step-skills">
+                <span class="skill-chip">/planning-with-files</span>
+                <span class="skill-chip optional">/gstack-plan-eng-review</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="track">
+          <div class="track-name">Slide / Deck Building</div>
+          <div class="track-flow">
+            <svg class="connector-svg" viewBox="0 0 1500 130" preserveAspectRatio="none">
+              <path d="M 165 65 C 195 80, 205 50, 235 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M 400 65 C 430 50, 440 80, 470 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M 635 65 C 665 78, 675 52, 705 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+              <path d="M 870 65 C 900 50, 910 80, 940 65" stroke="#5b7a6a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+            </svg>
+            <div class="step-node">
+              <div class="step-num">step 0</div>
+              <div class="step-label">Deck-type routing</div>
+              <div class="step-skills">
+                <span class="skill-chip">/pitch-deck</span>
+                <span class="skill-chip">/sales-material</span>
+              </div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 1</div>
+              <div class="step-label">Storyline preflight</div>
+              <div class="step-skills"><span class="skill-chip">/slide-office-hours</span></div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 2</div>
+              <div class="step-label">Style lock</div>
+              <div class="step-skills">
+                <span class="skill-chip">/slide-template-extractor</span>
+                <span class="skill-chip optional">/ui-ux-pro-max</span>
+              </div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 3</div>
+              <div class="step-label">Outline → content</div>
+              <div class="step-skills"><span class="skill-chip">/slide-workflow</span></div>
+            </div>
+            <div class="step-node">
+              <div class="step-num">step 4</div>
+              <div class="step-label">Generate</div>
+              <div class="step-skills">
+                <span class="skill-chip">/office-pptx</span>
+                <span class="skill-chip optional">/gdoc-report-builder</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <aside class="flow-aside">
+        <div class="aside-list-h">Cross-reference</div>
+        <div class="aside-h">design-consultation</div>
+        <div class="aside-skill">in <strong>2 tracks</strong> · 1 mandatory · 1 optional</div>
+        <div class="aside-mini-stat"><span>Firings · this week</span><strong>3</strong></div>
+        <div class="aside-mini-stat"><span>Last fired</span><strong>just now</strong></div>
+        <div class="aside-mini-stat"><span>Avg duration</span><strong>4m 12s</strong></div>
+        <div class="aside-list-h">References</div>
+        <div class="aside-ref">
+          <div class="aside-ref-track">UI Feature / New Page</div>
+          <div class="aside-ref-step">step 3 · mandatory</div>
+        </div>
+        <div class="aside-ref">
+          <div class="aside-ref-track">Slide / Deck Building</div>
+          <div class="aside-ref-step">step 2 · optional · "from-zero" path</div>
+        </div>
+        <a class="aside-cta">Open /skills/design-consultation →</a>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span class="ornament">❦</span>
+  <span class="tolkien-line">"Even the smallest workflow can change the course of the day."</span>
+  rivendell · design system v0.4 · 2026-05-07 · /gstack-design-consultation
+</footer>
+
+</div>
+</body>
+</html>
