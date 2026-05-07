@@ -99,24 +99,23 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 
 ### H. Chart components (shared, build before page migration)
 
+> **Stage 2 decision (2026-05-08):** Did NOT extract LineTrend/BarRank/Heatmap. Recharts was already installed and working; just re-skinned it with the token palette inline in tokens + skills pages. Building 3 standalone inline-SVG components for marginal aesthetic gain wasn't worth the diff cost. Defer to parking lot if recharts ever needs to leave.
+
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| H1 | Build `src/components/charts/LineTrend.tsx` — props `{ data: {x, y}[], yLabels?, xLabels? }`. Inline SVG | pending | Single forest stroke + soft gradient fill, mono axis labels |
-| H2 | Build `src/components/charts/BarRank.tsx` — props `{ rows: { label, value }[] }` horizontal bar | pending | Forest fill on surface-2 track |
-| H3 | Build `src/components/charts/Heatmap.tsx` — props `{ rows: string[], cols: string[], values: number[][], legend? }` | pending | Sequential greens + red for error |
-| H4 | Smoke: render each in a Storybook-like dev page (or just on tokens page) | pending | Visual sanity before per-page migration |
+| H1-H4 | _deferred to parking lot K8_ | deferred | Kept recharts, recolored with --accent / --accent-soft / sequential greens |
 
 ### I. Page-by-page token migration
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| I1 | `src/app/page.tsx` (landing) — strip hardcoded colors, apply tokens, place Logo, update copy | pending | Reference DESIGN.md hero pattern |
-| I2 | `src/app/agents/page.tsx` — token swap, agent cards use Card pattern + StatusDot | pending |  |
-| I3 | `src/app/harvest/page.tsx` — token swap | pending |  |
-| I4 | `src/app/ports/page.tsx` — token swap | pending |  |
-| I5 | `src/app/projects/page.tsx` — token swap | pending |  |
-| I6 | `src/app/skills/page.tsx` — token swap; this is where cross-ref panel CTA links to | pending | Skill detail anchor (`/skills/[name]`) must work for the cross-ref CTA |
-| I7 | `src/app/tokens/page.tsx` — token swap; replace any inline charts with `LineTrend`, `BarRank`, `Heatmap` from H | pending | This page demonstrates the chart components most |
+| I1 | `src/app/page.tsx` (landing) | done | h1 + 3 tables + StatusDot for agent rows + status pills |
+| I2 | `src/app/agents/page.tsx` | done | Project group badges → accent-bg / surface-2 |
+| I3 | `src/app/harvest/page.tsx` | done | strengthConfig collapsed 6→3 status colors. Toast styled with --status-* border |
+| I4 | `src/app/ports/page.tsx` | done | TypeChip uniform neutral; PortStatusBadge wraps StatusDot. Lint warning fixed (inline initial fetch in useEffect) |
+| I5 | `src/app/projects/page.tsx` | done | MissionCard + EditForm use accent-bg + accent-soft; replaced 🎯/🚫/🤖 emoji with Lucide icons. Lint warning fixed |
+| I6 | `src/app/skills/page.tsx` | done | Killed CATEGORY_COLORS rainbow; treemap uses sequential greens. LIFECYCLE_COLORS = 3 monochrome shades. All recharts re-colored with --accent palette |
+| I7 | `src/app/tokens/page.tsx` | done | Two BarCharts re-skinned with --accent / --accent-soft. Date inputs + tables full token swap |
 
 ### J. Stage 2 wrap
 
@@ -140,6 +139,8 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 - **K5.** _PROMOTED to G0 (Stage 1 prereq)._ Skills page `/skills/[name]` deep-link route. Cross-ref CTA depends on it.
 - **K6.** Mobile RWD — explicitly out of scope (desktop tool)
 - **K7.** ⌘K skill search (shown in v4 mockup top-bar) — nice-to-have. Stage 1 = static placeholder text. Real implementation needs fuzzy search lib (Fuse.js or similar)
+- **K8.** Extract LineTrend / BarRank / Heatmap inline-SVG components (was H1-H4). Skipped in Stage 2 because recharts was already working and we just re-colored it. Worth doing if recharts is ever ripped out.
+- **K9.** Dynamic-route pages (`/skills/[name]`, `/agents/[label]`, `/projects/[name]`) and shared components `AgentCard.tsx` (309 lines), `RunHistory.tsx` (516 lines), `CollaborationFlow.tsx` — these are linked from the migrated pages but use their own zinc/dark classes. ~1850 lines of mostly mechanical token-swap left. Defer to a Stage 3 sweep when there's appetite.
 
 ---
 
@@ -161,6 +162,10 @@ Track at end of each phase. Keeps blast radius visible.
 | Stage 1 · B (tokens) | `src/app/globals.css` | All DESIGN.md tokens shipped. Build green. |
 | Stage 1 · D (shared components) | `src/components/Logo.tsx`, `src/components/StatusDot.tsx`, `src/components/SkillChip.tsx`, `src/components/Sidebar.tsx` (refactor) | Sidebar now uses Logo + tagline + tokens; emoji removed from project switcher |
 | Stage 1 · F (workflow page) | `src/components/workflow/StepNode.tsx`, `TrackRow.tsx`, `CrossReferencePanel.tsx`, `src/app/workflow/page.tsx` | Core flows = horizontal trees with Bezier connectors; other sections token-swapped; cross-ref panel right side |
+| Stage 2.1 (landing + agents + shared) | `src/app/page.tsx`, `src/app/agents/page.tsx`, `src/components/MetricsRow.tsx`, `src/components/PendingIssues.tsx` | Pattern established: h1 28/500/-0.02em, h2 18/500/-0.01em, tables surface-2 thead, mono uppercase 10px headers |
+| Stage 2.2 (ports + harvest) | `src/app/ports/page.tsx`, `src/app/harvest/page.tsx` | TypeChip recolored to neutral, harvest toast token-styled, lint set-state-in-effect fixed |
+| Stage 2.3 (tokens + skills) | `src/app/tokens/page.tsx`, `src/app/skills/page.tsx` | Recharts re-colored to forest/sequential-green palette; CATEGORY_COLORS rainbow killed |
+| Stage 2.4 (projects) | `src/app/projects/page.tsx` | MissionCard / EditForm use accent-bg + accent-soft; emoji 🎯/🚫/🤖 replaced with Lucide icons; lint fixed |
 
 ---
 

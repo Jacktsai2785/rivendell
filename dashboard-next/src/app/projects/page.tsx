@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   apiFetch,
   apiPost,
@@ -11,24 +11,76 @@ import {
   type MissionBrief,
 } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
-import { Pencil, Trash2, Plus, X, FolderOpen, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Plus,
+  X,
+  FolderOpen,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Target,
+  Ban,
+  Bot,
+} from "lucide-react";
 import Link from "next/link";
+
+// ── Reusable styles ──────────────────────────────────────────────────
+
+const cardStyle: React.CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+};
+
+const inputStyle: React.CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)",
+  color: "var(--text)",
+};
+
+const accentBtn: React.CSSProperties = {
+  background: "var(--accent)",
+  color: "var(--surface)",
+  borderRadius: "var(--radius-sm)",
+};
+
+const ghostBtn: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid var(--border-strong)",
+  color: "var(--text)",
+  borderRadius: "var(--radius-sm)",
+};
+
+const dangerBtn: React.CSSProperties = {
+  background: "var(--status-err)",
+  color: "var(--surface)",
+  borderRadius: "var(--radius-sm)",
+};
+
+const subtleLabel: React.CSSProperties = {
+  fontSize: 11,
+  color: "var(--text-muted)",
+  fontFamily: "var(--font-mono)",
+};
 
 // ── Git Status Badge ──────────────────────────────────────────────────
 
 function GitBadge({ git }: { git: ProjectInfo["git"] }) {
   if (!git) return null;
-  if (git.error === "no-repo") {
+  if (git.error === "no-repo" || git.error === "no-git") {
     return (
-      <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-400 dark:bg-zinc-800/50">
-        ⚪ repo 路徑不存在
-      </div>
-    );
-  }
-  if (git.error === "no-git") {
-    return (
-      <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-400 dark:bg-zinc-800/50">
-        ⚪ 非 git repo
+      <div
+        className="mt-3 px-3 py-2 text-xs"
+        style={{
+          background: "var(--surface-2)",
+          color: "var(--text-subtle)",
+          borderRadius: "var(--radius-sm)",
+        }}
+      >
+        {git.error === "no-repo" ? "repo 路徑不存在" : "非 git repo"}
       </div>
     );
   }
@@ -36,31 +88,53 @@ function GitBadge({ git }: { git: ProjectInfo["git"] }) {
 
   const syncColor =
     git.behind > 0
-      ? "text-red-500"
+      ? "var(--status-err)"
       : git.ahead > 0
-        ? "text-amber-600"
-        : "text-green-600";
+        ? "var(--status-warn)"
+        : "var(--status-ok)";
 
   const syncLabel =
     git.behind > 0
       ? `↓${git.behind} behind`
       : git.ahead > 0
         ? `↑${git.ahead} unpushed`
-        : "✓ synced";
+        : "synced";
 
   return (
-    <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/50">
+    <div
+      className="mt-3 px-3 py-2 text-xs"
+      style={{
+        background: "var(--surface-2)",
+        borderRadius: "var(--radius-sm)",
+      }}
+    >
       <div className="flex items-center justify-between">
-        <span className="font-mono text-zinc-500">{git.branch}</span>
-        <span className={`font-medium ${syncColor}`}>{syncLabel}</span>
+        <span
+          className="font-mono"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {git.branch}
+        </span>
+        <span
+          className="font-mono font-medium tabular-nums"
+          style={{ color: syncColor }}
+        >
+          {syncLabel}
+        </span>
       </div>
       {git.last_commit_msg && (
-        <p className="mt-1 truncate text-zinc-600 dark:text-zinc-400">
+        <p
+          className="mt-1 truncate"
+          style={{ color: "var(--text-muted)" }}
+        >
           {git.last_commit_ago} — {git.last_commit_msg}
         </p>
       )}
       {git.recent_files.length > 0 && (
-        <p className="mt-0.5 truncate font-mono text-zinc-400">
+        <p
+          className="mt-0.5 truncate font-mono"
+          style={{ color: "var(--text-subtle)" }}
+        >
           {git.recent_files.slice(0, 3).join(", ")}
         </p>
       )}
@@ -68,7 +142,7 @@ function GitBadge({ git }: { git: ProjectInfo["git"] }) {
   );
 }
 
-// ── Mission Card ──────────────────────────────────────────────────────
+// ── Mission ──────────────────────────────────────────────────────────
 
 const EMPTY_MISSION: MissionBrief = {
   goal: "",
@@ -99,46 +173,87 @@ function MissionCard({ mission }: { mission: MissionBrief }) {
   if (!hasMission(mission)) return null;
 
   return (
-    <div className="mt-3 rounded-md border border-blue-100 bg-blue-50/40 text-xs dark:border-blue-900/40 dark:bg-blue-950/20">
+    <div
+      className="mt-3 text-xs"
+      style={{
+        background: "var(--accent-bg)",
+        border: "1px solid var(--accent-soft)",
+        borderRadius: "var(--radius-sm)",
+      }}
+    >
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-3 py-2 font-semibold text-blue-700 dark:text-blue-400"
+        className="flex w-full items-center justify-between px-3 py-2 font-medium"
+        style={{ color: "var(--accent)" }}
       >
-        <span>🎯 使命</span>
+        <span className="inline-flex items-center gap-1.5">
+          <Target size={12} /> 使命
+        </span>
         {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
       </button>
       {open && (
-        <div className="space-y-1 px-3 pb-2 text-zinc-700 dark:text-zinc-300">
+        <div
+          className="space-y-1 px-3 pb-2"
+          style={{ color: "var(--text)" }}
+        >
           {mission.goal && (
-            <p><span className="text-zinc-400">目標：</span>{mission.goal}</p>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>目標：</span>
+              {mission.goal}
+            </p>
           )}
           {mission.deadline && (
-            <p><span className="text-zinc-400">期限：</span>{mission.deadline}</p>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>期限：</span>
+              {mission.deadline}
+            </p>
           )}
           {mission.expected_revenue && (
-            <p><span className="text-zinc-400">預期收益：</span>{mission.expected_revenue}</p>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>預期收益：</span>
+              {mission.expected_revenue}
+            </p>
           )}
           {mission.potential_clients.length > 0 && (
-            <p><span className="text-zinc-400">潛在客戶：</span>{mission.potential_clients.join("、")}</p>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>潛在客戶：</span>
+              {mission.potential_clients.join("、")}
+            </p>
           )}
           {mission.situation_analysis && (
-            <p><span className="text-zinc-400">局勢：</span>{mission.situation_analysis}</p>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>局勢：</span>
+              {mission.situation_analysis}
+            </p>
           )}
           {mission.commercial_value && (
-            <p><span className="text-zinc-400">商業價值：</span>{mission.commercial_value}</p>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>商業價值：</span>
+              {mission.commercial_value}
+            </p>
           )}
           {mission.blockers.length > 0 && (
-            <p><span className="text-zinc-400">阻礙：</span>
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>阻礙：</span>
               {mission.blockers.map((b, i) => (
-                <span key={i} className="mr-1">🚫 {b}</span>
+                <span
+                  key={i}
+                  className="mr-1.5 inline-flex items-center gap-1"
+                  style={{ color: "var(--status-err)" }}
+                >
+                  <Ban size={10} /> {b}
+                </span>
               ))}
             </p>
           )}
           {mission.next_steps.length > 0 && (
-            <p><span className="text-zinc-400">下一步：</span>
-              {mission.next_steps.map((s, i) => (
-                <span key={i} className="mr-2">① {s}</span>
-              )).slice(0, 3)}
+            <p>
+              <span style={{ color: "var(--text-subtle)" }}>下一步：</span>
+              {mission.next_steps.slice(0, 3).map((s, i) => (
+                <span key={i} className="mr-2">
+                  {i + 1}. {s}
+                </span>
+              ))}
             </p>
           )}
         </div>
@@ -147,8 +262,6 @@ function MissionCard({ mission }: { mission: MissionBrief }) {
   );
 }
 
-// ── Mission Edit Form ─────────────────────────────────────────────────
-
 function MissionEditForm({
   mission,
   onChange,
@@ -156,44 +269,69 @@ function MissionEditForm({
   mission: MissionBrief;
   onChange: (m: MissionBrief) => void;
 }) {
-  const field = (key: keyof MissionBrief, label: string, placeholder = "") => (
+  const field = (
+    key: keyof MissionBrief,
+    label: string,
+    placeholder = ""
+  ) => (
     <label className="block">
-      <span className="text-xs text-zinc-500">{label}</span>
+      <span style={subtleLabel}>{label}</span>
       <input
         value={mission[key] as string}
         onChange={(e) => onChange({ ...mission, [key]: e.target.value })}
         placeholder={placeholder}
-        className="mt-0.5 w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs dark:border-zinc-700"
+        className="mt-0.5 w-full px-2 py-1 text-xs"
+        style={inputStyle}
       />
     </label>
   );
 
-  const listField = (key: "potential_clients" | "blockers" | "next_steps", label: string, placeholder = "") => (
+  const listField = (
+    key: "potential_clients" | "blockers" | "next_steps",
+    label: string,
+    placeholder = ""
+  ) => (
     <label className="block">
-      <span className="text-xs text-zinc-500">{label}（逗號分隔）</span>
+      <span style={subtleLabel}>{label}（逗號分隔）</span>
       <input
         value={(mission[key] as string[]).join(", ")}
         onChange={(e) =>
           onChange({
             ...mission,
-            [key]: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
+            [key]: e.target.value
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
           })
         }
         placeholder={placeholder}
-        className="mt-0.5 w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-xs dark:border-zinc-700"
+        className="mt-0.5 w-full px-2 py-1 text-xs"
+        style={inputStyle}
       />
     </label>
   );
 
   return (
-    <div className="mt-3 space-y-2 rounded-md border border-blue-200 bg-blue-50/30 p-3 dark:border-blue-900 dark:bg-blue-950/20">
-      <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">🎯 使命</p>
+    <div
+      className="mt-3 space-y-2 p-3"
+      style={{
+        background: "var(--accent-bg)",
+        border: "1px solid var(--accent-soft)",
+        borderRadius: "var(--radius-sm)",
+      }}
+    >
+      <p
+        className="text-xs font-medium inline-flex items-center gap-1.5"
+        style={{ color: "var(--accent)" }}
+      >
+        <Target size={12} /> 使命
+      </p>
       {field("goal", "目標（一句話）", "S35 完成，可上線 SMB 客戶")}
       {field("deadline", "期限", "S35 結束前")}
       {field("expected_revenue", "預期收益", "NT$50k/月")}
       {listField("potential_clients", "潛在客戶", "東聯化學, 台塑石化")}
-      {field("situation_analysis", "當前局勢", "HubSpot 貴且難用，機會窗口開著")}
-      {field("commercial_value", "商業價值", "B2B SaaS，每客戶年約")}
+      {field("situation_analysis", "當前局勢", "HubSpot 貴且難用")}
+      {field("commercial_value", "商業價值", "B2B SaaS, 每客戶年約")}
       {listField("blockers", "阻礙", "Auth 系統未動工")}
       {listField("next_steps", "下一步", "接洽公安協會, 開發 MVP")}
       {field("resources_needed", "所需資源", "前端工程師 × 1")}
@@ -213,7 +351,9 @@ function ProjectCard({
   const [editing, setEditing] = useState(false);
   const [desc, setDesc] = useState(project.description);
   const [agentsStr, setAgentsStr] = useState(project.agents.join(", "));
-  const [mission, setMission] = useState<MissionBrief>(project.mission ?? EMPTY_MISSION);
+  const [mission, setMission] = useState<MissionBrief>(
+    project.mission ?? EMPTY_MISSION
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -239,7 +379,8 @@ function ProjectCard({
   }
 
   async function handleDelete() {
-    if (!confirm(`確定刪除專案「${project.name}」？（不會影響 plist 檔案）`)) return;
+    if (!confirm(`確定刪除專案「${project.name}」？（不會影響 plist 檔案）`))
+      return;
     setBusy(true);
     try {
       await apiDelete(`/api/projects/${encodeURIComponent(project.name)}`);
@@ -252,28 +393,58 @@ function ProjectCard({
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="p-5" style={cardStyle}>
       <div className="flex items-start justify-between gap-3">
         <Link
           href={`/projects/${encodeURIComponent(project.name)}`}
-          className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400"
+          className="flex items-center gap-2 transition-colors"
+          style={{ color: "var(--text)" }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.color = "var(--accent)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.color = "var(--text)")
+          }
         >
-          <FolderOpen size={18} className="text-blue-500" />
-          <h3 className="text-base font-semibold">{project.name}</h3>
-          <ChevronRight size={16} className="text-zinc-300" />
+          <FolderOpen
+            size={18}
+            style={{ color: "var(--text-muted)" }}
+          />
+          <h3
+            className="text-base"
+            style={{ fontWeight: 500, fontFamily: "var(--font-mono)" }}
+          >
+            {project.name}
+          </h3>
+          <ChevronRight
+            size={16}
+            style={{ color: "var(--text-subtle)" }}
+          />
         </Link>
         <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-            project.agent_count_loaded > 0
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-          }`}
+          className="inline-flex items-center px-2 py-0.5 text-xs font-mono tabular-nums"
+          style={{
+            borderRadius: 99,
+            background:
+              project.agent_count_loaded > 0
+                ? "var(--accent-bg)"
+                : "var(--surface-2)",
+            color:
+              project.agent_count_loaded > 0
+                ? "var(--accent)"
+                : "var(--text-muted)",
+          }}
         >
           {project.agent_count_loaded}/{project.agents.length} running
         </span>
       </div>
 
-      <p className="mt-1 font-mono text-xs text-zinc-400">{project.repo}</p>
+      <p
+        className="mt-1 font-mono text-xs"
+        style={{ color: "var(--text-subtle)" }}
+      >
+        {project.repo}
+      </p>
 
       {editing ? (
         <div className="mt-3 space-y-2">
@@ -281,26 +452,30 @@ function ProjectCard({
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             placeholder="描述"
-            className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm dark:border-zinc-700"
+            className="w-full px-3 py-1.5 text-sm"
+            style={inputStyle}
           />
           <input
             value={agentsStr}
             onChange={(e) => setAgentsStr(e.target.value)}
             placeholder="Agents（逗號分隔）"
-            className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-1.5 text-sm font-mono dark:border-zinc-700"
+            className="w-full px-3 py-1.5 text-sm font-mono"
+            style={inputStyle}
           />
           <MissionEditForm mission={mission} onChange={setMission} />
           <div className="flex gap-2 pt-1">
             <button
               disabled={busy}
               onClick={handleSave}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              style={accentBtn}
             >
               儲存
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="px-3 py-1.5 text-xs font-medium"
+              style={ghostBtn}
             >
               取消
             </button>
@@ -308,7 +483,10 @@ function ProjectCard({
         </div>
       ) : (
         <>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p
+            className="mt-2 text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
             {project.description || "（無描述）"}
           </p>
 
@@ -316,13 +494,25 @@ function ProjectCard({
             {project.agents.map((name) => (
               <span
                 key={name}
-                className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-mono"
+                style={{
+                  borderRadius: 99,
+                  background: "var(--surface-2)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                }}
               >
-                🤖 {name}
+                <Bot size={11} />
+                {name}
               </span>
             ))}
             {project.agents.length === 0 && (
-              <span className="text-xs text-zinc-400">尚無 agent</span>
+              <span
+                className="text-xs"
+                style={{ color: "var(--text-subtle)" }}
+              >
+                尚無 agent
+              </span>
             )}
           </div>
 
@@ -331,15 +521,20 @@ function ProjectCard({
 
           <div className="mt-4 flex gap-2">
             <button
-              onClick={() => { setEditing(true); setMission(project.mission ?? EMPTY_MISSION); }}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              onClick={() => {
+                setEditing(true);
+                setMission(project.mission ?? EMPTY_MISSION);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium"
+              style={ghostBtn}
             >
               <Pencil size={14} /> 編輯
             </button>
             <button
               disabled={busy}
               onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              style={dangerBtn}
             >
               <Trash2 size={14} /> 刪除
             </button>
@@ -347,7 +542,14 @@ function ProjectCard({
         </>
       )}
 
-      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {error && (
+        <p
+          className="mt-2 text-xs"
+          style={{ color: "var(--status-err)" }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -365,13 +567,17 @@ export default function ProjectsPage() {
   const [newAgents, setNewAgents] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const load = useCallback(() => {
+  useEffect(() => {
     apiFetch<ProjectsData>("/api/projects")
       .then(setData)
       .catch((e) => setErr(e.message));
   }, []);
 
-  useEffect(load, [load]);
+  function reload() {
+    apiFetch<ProjectsData>("/api/projects")
+      .then(setData)
+      .catch((e) => setErr(e.message));
+  }
 
   async function handleCreate() {
     if (!newName.trim()) return;
@@ -392,7 +598,7 @@ export default function ProjectsPage() {
       setNewDesc("");
       setNewAgents("");
       setShowForm(false);
-      load();
+      reload();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -400,8 +606,10 @@ export default function ProjectsPage() {
     }
   }
 
-  if (err && !data) return <p className="text-red-500">Error: {err}</p>;
-  if (!data) return <p className="text-zinc-400">載入中...</p>;
+  if (err && !data)
+    return <p style={{ color: "var(--status-err)" }}>Error: {err}</p>;
+  if (!data)
+    return <p style={{ color: "var(--text-muted)" }}>載入中...</p>;
 
   const { projects } = data;
   const totalAgents = projects.reduce((s, p) => s + p.agents.length, 0);
@@ -409,7 +617,17 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">專案管理</h1>
+      <h1
+        className="mb-6 tracking-tight"
+        style={{
+          fontSize: 28,
+          fontWeight: 500,
+          color: "var(--text)",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        專案管理
+      </h1>
 
       <MetricsRow
         metrics={[
@@ -422,7 +640,8 @@ export default function ProjectsPage() {
       <div className="mt-6 flex justify-end">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+          style={accentBtn}
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? "取消" : "新增專案"}
@@ -430,67 +649,101 @@ export default function ProjectsPage() {
       </div>
 
       {showForm && (
-        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/50 p-5 dark:border-blue-900 dark:bg-blue-950/20">
-          <h2 className="mb-4 text-sm font-semibold">新增專案</h2>
+        <div
+          className="mt-4 p-5"
+          style={{
+            background: "var(--accent-bg)",
+            border: "1px solid var(--accent-soft)",
+            borderRadius: "var(--radius-md)",
+          }}
+        >
+          <h2
+            className="mb-4 text-sm"
+            style={{ color: "var(--text)", fontWeight: 500 }}
+          >
+            新增專案
+          </h2>
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs text-zinc-500">專案名稱</span>
+                <span style={subtleLabel}>專案名稱</span>
                 <input
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="my-project"
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  className="mt-1 w-full px-3 py-2 text-sm"
+                  style={inputStyle}
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-zinc-500">Repo 路徑</span>
+                <span style={subtleLabel}>Repo 路徑</span>
                 <input
                   value={newRepo}
                   onChange={(e) => setNewRepo(e.target.value)}
                   placeholder="/Users/…/Projects/my-project"
-                  className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-mono dark:border-zinc-700 dark:bg-zinc-900"
+                  className="mt-1 w-full px-3 py-2 text-sm font-mono"
+                  style={inputStyle}
                 />
               </label>
             </div>
             <label className="block">
-              <span className="text-xs text-zinc-500">描述</span>
+              <span style={subtleLabel}>描述</span>
               <input
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
                 placeholder="Project description…"
-                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                className="mt-1 w-full px-3 py-2 text-sm"
+                style={inputStyle}
               />
             </label>
             <label className="block">
-              <span className="text-xs text-zinc-500">Agent（逗號分隔）</span>
+              <span style={subtleLabel}>Agent（逗號分隔）</span>
               <input
                 value={newAgents}
                 onChange={(e) => setNewAgents(e.target.value)}
                 placeholder="maintainer, tester"
-                className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-mono dark:border-zinc-700 dark:bg-zinc-900"
+                className="mt-1 w-full px-3 py-2 text-sm font-mono"
+                style={inputStyle}
               />
             </label>
             <button
               disabled={creating || !newName.trim()}
               onClick={handleCreate}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium disabled:opacity-50"
+              style={accentBtn}
             >
               建立
             </button>
           </div>
-          {err && <p className="mt-2 text-xs text-red-500">{err}</p>}
+          {err && (
+            <p
+              className="mt-2 text-xs"
+              style={{ color: "var(--status-err)" }}
+            >
+              {err}
+            </p>
+          )}
         </div>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {projects.map((p) => (
-          <ProjectCard key={p.name} project={p} onRefresh={load} />
+          <ProjectCard key={p.name} project={p} onRefresh={reload} />
         ))}
         {projects.length === 0 && (
-          <p className="text-sm text-zinc-500">
+          <p
+            className="text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
             尚無專案。點擊「新增專案」或編輯{" "}
-            <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-800">
+            <code
+              className="px-1 text-xs font-mono"
+              style={{
+                background: "var(--surface-2)",
+                color: "var(--text)",
+                borderRadius: 2,
+              }}
+            >
               ~/.claude/projects.json
             </code>
           </p>
