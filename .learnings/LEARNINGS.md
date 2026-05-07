@@ -1,5 +1,18 @@
 # Learnings
 
+## 2026-05-07 — /gstack-autoplan ROI threshold: when reviewer has full plan context already, 4-phase dual-voice review mostly reproduces what's already known
+
+- **Category**: best_practice
+- **Context**: After running requirement → design-consultation (4 iterations) → mockup → planning-with-files for the dashboard-next redesign, recommended `/gstack-autoplan` for plan review. The user picked it. Before launching, did a reality check: 491-line plan across 4 docs, full design context still in head from earlier in same session, 3 real architecture decisions, plan is reversible (not shipping to customers). Estimated cost: 30-45 min wall clock for 4 phases × dual voices (codex + Claude subagent) × full sections; large context burn. Pushed back honestly with 4 options. User picked "Tight single-pass eng review" instead.
+- **Outcome**: Tight review (~5 min) caught 9 concrete fixes including: Tailwind v4 already configured (obsoletes the Strategy A/B in findings.md), `next/font/google` already wired (so use `next/font/local` for self-host, not raw @font-face), Sidebar component already exists (refactor not build), workflow API already returns typed data (don't freeze to JSON SSOT in Stage 1), React Flow's value is drag/edit not readonly view (defer to parking lot). Net Stage 1 scope ~25-30% smaller. Surfaced 2 real taste decisions, auto-decided 7 mechanical fixes, all logged in plan review report.
+- **Diagnostic for "is autoplan worth it?"**: Three signals push toward TIGHT review instead of full autoplan:
+  1. **Reviewer holds the full plan context already** — same session as planning, no compaction yet
+  2. **Plan size + risk profile is bounded** — < 1000 lines, single component, reversible decisions, no customer-facing surface
+  3. **Real architecture decisions are countable on one hand** — when there are 1-3 clear "fork in the road" choices, surface them directly; don't ask 4 reviewers to find them
+- **When autoplan IS worth it**: large plans (>2000 lines plan), multi-component blast radius, customer-facing surface, fresh-context reviewers (cross-session resume, code you didn't write), security/compliance involved, plan that already had 1+ revision cycles and needs adversarial scrutiny.
+- **Generalization**: Same pattern applies to other "full vs tight" review skills (e.g. /gstack-cso vs /gstack-review). The cost/benefit isn't just plan complexity — it's the **delta between what the reviewer knows and what the review would produce**. When delta is small, tight review wins. When delta is large (fresh reviewer, gnarly code), full review wins.
+- **Anti-pattern (avoided this time)**: blindly recommending the heaviest review skill because "more rigor = better". Flag when /gstack-autoplan would mostly reproduce in-context knowledge. Pre-compute the user's likely cost before recommending the skill, not after.
+
 ## 2026-05-07 — Logo-first beats full aesthetic redesign for personal dev tools; user reframe rescued 4 iterations of mythic-library overengineering
 
 - **Category**: best_practice (user-converged after burning 4 visual iterations)
