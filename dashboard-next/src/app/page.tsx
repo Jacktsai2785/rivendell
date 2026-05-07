@@ -4,29 +4,42 @@ import { useEffect, useState } from "react";
 import { apiFetch, type OverviewData, type AgentInfo } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
 import PendingIssues from "@/components/PendingIssues";
+import StatusDot from "@/components/StatusDot";
 
 function AgentStatusRow({ agent }: { agent: AgentInfo }) {
-  let status: string;
+  let dot: "ok" | "warn" | "err" | "idle";
+  let label: string;
   if (!agent.installed) {
-    status = "⚪ 未安裝";
+    dot = "idle";
+    label = "未安裝";
   } else if (agent.exit_code !== null && agent.exit_code !== 0) {
-    status = `🔴 exit=${agent.exit_code}`;
+    dot = "err";
+    label = `exit=${agent.exit_code}`;
   } else if (agent.loaded) {
-    status = "🟢 已載入";
+    dot = "ok";
+    label = "已載入";
   } else {
-    status = "🔴 未載入";
+    dot = "err";
+    label = "未載入";
   }
 
   return (
-    <tr className="border-b border-zinc-100 dark:border-zinc-800">
+    <tr style={{ borderBottom: "1px solid var(--border)" }}>
       <td className="py-2 pr-4 font-medium">
         {agent.project}/{agent.name}
       </td>
-      <td className="py-2 pr-4">{status}</td>
-      <td className="py-2 pr-4 text-sm text-zinc-500">
+      <td className="py-2 pr-4">
+        <StatusDot status={dot} label={label} />
+      </td>
+      <td
+        className="py-2 pr-4 text-sm"
+        style={{ color: "var(--text-muted)" }}
+      >
         排程 {agent.schedule_display}
       </td>
-      <td className="py-2 text-sm text-zinc-500">{agent.role_badge}</td>
+      <td className="py-2 text-sm" style={{ color: "var(--text-muted)" }}>
+        {agent.role_badge}
+      </td>
     </tr>
   );
 }
@@ -41,21 +54,38 @@ export default function OverviewPage() {
       .catch((e) => setErr(e.message));
   }, []);
 
-  if (err) return <p className="text-red-500">Error: {err}</p>;
-  if (!data) return <p className="text-zinc-400">載入中...</p>;
+  if (err)
+    return (
+      <p style={{ color: "var(--status-err)" }}>Error: {err}</p>
+    );
+  if (!data)
+    return <p style={{ color: "var(--text-muted)" }}>載入中...</p>;
 
   const { metrics, agents, hooks, projects_summary } = data;
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">總覽</h1>
+      <h1
+        className="mb-6 tracking-tight"
+        style={{
+          fontSize: 28,
+          fontWeight: 500,
+          color: "var(--text)",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        總覽
+      </h1>
 
       <MetricsRow
         metrics={[
           { label: "Skill 總數", value: metrics.total_skills },
           { label: "執行中 Agent", value: metrics.running_agents },
           { label: "啟用 Hook", value: metrics.enabled_hooks },
-          { label: "估算總花費", value: `$${metrics.total_cost_usd.toFixed(2)}` },
+          {
+            label: "估算總花費",
+            value: `$${metrics.total_cost_usd.toFixed(2)}`,
+          },
           { label: "專案數", value: metrics.total_projects },
         ]}
       />
@@ -63,32 +93,104 @@ export default function OverviewPage() {
       {/* Projects status table */}
       {projects_summary && projects_summary.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-base font-semibold">專案狀態</h2>
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <h2
+            className="mb-3"
+            style={{
+              fontSize: 18,
+              fontWeight: 500,
+              color: "var(--text)",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            專案狀態
+          </h2>
+          <div
+            className="overflow-x-auto"
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-800/50">
-                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">專案</th>
-                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">Agent 數</th>
-                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">執行中</th>
-                  <th className="py-2 px-4 text-left text-xs font-medium text-zinc-500">描述</th>
+                <tr
+                  style={{
+                    background: "var(--surface-2)",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <th
+                    className="py-2 px-4 text-left font-mono text-[10px] uppercase"
+                    style={{
+                      color: "var(--text-subtle)",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    專案
+                  </th>
+                  <th
+                    className="py-2 px-4 text-left font-mono text-[10px] uppercase"
+                    style={{
+                      color: "var(--text-subtle)",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    Agent 數
+                  </th>
+                  <th
+                    className="py-2 px-4 text-left font-mono text-[10px] uppercase"
+                    style={{
+                      color: "var(--text-subtle)",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    執行中
+                  </th>
+                  <th
+                    className="py-2 px-4 text-left font-mono text-[10px] uppercase"
+                    style={{
+                      color: "var(--text-subtle)",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    描述
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {projects_summary.map((p) => (
-                  <tr key={p.name} className="border-b border-zinc-100 dark:border-zinc-800">
-                    <td className="py-2 px-4 font-medium">📁 {p.name}</td>
-                    <td className="py-2 px-4">{p.agent_count}</td>
+                  <tr
+                    key={p.name}
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
+                    <td className="py-2 px-4 font-medium">{p.name}</td>
+                    <td className="py-2 px-4 tabular-nums">{p.agent_count}</td>
                     <td className="py-2 px-4">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.agent_count_loaded > 0
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-                      }`}>
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 text-xs"
+                        style={{
+                          borderRadius: 99,
+                          background:
+                            p.agent_count_loaded > 0
+                              ? "var(--accent-bg)"
+                              : "var(--surface-2)",
+                          color:
+                            p.agent_count_loaded > 0
+                              ? "var(--accent)"
+                              : "var(--text-muted)",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 11,
+                        }}
+                      >
                         {p.agent_count_loaded} running
                       </span>
                     </td>
-                    <td className="py-2 px-4 text-zinc-500">{p.description}</td>
+                    <td
+                      className="py-2 px-4"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {p.description}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -99,9 +201,25 @@ export default function OverviewPage() {
 
       {/* Agent status table */}
       <section className="mt-8">
-        <h2 className="mb-3 text-base font-semibold">Agent 狀態</h2>
+        <h2
+          className="mb-3"
+          style={{
+            fontSize: 18,
+            fontWeight: 500,
+            color: "var(--text)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Agent 狀態
+        </h2>
         {agents.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div
+            className="overflow-x-auto"
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
             <table className="w-full text-sm">
               <tbody>
                 {agents.map((a) => (
@@ -111,28 +229,59 @@ export default function OverviewPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">未找到 sk agent</p>
+          <p
+            className="text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
+            未找到 sk agent
+          </p>
         )}
       </section>
 
       {/* Hook status table */}
       <section className="mt-8">
-        <h2 className="mb-3 text-base font-semibold">Hook 狀態</h2>
+        <h2
+          className="mb-3"
+          style={{
+            fontSize: 18,
+            fontWeight: 500,
+            color: "var(--text)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Hook 狀態
+        </h2>
         {hooks.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+          <div
+            className="overflow-x-auto"
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
             <table className="w-full text-sm">
               <tbody>
                 {hooks.map((h, i) => (
                   <tr
                     key={i}
-                    className="border-b border-zinc-100 dark:border-zinc-800"
+                    style={{ borderBottom: "1px solid var(--border)" }}
                   >
                     <td className="py-2 pr-4 font-medium">{h.event}</td>
-                    <td className="py-2 pr-4 text-zinc-500">
+                    <td
+                      className="py-2 pr-4"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       {h.matcher || "（全部）"}
                     </td>
                     <td className="py-2">
-                      <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">
+                      <code
+                        className="rounded px-1.5 py-0.5 text-xs"
+                        style={{
+                          background: "var(--surface-2)",
+                          color: "var(--text)",
+                          fontFamily: "var(--font-mono)",
+                        }}
+                      >
                         {h.command}
                       </code>
                     </td>
@@ -142,13 +291,15 @@ export default function OverviewPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">
+          <p
+            className="text-sm"
+            style={{ color: "var(--text-muted)" }}
+          >
             未設定 hook（~/.claude/settings.json）
           </p>
         )}
       </section>
 
-      {/* Pending issues */}
       <PendingIssues />
     </div>
   );
