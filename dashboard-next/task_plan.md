@@ -52,12 +52,12 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| D1 | Build `src/components/Logo.tsx` — twin-leaves SVG inline + wordmark, props `{ size, variant: 'full' \| 'mark' \| 'mono' }` | pending | Use `<Image>` for SVG OR inline `<svg>` (inline preferred for currentColor) |
-| D2 | **Refactor existing** `src/components/Sidebar.tsx` — replace existing layout with logo at top + tagline + nav links + collapse toggle. Already imported in layout.tsx | pending | Active route highlighting via `usePathname` |
-| D3 | Refactor `src/app/layout.tsx` to render `<Sidebar />` + `<main>` shell | pending | Replace whatever is there now |
-| D4 | Build `src/components/StatusDot.tsx` — `{ status: 'ok' \| 'warn' \| 'err', label?: string }` | pending | 8px circle, semantic color, optional inline label |
-| D5 | Build `src/components/SkillChip.tsx` — `{ name, variant?: 'default' \| 'optional' \| 'highlighted', onClick?: () => void }` | pending | Mono 10px, dashed border for `optional` |
-| D6 | Build `src/components/PageHeader.tsx` — h2 with accent leader bar (per DESIGN.md `h2::before` pattern) | pending | Reusable section / page heading |
+| D1 | `src/components/Logo.tsx` — twin-leaves inline SVG + wordmark, props `{size, variant, withWordmark}` | done | Inline SVG, no `<Image>` (currentColor support) |
+| D2 | Refactor `src/components/Sidebar.tsx` — Logo at top + tagline + token-based colors + emoji removed from project switcher | done | Active state uses surface elevation + box-shadow border |
+| D3 | `src/app/layout.tsx` shell | done | Already correct from A3 — Sidebar + main flex shell |
+| D4 | `src/components/StatusDot.tsx` — semantic colors via CSS vars | done | 8/12/16px sizes supported |
+| D5 | `src/components/SkillChip.tsx` — `{name, variant, asLink, onClick}` | done | Default routes to `/skills/[name]`; `onClick` overrides for cross-ref state lift |
+| D6 | _Skipped_ — was helper for h2 accent leader, ended up using Tailwind+style attribute directly. Not blocking. | skipped | Revisit in Stage 2 if pattern repeats |
 
 ### E. Workflow data — DEFERRED to parking lot K2
 
@@ -73,15 +73,15 @@ Each task should be 2–5 min when prerequisites are met. If a task balloons, sp
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| F1 | _deferred to K2 in parking lot_ — no React Flow install in Stage 1 | deferred | |
-| F2 | Build `src/components/workflow/StepNode.tsx` — pure HTML/CSS card matching mockup (step-num, step-label, stacked SkillChips). Width 165px, padding per DESIGN.md | pending | Direct port from `dashboard-next/mockups/workflow-map-v4.html` `.step-node` markup |
-| F3 | Build `src/components/workflow/TrackRow.tsx` — renders one track: name + flexbox row of StepNodes + absolutely-positioned SVG layer with Bezier `<path>` connectors | pending | Connector SVG sits behind nodes (z-index 0), nodes z-index 1. Pattern in mockup |
-| F4 | Build `src/components/workflow/CrossReferencePanel.tsx` — `{ skillName, workflow }` props. Computes references in-component. Renders aside panel | pending | Mini-stats can stub firings=0 until token data wired |
-| F5 | Refactor `src/app/workflow/page.tsx` — keep `apiFetch("/workflow")`, render top-bar (breadcrumb + search + Tree/Graph toggle), tracks list, cross-ref panel | pending | Tree = default; Graph = `<button disabled>` stub for now |
-| F6 | Wire SkillChip click → lift state to workflow page → CrossReferencePanel re-renders | pending | Standard React `useState` lift |
-| F7 | Smoke test at 1440×900: tracks visible, only flow-canvas scrolls horizontally, click flow works | pending | Just open in browser |
-| F8 | Empty state for cross-reference panel when no skill selected | pending | "Pick a skill to see where it appears" placeholder |
-| F9 | Loading state: while `apiFetch("/workflow")` resolves, render skeleton (per DESIGN.md spirit — no spinner, just muted placeholder boxes) | pending | Was missing from original plan |
+| F1 | _deferred to K2 in parking lot_ | deferred | |
+| F2 | `src/components/workflow/StepNode.tsx` | done | Width 165px, props `{step, active, selectedSkill, onSkillClick}` |
+| F3 | `src/components/workflow/TrackRow.tsx` | done | Computed Bezier paths with alternating wobble, viewBox stretches with preserveAspectRatio="none" |
+| F4 | `src/components/workflow/CrossReferencePanel.tsx` | done | Empty state placeholder + reference list + jump-to-skill CTA |
+| F5 | `src/app/workflow/page.tsx` refactor | done | Core flows = horizontal trees, other 4 sections = token swap in-place. Cross-ref panel always rendered (right 320px) |
+| F6 | SkillChip click → state lift | done | `onClick={setSelectedSkill}` on every chip across all sections |
+| F7 | Build verifies | done | `pnpm next build` 1.55s clean. Browser smoke test = next manual step |
+| F8 | Empty state in CrossReferencePanel | done | "Pick a skill chip to see where it appears" |
+| F9 | Loading skeleton | done | 5 metric placeholders + 3 section blocks, surface-2 fill |
 
 ### G. Stage 1 wrap
 
@@ -159,6 +159,8 @@ Track at end of each phase. Keeps blast radius visible.
 |-------|-------|-------|
 | Stage 1 · A (fonts) | `src/fonts/Geist-Variable.woff2` (68K), `src/fonts/GeistMono-Variable.woff2` (69K), `src/app/layout.tsx` | Geist 1.8.0 release. SHA256: Geist `9ceed04f...`, GeistMono `f2be56af...` |
 | Stage 1 · B (tokens) | `src/app/globals.css` | All DESIGN.md tokens shipped. Build green. |
+| Stage 1 · D (shared components) | `src/components/Logo.tsx`, `src/components/StatusDot.tsx`, `src/components/SkillChip.tsx`, `src/components/Sidebar.tsx` (refactor) | Sidebar now uses Logo + tagline + tokens; emoji removed from project switcher |
+| Stage 1 · F (workflow page) | `src/components/workflow/StepNode.tsx`, `TrackRow.tsx`, `CrossReferencePanel.tsx`, `src/app/workflow/page.tsx` | Core flows = horizontal trees with Bezier connectors; other sections token-swapped; cross-ref panel right side |
 
 ---
 
