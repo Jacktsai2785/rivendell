@@ -1,5 +1,23 @@
 # Learnings
 
+## 2026-05-07 — Storyline-first hard gate is intentionally NOT enforced via hook; slide-workflow Gate 0 + flow doc is the right level
+
+- **Category**: best_practice (deliberate "stop here" decision — recording so it doesn't get relitigated)
+- **Context**: After adding the Slide / Deck Building flow to ~/.claude/CLAUDE.md (A) and making slide-workflow the orchestrator (B), considered a third step C: enforce storyline.md `status: signed-off` as a hard gate via PreToolUse hook on Skill calls to pitch-deck / sales-material / iot-factory-report / generation tools. Decided NOT to do it.
+- **Decision**: Stop at B. The cd63836f / 光泉 deck failure mode (5 wasted edit cycles because storyline was figured out during slide work) was a **D-path** deck — exactly slide-workflow's territory — and slide-workflow Gate 0 already catches that case with an override-with-warning soft gate. Hard hook is over-engineering.
+- **Why A/B/C deck types don't need the gate**:
+  - `pitch-deck` has its own discovery interview built in — storyline is an internal artifact, not a precondition
+  - `sales-material` assembles from a materials library; storyline is implicit in the customer-intel report
+  - `iot-factory-report` is data-driven (time-series → charts); there is no storyline concept
+  - Adding a storyline gate to these would solve a problem that doesn't exist and would block legitimate fast-path uses
+- **Why hook-based enforcement is wrong here**:
+  - PreToolUse hook would have to decide: is CWD a deck context? does this storyline.md belong to THIS deck or a sibling project? what about monorepos? — high false-positive risk
+  - Debugging hooks is painful; misfires create silent friction
+  - The cost is paid every Skill call, the benefit only fires for the rare D-path deck without storyline — bad cost/benefit ratio
+  - Memory note `deck_building_workflow` says storyline is a leverage point; "leverage point" is a discipline rule, not an OS-level lock
+- **Re-evaluation trigger**: If the wasted-edit-cycle failure mode recurs ≥2 times in next 1-2 weeks, look at WHICH entry-point bypassed Gate 0 and patch THAT specific path — don't add a global hook.
+- **Generalization**: When evaluating "should this be a hard gate?", check (a) does the failure mode actually appear at multiple entry-points, or just one? (b) do the other entry-points have their own equivalent preflight? (c) what's the false-positive cost of the hard gate? If the failure is concentrated at one entry-point AND the others have their own preflight AND the hard gate has high false-positive cost, the answer is "leave it as a soft gate at the one entry-point". This is the same logic that makes us prefer ESLint warnings over compile errors for stylistic rules — enforcement strength should match how often the rule is actually right.
+
 ## 2026-05-07 — Skill audit ≠ skill orchestration audit: a "should we add a skill?" question is often a "is the workflow written down?" question in disguise
 
 - **Category**: correction
