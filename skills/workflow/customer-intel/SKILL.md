@@ -1,17 +1,10 @@
 ---
 name: customer-intel
 description: >
-  B2B customer intelligence: company name → structured web research → actionable
-  sales report. Uses WebSearch + Playwright (findbiz.nat.gov.tw for TW companies)
-  to gather company overview, leadership, financials, competitors, pain points,
-  and sales strategy. Markdown report is SSOT, auto-synced to Nexus intel API.
-  Supports conversational enrichment — user adds info via chat, agent updates
-  both md and Nexus together.
-  TRIGGER when: user asks to research a company, prepare for a client meeting,
-  gather customer intelligence, update client info, or says "客戶調查" / "公司調查" /
-  "會前準備" / "情蒐" / "更新[公司名]報告".
-  DO NOT TRIGGER when: researching stocks or investments (use investment-research),
-  debugging code (use systematic-debugging), or reviewing code (use code-reviewer).
+  B2B customer intelligence: company name → web research → actionable sales report.
+  WebSearch + Playwright (findbiz.nat.gov.tw for TW). Markdown SSOT auto-synced to Nexus.
+  TRIGGER: "客戶調查", "公司調查", "會前準備", "情蒐", "更新[公司名]報告".
+  SKIP: stocks (investment-research); code review (code-reviewer).
 tags: [workflow, sales]
 version: 3
 source: manual

@@ -1,24 +1,10 @@
 ---
 name: doc-coauthoring
 description: >
-  Structured workflow for collaboratively co-authoring documentation through three
-  stages: Context Gathering → Refinement & Structure → Reader Testing. The
-  Reader Testing stage tests the doc with a fresh Claude (no context bleed)
-  to catch blind spots before real readers see it.
-  TRIGGER when user is starting a substantial writing task and says any of:
-  "write a doc", "draft a proposal", "create a spec", "write up", "PRD",
-  "design doc", "decision doc", "RFC", "技術文件", "提案書", "規格書",
-  "決策文件", or otherwise indicates they want to author a document
-  collaboratively. Especially valuable when the document will be consumed by
-  multiple stakeholders or pasted back into Claude later.
-  DO NOT TRIGGER for domain-specific documents already covered by dedicated
-  skills: SOW (use sow-writer), RFQ (use rfq-writer), JD (use jd-writer),
-  customer intelligence (use customer-intel), discovery interview summary
-  (use discovery-interview), pitch deck (use pitch-deck). This skill is for
-  generic structured docs that don't fit a pre-built template.
-when_to_use: >
-  When the user wants to write a substantial document collaboratively and the
-  domain isn't covered by a more specific skill.
+  Three-stage doc co-authoring workflow (Context → Refinement →
+  Reader Testing with a fresh Claude). For substantial multi-stakeholder docs.
+  TRIGGER: "write a doc / proposal / spec / PRD / RFC", "技術文件", "決策文件".
+  SKIP: domain-specific docs — use sow-writer / rfq-writer / jd-writer / customer-intel / pitch-deck.
 version: 1.0.0
 tags: [docs, workflow, writing, coauthoring]
 languages: all

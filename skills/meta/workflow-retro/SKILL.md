@@ -1,24 +1,11 @@
 ---
 name: Workflow Retro
 description: >
-  Weekly observability retrospective for the rivendell skills + agents system.
-  Reads existing telemetry (skill firing rates, agent exit codes, .learnings themes,
-  token/cost concentration) and produces a single page that surfaces the next
-  workflow bottleneck. Complements session-harvest (which scopes to one session)
-  by looking at week-scale system health.
-  TRIGGER when: user says /workflow-retro, "weekly retro", "本週回顧", "workflow 回顧",
-  "整理本週", "system 健康度", "下個瓶頸是什麼", or when the workflow-retro agent
-  fires on a Sunday/Monday schedule.
-  DO NOT TRIGGER when: user wants per-session skill candidates (use session-harvest),
-  is logging a single error or correction (use self-improving-agent), or wants a
-  commit-history-based engineering retro (use gstack-retro — it lives in the gstack
-  repo and focuses on commits, while this skill focuses on rivendell's own
-  skills/agents/learnings telemetry).
-when_to_use: >
-  Once a week (or on demand) to answer three questions: which skills/agents are
-  pulling their weight, what painful patterns are repeating, and where time/tokens
-  are concentrating. Output is a one-page report at reports/workflow-retro-YYYY-WW.md
-  plus 1-3 prioritized actions for next week.
+  Weekly retrospective for rivendell skills+agents — reads telemetry, surfaces
+  next workflow bottleneck. Outputs reports/workflow-retro-YYYY-WW.md + 1-3 actions.
+  TRIGGER: /workflow-retro, "weekly retro", "本週回顧", or Sunday/Monday agent fire.
+  SKIP: per-session candidates (session-harvest); single-error log (self-improving-agent);
+  commit-history retro (gstack-retro).
 version: 1.0.0
 tags: [meta, observability, retro, workflow, weekly]
 languages: all

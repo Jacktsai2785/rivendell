@@ -1,18 +1,10 @@
 ---
 name: LaunchD Agent
 description: >
-  Create, configure, debug, and manage macOS launchd agents (LaunchAgents plist files).
-  Covers plist generation, scheduling with StartCalendarInterval, launchctl lifecycle
-  (load/unload/start/list), log configuration, troubleshooting common issues, and
-  portable multi-agent fleet management with declarative config + bootstrap script.
-  TRIGGER when: user asks to create a scheduled task on macOS, mentions plist/launchctl/LaunchAgent,
-  wants to set up cron-like automation on Mac, asks about launchd scheduling, is debugging
-  why a scheduled agent isn't running, or wants to make launchd agents portable across machines.
-  Also trigger when user says "排程", "定時執行", "自動化任務", or "引繼".
-  DO NOT TRIGGER when: user is working on Linux (use cron/systemd), building CI pipelines
-  (use ci-pipeline), or deploying to cloud (use deploy).
-when_to_use: >
-  When creating or managing scheduled tasks on macOS via launchd.
+  Create / debug / manage macOS launchd LaunchAgents — plist generation, scheduling,
+  launchctl lifecycle, troubleshooting, portable multi-agent fleet.
+  TRIGGER: scheduled task on macOS, plist/launchctl/LaunchAgent, "排程", "定時執行", "引繼".
+  SKIP: Linux (cron/systemd); CI pipelines (ci-pipeline); cloud deploy (deploy).
 version: 2.0.0
 tags: [workflow, macos, launchd, scheduling, automation, portability]
 languages: [bash, python, c]

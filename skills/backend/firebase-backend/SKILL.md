@@ -1,23 +1,10 @@
 ---
 name: firebase-backend
 description: >
-  Comprehensive Firebase development guidance for GCP-hosted applications. Covers
-  Firestore database operations (CRUD, queries, transactions, data modeling),
-  Cloud Functions (1st and 2nd generation, TypeScript and Python, all trigger types),
-  Firebase CLI operations, emulator setup and data persistence, security rules
-  (Firestore and Storage), authentication integration, hosting configuration,
-  and GCP service integration.
-  TRIGGER when: user designs Firestore collections, writes security rules,
-  creates Cloud Functions, sets up FCM, asks about Firebase architecture,
-  deploys Cloud Functions, queries Firestore, sets up triggers (Firestore,
-  Auth, Storage, HTTP, Callable, Scheduled, Pub/Sub), manages security rules,
-  configures hosting rewrites/headers, manages secrets, or integrates with
-  GCP services like BigQuery and Cloud Tasks.
-  Triggers include firebase, firestore, cloud functions, firebase functions,
-  firebase hosting, firebase auth, firebase storage, firebase emulator,
-  firebase deploy, firebase init, firebase rules, callable function,
-  scheduled function, onDocumentCreated, onRequest, onCall, onSchedule.
-  DO NOT TRIGGER when: working with non-Firebase backends (Supabase, custom REST API, etc.).
+  Firebase / Firestore / Cloud Functions guidance for GCP apps —
+  schema, security rules, emulators, FCM, deploy.
+  TRIGGER: Firestore schema, Cloud Functions, security rules, firebase deploy, FCM push.
+  SKIP: non-Firebase backends (Supabase, custom REST).
 tags: [backend, firebase]
 version: 2
 source: community:SpillwaveSolutions/using-firebase

@@ -1,22 +1,11 @@
 ---
 name: internal-comms
 description: >
-  Templates and formats for ongoing organizational communications during and
-  after a project: 3P updates (Progress/Plans/Problems), status reports,
-  leadership updates, project updates, FAQ responses, incident reports, and
-  company newsletters. Complements rivendell's pre-engagement doc skills
-  (sow-writer, rfq-writer, customer-intel) which cover before-the-work; this
-  one covers during/after-the-work.
-  TRIGGER when user says: "write a status report", "weekly update", "3P
-  update", "progress report", "incident report", "team newsletter", "FAQ",
-  "leadership update", "客戶週報", "進度報告", "事故報告", "FAQ 文件", or
-  similar phrases for stakeholder-facing recurring communications.
-  DO NOT TRIGGER for: SOW (use sow-writer), RFQ (use rfq-writer), JD (use
-  jd-writer), customer intel (use customer-intel), discovery summary (use
-  discovery-interview). Those are pre-engagement docs.
-when_to_use: >
-  When the user needs to write recurring stakeholder communications during or
-  after a project: status updates, incident reports, FAQs, newsletters.
+  Templates for during/after-project stakeholder comms — 3P updates, status reports,
+  incident reports, FAQs, newsletters.
+  TRIGGER: "weekly update", "3P update", "status report", "incident report",
+  "客戶週報", "進度報告", "事故報告".
+  SKIP: pre-engagement docs (sow-writer / rfq-writer / jd-writer / customer-intel).
 version: 1.0.0
 tags: [docs, communication, status-update, reports]
 languages: all
