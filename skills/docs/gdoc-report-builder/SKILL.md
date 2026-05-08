@@ -1,15 +1,10 @@
 ---
 name: gdoc-report-builder
 description: >
-  Build structured reports in Google Docs/Slides via MCP tools — batch table editing,
-  paragraph styling, find-and-replace, and media insertion. Handles the full flow:
-  read data → create/open Google Doc or Slides → bulk editTableCell → applyParagraphStyle
-  → findAndReplaceInDoc for variable substitution → share/export.
-  TRIGGER when: user says "寫進 Google Doc", "更新簡報", "把資料填進 Slides",
-  "Google Docs 報告", "batch update slides", "填表", or wants to programmatically
-  build a Google Docs/Slides document from structured data.
-  DO NOT TRIGGER when: working with local .docx/.pptx files (use office-docx/office-pptx),
-  or doing simple single-edit Google Docs operations.
+  Build structured Google Docs / Slides via MCP — batch table editing, paragraph styling,
+  find-and-replace, media insertion, share/export.
+  TRIGGER: "寫進 Google Doc", "更新簡報", "把資料填進 Slides", "Google Docs 報告".
+  SKIP: local .docx/.pptx (office-docx / office-pptx); single-edit Google Docs.
 tags: [docs]
 version: 1.0.0
 user-invocable: true

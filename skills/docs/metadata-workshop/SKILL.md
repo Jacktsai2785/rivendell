@@ -1,14 +1,11 @@
 ---
 name: metadata-workshop
 description: >
-  Run a structured Metadata Workshop with a consulting client to convert their business knowledge
-  into machine-readable YAML schemas. This is the moat for AI consulting — same-industry
-  second client achieves ≥70% schema reuse. Covers 廠務 (OSIsoft PI/SCADA/MES), ERP/業務,
-  and travel verticals. Outputs versioned YAML schemas to metadata/schemas/{vertical}/.
-  TRIGGER when: user says "metadata workshop", "資料梳理", "schema 梳理", "業務語意",
-  "幫客戶做 metadata", "schema 範本", "PI tag 梳理", "ERP 欄位定義", "讓 AI 看懂客戶資料".
-  DO NOT TRIGGER when: user just wants a generic database schema (use db-migration instead)
-  or hasn't signed an SOW yet (do discovery-interview + sow-writer first).
+  Run Metadata Workshop with a consulting client — convert business knowledge into
+  YAML schemas (the moat: 2nd same-industry client gets ≥70% reuse). Verticals:
+  廠務 (PI/SCADA/MES), ERP, travel.
+  TRIGGER: "metadata workshop", "資料梳理", "schema 梳理", "PI tag 梳理", "ERP 欄位定義".
+  SKIP: generic DB schema (db-migration); pre-SOW work (discovery-interview + sow-writer).
 tags: [docs, workflow, business]
 version: 1.0.0
 user-invocable: true

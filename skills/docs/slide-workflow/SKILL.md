@@ -1,13 +1,10 @@
 ---
 name: slide-workflow
 description: >
-  Step-by-step presentation creation workflow with confirmation gates.
-  Ensures every deck goes through: purpose → style lock → outline → content → generate → review → export.
-  Prevents the common failure mode of jumping straight to slide generation with inconsistent style and no outline.
-  TRIGGER when: user says "做簡報", "做 deck", "準備提案", "幫我做 slides", "寫簡報",
-  "presentation workflow", "簡報流程", or when pitch-deck / sales-material would trigger
-  but the user hasn't specified an outline or template yet.
-  DO NOT TRIGGER when: user already has a complete outline AND locked template AND says "直接生成".
+  Seven-stage gated presentation workflow: purpose → style → outline → content → generate
+  → review → export. Prevents jumping to generation with no outline.
+  TRIGGER: "做簡報", "做 deck", "準備提案", "幫我做 slides", "簡報流程".
+  SKIP: complete outline + locked template + "直接生成".
 tags: [docs, workflow]
 version: 1.0.0
 user-invocable: true

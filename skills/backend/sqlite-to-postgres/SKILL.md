@@ -1,18 +1,10 @@
 ---
 name: SQLite to PostgreSQL Migration
 description: >
-  Guide for migrating a project from SQLite to PostgreSQL (or Supabase).
-  Covers syntax differences, schema conversion, data migration scripts,
-  connection layer updates, and post-migration verification.
-  TRIGGER when: user asks to migrate from SQLite to PostgreSQL/Supabase/CockroachDB,
-  mentions replacing sqlite3 with psycopg2/asyncpg, has DATABASE_URL pointing to
-  PostgreSQL but code still uses SQLite patterns, or asks about SQL syntax differences
-  between SQLite and PostgreSQL.
-  DO NOT TRIGGER when: setting up a new PostgreSQL project from scratch (no SQLite involved),
-  working with database migrations within the same engine (use db-migration), or
-  migrating between non-SQLite databases.
-when_to_use: >
-  When migrating an existing project's database from SQLite to PostgreSQL or Supabase.
+  Migrate an existing project from SQLite to PostgreSQL (or Supabase) — syntax diffs,
+  schema conversion, data migration, connection layer, verification.
+  TRIGGER: SQLite → PostgreSQL/Supabase migration, replace sqlite3 with psycopg2/asyncpg.
+  SKIP: new PostgreSQL project (no SQLite); same-engine migrations (db-migration).
 version: 1.0.0
 tags: [backend, database, migration, sqlite, postgresql, supabase]
 languages: [python, sql]

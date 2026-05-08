@@ -1,15 +1,10 @@
 ---
 name: autoresearch
 description: >
-  Autonomous goal-directed iteration loop for Claude Code agents. Define a goal,
-  a mechanical metric, and a verify command — the agent loops: modify → verify →
-  keep/discard → repeat. Integrates with headless-agent, launchd-agent, and
-  dashboard for scheduling, monitoring, and metric tracking.
-  TRIGGER when: user wants to set up autonomous improvement loops, mentions
-  "autoresearch", "自動迭代", "autonomous iteration", "improve overnight",
-  or wants an agent to repeatedly optimize a measurable metric.
-  DO NOT TRIGGER when: one-time optimization (just do it directly), tasks without
-  a measurable metric, or subjective quality assessment.
+  Autonomous iteration loop — define goal + metric + verify command, agent loops
+  modify→verify→keep/discard. Integrates with headless-agent + dashboard.
+  TRIGGER: "autoresearch", "自動迭代", "improve overnight", measurable-metric optimization.
+  SKIP: one-time optimization; subjective quality work.
 version: 1.0.0
 tags: [workflow, automation, optimization, headless-agent]
 languages: [bash, python, yaml]

@@ -1,17 +1,11 @@
 ---
 name: Session Harvest
 description: >
-  Review the current Claude Code session's work and extract reusable skill candidates.
-  Analyzes tool usage patterns, multi-step workflows, domain knowledge applied, and
-  problem-solving approaches to suggest new skills worth creating.
-  TRIGGER when: user says /session-harvest, "harvest skills", "any skills from this session",
-  "extract skills", "turn this into a skill", session is wrapping up and user asks to review,
-  or user says "告一段落" / "收割" / "整理一下這次的收穫".
-  DO NOT TRIGGER when: user is asking to create a specific known skill (use skill-creator),
-  logging errors or corrections (use self-improving-agent), or doing a code review.
-when_to_use: >
-  At the end of a work session, or when the user wants to review what was accomplished
-  and identify reusable patterns that could become skills.
+  Review the current session and extract reusable skill candidates — analyzes tool
+  patterns, multi-step workflows, domain knowledge.
+  TRIGGER: /session-harvest, "harvest skills", "extract skills", "告一段落", "收割".
+  SKIP: creating a known skill (skill-creator); error logging (self-improving-agent);
+  code review.
 version: 1.0.0
 tags: [meta, skills, harvest, session-review]
 languages: all

@@ -1,15 +1,10 @@
 ---
 name: slide-template-extractor
 description: >
-  Extract design system from an existing PPTX or Google Slides deck and produce a
-  locked HTML slide template (with CSS variables for colors, fonts, layout).
-  Use this when the user has a brand deck they want to standardize, so future
-  slide generation produces consistent visuals instead of drifting style every session.
-  TRIGGER when: user says "把這份簡報的風格做成 template", "extract slide design",
-  "固定簡報風格", "從這份 deck 抓 design system", "我要用這份 PPT 當範本",
-  "幫我把這份簡報變成可重用的", "鎖定簡報風格".
-  DO NOT TRIGGER when: user wants to create slides from scratch (use pitch-deck or
-  sales-material), or just edit an existing PPTX (use office-pptx).
+  Extract design system from existing PPTX/Google Slides → locked HTML slide template
+  with CSS variables. Stops style drift across deck generations.
+  TRIGGER: "把這份簡報的風格做成 template", "extract slide design", "鎖定簡報風格".
+  SKIP: create from scratch (pitch-deck / sales-material); edit existing PPTX (office-pptx).
 tags: [docs, workflow]
 version: 1.0.0
 user-invocable: true

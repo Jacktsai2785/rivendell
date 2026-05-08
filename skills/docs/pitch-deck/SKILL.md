@@ -1,13 +1,10 @@
 ---
 name: pitch-deck
 description: >
-  Create professional business pitch decks and investor presentations with strategic storytelling.
-  Covers discovery interview, narrative planning, HTML slide generation, and PPTX export.
-  TRIGGER when: user says "做 BP", "投資人 deck", "商業計畫簡報", "pitch deck", "公司介紹簡報",
-  "募資簡報", "business plan slides", "investor presentation", "提案簡報", "產品介紹 slides".
-  Always do Discovery interview first unless user already provides detailed content.
-  DO NOT TRIGGER when: user wants a technical documentation slide or internal status update
-  (use office-pptx directly).
+  Pitch decks / investor presentations with strategic storytelling — discovery interview,
+  narrative planning, HTML slide generation, PPTX export.
+  TRIGGER: "做 BP", "投資人 deck", "pitch deck", "募資簡報", "investor presentation".
+  SKIP: technical docs or internal status (office-pptx).
 tags: [docs, workflow]
 version: 1.0.0
 user-invocable: true

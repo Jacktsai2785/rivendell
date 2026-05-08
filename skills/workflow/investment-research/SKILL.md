@@ -1,15 +1,11 @@
 ---
 name: investment-research
 description: >
-  Continuous portfolio management agent: alpha discovery, risk management,
-  backtesting, and financial statement analysis. Uses news_stock local data
-  AND autonomous web search to find opportunities beyond the local database.
-  Runs in continuous mode — monitors holdings, scans for new alpha weekly,
-  proposes rebalancing, and tracks performance across sessions.
-  TRIGGER when: user asks to research stocks, find alpha, manage portfolio,
-  analyze investments, run backtests, or says "投資研究" / "開始研究" / "持續追蹤".
-  DO NOT TRIGGER when: debugging code (use systematic-debugging), reviewing
-  code quality (use code-reviewer), or building UI features.
+  Continuous portfolio agent: alpha discovery, risk, backtesting, financial analysis.
+  Local news_stock + autonomous web search. Monitors holdings, weekly alpha scans,
+  rebalancing proposals.
+  TRIGGER: "投資研究", "開始研究", "持續追蹤", research stocks / portfolio / backtests.
+  SKIP: code debugging (systematic-debugging); UI work.
 tags: [workflow, finance]
 version: 1
 source: manual

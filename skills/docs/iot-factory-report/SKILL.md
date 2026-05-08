@@ -1,15 +1,10 @@
 ---
 name: iot-factory-report
 description: >
-  Analyze factory IoT/SCADA time-series data (CSV/Excel) and produce visual reports
-  with charts and PPTX export. Covers UPW/RO water systems, compressors, chillers,
-  and other industrial equipment. Handles cycle detection, anomaly marking, and
-  trend analysis.
-  TRIGGER when: user says "廠務報告", "設備分析", "IoT 資料分析", "時序資料報告",
-  "factory report", "equipment analysis", "UPW 分析", "壓縮機報告", "冷凍機分析",
-  or has CSV/Excel data from industrial sensors/SCADA systems.
-  DO NOT TRIGGER when: user wants generic CSV analysis without domain context
-  (use office-xlsx), or wants a business report without sensor data.
+  Analyze factory IoT/SCADA time-series (CSV/Excel) → visual report with charts + PPTX.
+  Covers UPW/RO, compressors, chillers. Cycle detection, anomaly marking, trend analysis.
+  TRIGGER: "廠務報告", "設備分析", "IoT 資料分析", "UPW 分析", "壓縮機報告", "冷凍機分析".
+  SKIP: generic CSV (office-xlsx); business reports without sensor data.
 tags: [docs, workflow]
 version: 1.0.0
 user-invocable: true

@@ -1,12 +1,11 @@
 ---
 name: slide-office-hours
 description: >
-  Red-team review for a B2B presales deck storyline (storyline.md) before any slide generation.
-  Routes by (stage × profile) matrix and rejects content drift toward generic 公開資料 voice.
-  Outputs a signed-off storyline that downstream skills (slide-workflow, pitch-deck) consume.
-  TRIGGER when: user says "/slide-office-hours", "review storyline", "壓力測試 storyline",
-  "簡報前置審核", "deck storyline 紅隊", or any deck-generation skill detects unsigned storyline.md.
-  DO NOT TRIGGER when: storyline.md already has `status: signed-off` and user is ready to generate slides.
+  Red-team review for B2B presales deck storyline.md before slide generation. Routes by
+  (stage × profile) matrix; rejects 公開資料 voice. Outputs signed-off storyline consumed
+  by slide-workflow / pitch-deck.
+  TRIGGER: "/slide-office-hours", "review storyline", "壓力測試 storyline", "簡報前置審核".
+  SKIP: storyline.md already `status: signed-off`.
 tags: [docs, presales, review]
 version: 1.0.0
 user-invocable: true

@@ -1,14 +1,10 @@
 ---
 name: sow-writer
 description: >
-  Generate professional Taiwan-format Statement of Work (工作說明書 / SOW) for consulting projects.
-  Covers all 12+ standard sections: 專案標的, 服務工作內容, 時程里程碑 (含 Mermaid Gantt),
-  交付項目, 驗收程序, 費用 (人天計算), 付款方式, 雙方責任, 保固, 智慧財產權, 保密, 變更管理.
-  TRIGGER when: user says "寫 SOW", "工作說明書", "statement of work", "合約草稿",
-  "服務合約", "顧問合約", "幫客戶寫提案", "AI 導入合約", "consulting agreement",
-  or asks to draft a Taiwan-format business contract for a consulting/services engagement.
-  DO NOT TRIGGER when: user wants a sales pitch (use pitch-deck), an internal project plan
-  (use writing-plans), or a simple quote without legal terms (use a basic markdown template).
+  Generate Taiwan-format Statement of Work (工作說明書) for consulting projects —
+  12+ sections including 服務工作內容, 時程 (Mermaid Gantt), 驗收, 費用 (人天), 變更管理.
+  TRIGGER: "寫 SOW", "工作說明書", "顧問合約", "AI 導入合約", "consulting agreement".
+  SKIP: sales pitch (pitch-deck); internal plan (writing-plans); simple quote (markdown).
 tags: [docs, workflow, business]
 version: 1.0.0
 user-invocable: true
