@@ -24,10 +24,31 @@ portability across machines is a design constraint.
 
 ## Workflow page
 
-`src/app/workflow/page.tsx` is the flagship page. Source of truth for the workflow
-graph is `data/workflow.json` (single canonical file). Any UI edits round-trip
-through this JSON. The CLAUDE.md flow docs (project-level + global) are derived
-views and should remain in sync — when workflow.json changes substantively,
-regenerate or hand-edit the flow doc to match.
+Lives at `src/app/projects/[name]/workflow/[flow]/page.tsx` (currently only
+`name=rivendell` has a playbook). Old `src/app/workflow/page.tsx` is a
+permanent redirect for legacy bookmarks. Sub-routes per flow:
+`/projects/rivendell/workflow/{ui,backend,slide,maintenance}`.
 
-For drag/edit/connect interactivity, use [React Flow](https://reactflow.dev).
+Source of truth is `src/app/projects/[name]/workflow/playbook-data.ts` —
+a TypeScript module, not a JSON file. Edit it directly; the page re-renders
+on next build. Mirrors `~/.claude/CLAUDE.md`'s "Development Workflow"
+section. When that doc changes substantively, update playbook-data.ts to
+match.
+
+`FlowView.tsx` renders one flow as a vertical step list with `↳` branch
+lines for `optionals`. `[flow]/page.tsx` wires the breadcrumb, title, and
+the active flow. Slide branch tabs (A/B/C/D) are in-page state inside
+FlowView.
+
+Skill detail (trigger / SKIP) shows in a modal via `skillDetails` in the
+same module. Click any chip to open.
+
+**Reverted experiments** (see DESIGN.md Decisions Log for context):
+- Read-only React Flow + dagre DAG view (commit b7c54d0, reverted 791c7d5).
+  User found the graph noisier than the list without adding information.
+  The data converter / nodes API was forward-compat for editing; if
+  revisiting, recover via `git revert HEAD` of the revert.
+
+Sidebar groups Workflow Map under 技能庫 (Skills section), not 專案管理 —
+it's a view of how skills compose into usage, not a per-project runtime
+concern.
