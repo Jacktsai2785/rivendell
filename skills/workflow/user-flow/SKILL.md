@@ -91,3 +91,9 @@ After saving, prompt:
 > **User flow complete.** {N} screens identified.
 > Next step: create wireframes — use the `ui-ux-pro-max` skill for layout and component guidance,
 > or `frontend-design` to jump straight to high-fidelity mockups.
+>
+> Need a PNG of the Mermaid flowchart for slides / docs / external sharing?
+> Hand the `.mmd` (or the fenced ` ```mermaid ` block from this file) to
+> `mermaid-diagram` to render via `npx mmdc`. For a hand-drawn / whimsical
+> aesthetic instead, use `excalidraw-diagram` — same content, softer look,
+> better fit for pitch decks.

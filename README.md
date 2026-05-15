@@ -6,13 +6,13 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 
 ```
 skills/
-├── meta/       # Claude Code 自身管理工具 (13)
-├── workflow/   # 工作流程與規劃 (24)
-├── quality/    # 程式品質、審查、除錯、測試 (11)
-├── git/        # Git/GitHub 操作 (3)
-├── frontend/   # 前端設計、iOS、測試 (5)
-├── backend/    # 後端服務 (11)
-└── docs/       # 文件處理與 MCP 建置 (6)
+├── meta/       # Claude Code 自身管理工具 (17)
+├── workflow/   # 工作流程與規劃 (30)
+├── quality/    # 程式品質、審查、除錯、測試 (7)
+├── git/        # Git/GitHub 操作 (2)
+├── frontend/   # 前端設計、iOS、測試 (4)
+├── backend/    # 後端服務 (13)
+└── docs/       # 文件處理與 MCP 建置 (20)
 ```
 
 ## Quick Start
@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (90 skills)
+## Skills Catalog (93 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -59,6 +59,7 @@ cd ~/any-project && claude
 | **dev-process-gate** | 自動 | 開發守門：確保 requirement → flow → wireframe → mockup → dev → QA testing 流程不跳步 |
 | **init-project** | 自動 | 專案缺少 CLAUDE.md / AGENTS.md 時自動初始化，偵測框架自動填入 |
 | **knowledge-graph** | `/knowledge-graph` | 三層記憶系統：追蹤人物、公司、專案的持久事實，寫入 JSONL + 摘要 |
+| **learnings-promotion-sprint** | 自動 | Periodic cross-project `.learnings/` distillation. Sweeps every project's `. |
 | **plan-check-style** | 自動 | 進入 plan mode 做前端任務時，自動掃描並套用 style skills |
 | **self-improving-agent** | 自動 + hook | 捕捉學習與錯誤修正，記錄至 .learnings/，提升有價值見解到 CLAUDE.md |
 | **session-harvest** | `/session-harvest` | 工作告一段落時，自動審查 session 內容，找出可重複使用的模式並建議建立新 skill |
@@ -156,10 +157,12 @@ cd ~/any-project && claude
 |-------|---------|------|
 | **discovery-interview** | 自動 | Run a structured Discovery interview with a potential consulting client to find |
 | **doc-coauthoring** | `/doc-coauthoring` 或自動 | Structured workflow for collaboratively co-authoring documentation through |
+| **excalidraw-diagram** | 自動 | Create Excalidraw diagram JSON files that make visual arguments |
 | **gdoc-report-builder** | 自動 | Build structured reports in Google Docs/Slides via MCP tools — batch table |
 | **internal-comms** | `/internal-comms` 或自動 | Templates and formats for ongoing organizational communications during and |
 | **iot-factory-report** | 自動 | Analyze factory IoT/SCADA time-series data (CSV/Excel) and produce visual |
 | **mcp-builder** | 自動 | 建立 MCP server 的指南（Python FastMCP / Node MCP SDK） |
+| **mermaid-diagram** | `/mermaid-diagram` 或自動 | Generate Mermaid `.mmd` files that argue visually (flowcharts, sequence, state |
 | **metadata-workshop** | 自動 | Run a structured Metadata Workshop with a consulting client to convert their |
 | **office-docx** | 自動 | Word (.docx) 建立、編輯、分析，支援追蹤修訂與註解 |
 | **office-pdf** | 自動 | PDF 操作：文字/表格擷取、建立、合併/分割、表單填寫 |

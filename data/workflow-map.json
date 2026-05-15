@@ -64,6 +64,10 @@
       "source": "local",
       "desc": "解析非結構化技術文件為結構化資料"
     },
+    "excalidraw-diagram": {
+      "source": "local",
+      "desc": "手繪/whimsical 風格圖表，文字 → Excalidraw JSON → PNG"
+    },
     "executing-plans": {
       "source": "local",
       "desc": "分批執行詳細計畫並逐步審查"
@@ -116,6 +120,10 @@
       "source": "local",
       "desc": "建立、設定、管理 macOS launchd agents"
     },
+    "learnings-promotion-sprint": {
+      "source": "local",
+      "desc": "定期跨專案 .learnings/ distillation，generic 規則 promote 到 CLAUDE.md"
+    },
     "markdown-file-ssot": {
       "source": "local",
       "desc": "Markdown 檔作為半結構化資料 SSOT"
@@ -127,6 +135,10 @@
     "mcp-builder": {
       "source": "local",
       "desc": "建立高品質 MCP Server 的指南"
+    },
+    "mermaid-diagram": {
+      "source": "local",
+      "desc": "Mermaid .mmd → PNG via npx mmdc，流程圖/sequence/state/ER"
     },
     "mockup": {
       "source": "local",
@@ -1157,59 +1169,220 @@
       ]
     },
     {
-      "id": "presentation",
-      "label": "簡報製作流程",
-      "icon": "🎬",
+      "id": "slide-investor-bp",
+      "label": "簡報 A · 投資人 BP",
+      "icon": "💰",
       "steps": [
         {
           "num": 1,
-          "label": "確認目的與受眾",
-          "desc": "決定路徑（投資人/客戶/技術報告）",
+          "label": "Discovery Interview",
+          "desc": "募資對象研究 + 訪談",
           "skills": [
-            "slide-workflow"
+            "discovery-interview"
           ]
         },
         {
           "num": 2,
-          "label": "品牌風格鎖定",
-          "desc": "選擇或抽取 locked template",
+          "label": "Narrative 規劃",
+          "desc": "策略性敘事架構",
           "skills": [
-            "slide-template-extractor"
+            "pitch-deck"
           ]
         },
         {
           "num": 3,
-          "label": "大綱確認",
-          "desc": "每張 slide 1 句核心訊息",
+          "label": "HTML Slide 生成",
+          "desc": "投資人 deck 生成",
+          "skills": [
+            "pitch-deck"
+          ]
+        },
+        {
+          "num": 4,
+          "label": "PPTX 匯出",
+          "desc": "標準 PPTX 輸出",
+          "skills": [
+            "pitch-deck",
+            "office-pptx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slide-sales-material",
+      "label": "簡報 B · 客戶客製提案",
+      "icon": "🎯",
+      "steps": [
+        {
+          "num": 1,
+          "label": "客戶情蒐",
+          "desc": "公司背景 + 痛點研究",
+          "skills": [
+            "customer-intel"
+          ]
+        },
+        {
+          "num": 2,
+          "label": "素材庫匹配",
+          "desc": "從本地材料庫挑案例 / 解決方案",
+          "skills": [
+            "sales-material"
+          ]
+        },
+        {
+          "num": 3,
+          "label": "補助 / 案例對齊",
+          "desc": "補助方案匹配 + 素材健檢",
+          "skills": [
+            "subsidy-scraper",
+            "material-health"
+          ]
+        },
+        {
+          "num": 4,
+          "label": "PPTX 組裝",
+          "desc": "html2pptx 生成最終提案",
+          "skills": [
+            "sales-material",
+            "office-pptx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slide-iot-report",
+      "label": "簡報 C · IoT / 廠務報告",
+      "icon": "🏭",
+      "steps": [
+        {
+          "num": 1,
+          "label": "時序資料解析",
+          "desc": "CSV / Excel 結構化",
+          "skills": [
+            "doc-to-structured-data"
+          ]
+        },
+        {
+          "num": 2,
+          "label": "Cycle / Anomaly 偵測",
+          "desc": "週期偵測 + 異常標記",
+          "skills": [
+            "iot-factory-report"
+          ]
+        },
+        {
+          "num": 3,
+          "label": "趨勢分析",
+          "desc": "效率 / 異常因子分析",
+          "skills": [
+            "autoresearch"
+          ]
+        },
+        {
+          "num": 4,
+          "label": "PPTX 輸出",
+          "desc": "圖表 + 報告整合",
+          "skills": [
+            "iot-factory-report",
+            "office-pptx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slide-b2b-generic",
+      "label": "簡報 D · B2B 首拜 / 通用",
+      "icon": "📊",
+      "steps": [
+        {
+          "num": 1,
+          "label": "情蒐",
+          "desc": "operator-level 製程 / 業務流程",
+          "skills": [
+            "customer-intel",
+            "metadata-workshop"
+          ]
+        },
+        {
+          "num": 2,
+          "label": "Discovery Interview",
+          "desc": "能與客戶對話時用",
+          "skills": [
+            "discovery-interview"
+          ]
+        },
+        {
+          "num": 3,
+          "label": "Storyline 草稿",
+          "desc": "USER-OWNED — Peter 寫 storyline.md",
+          "skills": []
+        },
+        {
+          "num": 4,
+          "label": "Storyline Red Team",
+          "desc": "硬 gate — 簽核才往下",
+          "skills": [
+            "slide-office-hours"
+          ]
+        },
+        {
+          "num": 5,
+          "label": "風格鎖定",
+          "desc": "extract from 既有 deck 或從零開始",
+          "skills": [
+            "slide-template-extractor",
+            "ui-ux-pro-max",
+            "gstack-design-consultation"
+          ]
+        },
+        {
+          "num": 6,
+          "label": "大綱 → 內容",
+          "desc": "slide-workflow 7 階段",
           "skills": [
             "slide-workflow"
           ]
         },
         {
-          "num": 4,
-          "label": "素材蒐集",
-          "desc": "客戶情報/案例/數據",
+          "num": 7,
+          "label": "生成",
+          "desc": "PPTX / Google Slides / HTML deck",
           "skills": [
-            "customer-intel",
-            "sales-material",
-            "autoresearch"
+            "office-pptx",
+            "gdoc-report-builder",
+            "gstack-design-html"
           ]
         },
         {
-          "num": 5,
-          "label": "生成 HTML Slides",
-          "desc": "使用 locked template 生成",
+          "num": 8,
+          "label": "文字打磨 + 視覺審查",
+          "desc": "de-slopify 繁中 + 視覺一致性",
           "skills": [
-            "pitch-deck",
-            "sales-material"
+            "de-slopify",
+            "gstack-design-review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "devex-review",
+      "label": "DevEx 審查流程",
+      "icon": "🛠️",
+      "steps": [
+        {
+          "num": 1,
+          "label": "Plan 階段 DevEx 審查",
+          "desc": "對 plan 做 developer experience 審查",
+          "skills": [
+            "gstack-plan-devex-review"
           ]
         },
         {
-          "num": 6,
-          "label": "輸出 PPTX",
-          "desc": "HTML → PPTX 轉換",
+          "num": 2,
+          "label": "Implementation DevEx 審查",
+          "desc": "實作後對 code 做 DX 審查",
           "skills": [
-            "office-pptx"
+            "gstack-devex-review"
           ]
         }
       ]
@@ -1307,7 +1480,16 @@
       "icon": "🧠",
       "skills": [
         "self-improving-agent",
-        "context-recovery"
+        "context-recovery",
+        "learnings-promotion-sprint"
+      ]
+    },
+    {
+      "trigger": "需要圖表 / 流程圖視覺化",
+      "icon": "📈",
+      "skills": [
+        "mermaid-diagram",
+        "excalidraw-diagram"
       ]
     },
     {
@@ -1381,11 +1563,6 @@
     }
   ],
   "orphaned": [
-    {
-      "skill": "gstack.bak",
-      "severity": "red",
-      "reason": "備份檔案，非可調用 skill，應刪除或歸檔"
-    },
     {
       "skill": "gstack-open-gstack-browser",
       "severity": "amber",
