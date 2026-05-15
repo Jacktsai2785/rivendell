@@ -373,7 +373,7 @@ export default function ProjectDetailPage() {
 
       {/* Header */}
       <div className="p-6" style={cardStyle}>
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <FolderOpen
               size={24}
@@ -408,6 +408,30 @@ export default function ProjectDetailPage() {
               </p>
             </div>
           </div>
+          {data.name === "rivendell" && (
+            <Link
+              href={`/projects/${encodeURIComponent(data.name)}/workflow`}
+              className="shrink-0 inline-flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border-strong)",
+                borderRadius: "var(--radius-sm)",
+                color: "var(--text)",
+                fontFamily: "var(--font-sans)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent)";
+                e.currentTarget.style.color = "var(--accent)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-strong)";
+                e.currentTarget.style.color = "var(--text)";
+              }}
+            >
+              Workflow Map
+              <ChevronRight size={14} />
+            </Link>
+          )}
         </div>
 
         <div className="mt-4 flex gap-6 text-sm">
