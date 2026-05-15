@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -60,7 +60,17 @@ const NAV: NavNode[] = [
         children: [
           { kind: "link", href: "/projects/rivendell/workflow/ui", label: "UI Feature" },
           { kind: "link", href: "/projects/rivendell/workflow/backend", label: "Backend" },
-          { kind: "link", href: "/projects/rivendell/workflow/slide", label: "Slide" },
+          {
+            kind: "link",
+            href: "/projects/rivendell/workflow/slide",
+            label: "Slide",
+            children: [
+              { kind: "link", href: "/projects/rivendell/workflow/slide?branch=branch-a", label: "A. 投資人 BP" },
+              { kind: "link", href: "/projects/rivendell/workflow/slide?branch=branch-b", label: "B. 客戶客製提案" },
+              { kind: "link", href: "/projects/rivendell/workflow/slide?branch=branch-c", label: "C. IoT / 廠務報告" },
+              { kind: "link", href: "/projects/rivendell/workflow/slide?branch=branch-d", label: "D. B2B 首拜 / 通用" },
+            ],
+          },
           { kind: "link", href: "/projects/rivendell/workflow/maintenance", label: "Maintenance" },
         ],
       },
@@ -74,19 +84,47 @@ function nodeId(node: NavNode): string {
   return node.kind === "link" ? node.href : `header:${node.label}`;
 }
 
-/** Returns the set of node ids whose subtree contains the active pathname.
- *  Used as the initial expanded set so users always see their current
- *  location's path expanded. */
+/** Splits a node's href into pathname + query-param entries for matching.
+ *  Query-aware nodes (Slide branches with ?branch=...) need to match both
+ *  the pathname AND every query param they declare. */
+function parseHref(href: string): {
+  pathname: string;
+  params: [string, string][];
+} {
+  const qIdx = href.indexOf("?");
+  if (qIdx < 0) return { pathname: href, params: [] };
+  const path = href.slice(0, qIdx);
+  const params = new URLSearchParams(href.slice(qIdx + 1));
+  return { pathname: path, params: Array.from(params.entries()) };
+}
+
+/** Does a node's href match the current URL (pathname + search params)? */
+function nodeMatches(
+  href: string,
+  currentPath: string,
+  currentParams: URLSearchParams,
+): boolean {
+  const { pathname, params } = parseHref(href);
+  const pathMatch =
+    pathname === "/" ? currentPath === "/" : currentPath.startsWith(pathname);
+  if (!pathMatch) return false;
+  for (const [k, v] of params) {
+    if (currentParams.get(k) !== v) return false;
+  }
+  return true;
+}
+
+/** Returns the set of node ids whose subtree contains the active route. */
 function ancestorsOfPath(
   nodes: NavNode[],
   pathname: string,
+  searchParams: URLSearchParams,
 ): Set<string> {
   const out = new Set<string>();
   function visit(node: NavNode, ancestors: string[]): boolean {
     const id = nodeId(node);
     const selfMatches =
-      node.kind === "link" &&
-      (node.href === "/" ? pathname === "/" : pathname.startsWith(node.href));
+      node.kind === "link" && nodeMatches(node.href, pathname, searchParams);
     let descendantMatches = false;
     if (node.kind !== "link" || node.children) {
       const children =
@@ -95,10 +133,7 @@ function ancestorsOfPath(
         if (visit(c, [...ancestors, id])) descendantMatches = true;
       }
     }
-    if (descendantMatches) {
-      // Expand this node so the matching descendant is visible.
-      out.add(id);
-    }
+    if (descendantMatches) out.add(id);
     return selfMatches || descendantMatches;
   }
   for (const n of nodes) visit(n, []);
@@ -211,22 +246,22 @@ function RunningAgentsPanel() {
   );
 }
 
-export default function Sidebar() {
+// useSearchParams forces a CSR bailout, so this part must live inside a
+// <Suspense> boundary. Extracted into its own component for that reason.
+function SidebarNav() {
   const pathname = usePathname();
-  const [projects, setProjects] = useState<string[]>([]);
+  const searchParams = useSearchParams();
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => ancestorsOfPath(NAV, pathname),
+    () => ancestorsOfPath(NAV, pathname, searchParams),
   );
 
-  // When the route changes, auto-expand the new path's ancestors but
-  // leave any user-collapsed branches alone.
   useEffect(() => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      for (const id of ancestorsOfPath(NAV, pathname)) next.add(id);
+      for (const id of ancestorsOfPath(NAV, pathname, searchParams)) next.add(id);
       return next;
     });
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -237,17 +272,16 @@ export default function Sidebar() {
     });
   }
 
-  // Find the deepest matching link so only the leaf gets the "active" ring.
   const leafHref = (() => {
     let leaf: string | null = null;
-    let len = -1;
+    let bestScore = -1;
     function visit(node: NavNode) {
-      if (node.kind === "link") {
-        const matches =
-          node.href === "/" ? pathname === "/" : pathname.startsWith(node.href);
-        if (matches && node.href.length > len) {
+      if (node.kind === "link" && nodeMatches(node.href, pathname, searchParams)) {
+        const { pathname: hPath, params } = parseHref(node.href);
+        const score = hPath.length + params.length * 100;
+        if (score > bestScore) {
           leaf = node.href;
-          len = node.href.length;
+          bestScore = score;
         }
       }
       const children =
@@ -261,12 +295,6 @@ export default function Sidebar() {
     for (const n of NAV) visit(n);
     return leaf;
   })();
-
-  useEffect(() => {
-    apiFetch<ProjectsData>("/api/projects")
-      .then((d) => setProjects(d.projects.map((p) => p.name)))
-      .catch(() => {});
-  }, []);
 
   function renderNode(node: NavNode, depth: number, key: string): React.ReactElement {
     const id = nodeId(node);
@@ -393,6 +421,22 @@ export default function Sidebar() {
   }
 
   return (
+    <nav className="flex flex-col gap-0.5 px-2">
+      {NAV.map((n, i) => renderNode(n, 0, `n-${i}`))}
+    </nav>
+  );
+}
+
+export default function Sidebar() {
+  const [projects, setProjects] = useState<string[]>([]);
+
+  useEffect(() => {
+    apiFetch<ProjectsData>("/api/projects")
+      .then((d) => setProjects(d.projects.map((p) => p.name)))
+      .catch(() => {});
+  }, []);
+
+  return (
     <aside
       className="flex w-56 shrink-0 flex-col min-h-screen"
       style={{
@@ -429,9 +473,9 @@ export default function Sidebar() {
         </select>
       </div>
 
-      <nav className="flex flex-col gap-0.5 px-2">
-        {NAV.map((n, i) => renderNode(n, 0, `n-${i}`))}
-      </nav>
+      <Suspense fallback={null}>
+        <SidebarNav />
+      </Suspense>
 
       <div className="mt-auto">
         <RunningAgentsPanel />

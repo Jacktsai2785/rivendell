@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import {
   workflows,
@@ -405,8 +406,11 @@ function SkillModal({
 
 // ──────────────────────────────────────────────────────── Public FlowView
 export default function FlowView({ flowId }: { flowId: WorkflowId }) {
-  const [activeBranch, setActiveBranch] = useState("branch-a");
   const [openSkill, setOpenSkill] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  // Slide branch is URL-driven now (sidebar children navigate via
+  // ?branch=...). Default to the first branch when no param is set.
+  const branchParam = searchParams.get("branch");
 
   const current = workflows.find((w) => w.id === flowId);
   if (!current) {
@@ -416,6 +420,10 @@ export default function FlowView({ flowId }: { flowId: WorkflowId }) {
       </p>
     );
   }
+  const activeBranch =
+    branchParam && current.branches?.some((b) => b.id === branchParam)
+      ? branchParam
+      : current.branches?.[0]?.id;
   const visibleBranch = current.branches?.find((b) => b.id === activeBranch);
 
   return (
@@ -463,37 +471,23 @@ export default function FlowView({ flowId }: { flowId: WorkflowId }) {
         </p>
       )}
 
-      {current.branches && (
+      {current.branches && visibleBranch && (
         <>
-          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-1">
-            {current.branches.map((b) => {
-              const active = activeBranch === b.id;
-              return (
-                <button
-                  key={b.id}
-                  onClick={() => setActiveBranch(b.id)}
-                  style={{
-                    padding: "4px 0",
-                    border: "none",
-                    background: "transparent",
-                    color: active ? "var(--accent)" : "var(--text-muted)",
-                    fontSize: 13,
-                    fontWeight: active ? 500 : 400,
-                    cursor: "pointer",
-                    borderBottom: `1px solid ${
-                      active ? "var(--accent)" : "transparent"
-                    }`,
-                  }}
-                >
-                  {b.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {visibleBranch?.lead && (
+          {/* Branch label as a heading -- sidebar provides the switcher,
+              page just shows which branch is currently selected. */}
+          <h3
+            className="mt-6"
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: "var(--accent)",
+            }}
+          >
+            {visibleBranch.label}
+          </h3>
+          {visibleBranch.lead && (
             <p
-              className="mt-3"
+              className="mt-1.5"
               style={{
                 color: "var(--text-muted)",
                 fontSize: 13,
@@ -505,7 +499,7 @@ export default function FlowView({ flowId }: { flowId: WorkflowId }) {
           )}
 
           <div className="mt-2">
-            {visibleBranch?.steps.map((s) => (
+            {visibleBranch.steps.map((s) => (
               <StepRow key={s.num} step={s} onChipClick={setOpenSkill} />
             ))}
           </div>
