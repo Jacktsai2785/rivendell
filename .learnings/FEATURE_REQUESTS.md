@@ -25,7 +25,14 @@ entry: what was asked, why, agreed scope, what triggers picking it back up.
 
 ---
 
-## 2026-04-30 — `slide-office-hours` skill
+## 2026-04-30 — `slide-office-hours` skill ✅ RESOLVED 2026-05-03
+
+**Resolution**: Skill built at `skills/docs/slide-office-hours/SKILL.md`. Now part of the storyline-first deck workflow (`~/.claude/CLAUDE.md` Slide / Deck Building section, Gate 3). 光泉 deck experience seeded the design.
+
+---
+
+(original request below for history)
+
 
 **Asked**: User wants a gstack-style **interactive Q&A skill** specifically
 for slide / pitch deck creation. Inspired by `gstack-office-hours`'s six

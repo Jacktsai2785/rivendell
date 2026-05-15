@@ -1,8 +1,8 @@
 ---
 name: Self-Improving Agent
-description: Captures learnings, errors, and corrections to enable continuous improvement. Logs to .learnings/ in project root, promotes valuable insights to CLAUDE.md/AGENTS.md, and extracts reusable skills.
+description: Captures learnings, errors, and corrections to enable continuous improvement. Routes generic learnings to ~/.claude/learnings/, project-specific ones to <project>/.learnings/, and promotes valuable rules to CLAUDE.md.
 when_to_use: when a command fails, user corrects you, you discover outdated knowledge, a better approach is found, user requests missing capability, or before starting major tasks (review past learnings)
-version: 1.0.0
+version: 2.0.0
 tags: [meta, quality, learning, continuous-improvement, hook]
 languages: all
 ---
@@ -11,24 +11,41 @@ languages: all
 
 Log learnings and errors to markdown files for continuous improvement. Important learnings get promoted to project memory (CLAUDE.md / AGENTS.md), and recurring patterns get extracted into reusable skills.
 
+## Vault Routing — pick the right destination
+
+This skill writes to one of THREE vaults depending on scope:
+
+| Scope | Vault | When |
+|-------|-------|------|
+| 🌍 Generic | `~/.claude/learnings/` | macOS, git, shell, JS/Python framework gotchas, common APIs — anything that would apply if you switched to a totally different project tomorrow |
+| 🏛️ Platform-meta | `<repo>/.claude/CLAUDE.md` (rule) or `<repo>/.learnings/` (history) | Specific to a platform you maintain (rivendell, gstack) — applies across multiple projects via that platform but tied to its toolchain |
+| 🏠 Project-specific | `<current-project>/.learnings/` | Schemas, file paths, business logic, domain quirks of ONE codebase |
+
+**Routing test**: "Would I want this rule when working in a totally different project tomorrow?" Yes → global. No → project-local.
+
 ## Quick Reference
 
 | Situation | Action |
 |-----------|--------|
-| Command/operation fails | Log to `.learnings/ERRORS.md` |
-| User corrects you | Log to `.learnings/LEARNINGS.md` with category `correction` |
-| User wants missing feature | Log to `.learnings/FEATURE_REQUESTS.md` |
-| API/external tool fails | Log to `.learnings/ERRORS.md` with integration details |
-| Knowledge was outdated | Log to `.learnings/LEARNINGS.md` with category `knowledge_gap` |
-| Found better approach | Log to `.learnings/LEARNINGS.md` with category `best_practice` |
+| Command/operation fails | Log to `<vault>/ERRORS.md` |
+| User corrects you | Log to `<vault>/LEARNINGS.md` with category `correction` |
+| User wants missing feature | Log to `<project>/.learnings/FEATURE_REQUESTS.md` (always project) |
+| API/external tool fails (generic API) | Log to `~/.claude/learnings/ERRORS.md` |
+| Knowledge was outdated | Log to `<vault>/LEARNINGS.md` with category `knowledge_gap` |
+| Found better approach | Log to `<vault>/LEARNINGS.md` with category `best_practice` |
 | Similar to existing entry | Link with `**See Also**`, consider priority bump |
-| Broadly applicable learning | Promote to `CLAUDE.md` and/or `AGENTS.md` |
+| Recurring 2+ times in global vault | Distill to one-line rule, promote to `~/.claude/CLAUDE.md`, archive original |
+| Broadly applicable platform-meta | Promote to `<platform-repo>/.claude/CLAUDE.md` |
 
 ## Setup
 
-Create `.learnings/` directory in the PROJECT root if it doesn't exist:
+Vaults are created on demand:
 
 ```bash
+# Global vault (shared across all projects)
+mkdir -p ~/.claude/learnings
+
+# Project vault (per-codebase)
 mkdir -p .learnings
 ```
 
@@ -162,11 +179,11 @@ Other status values:
 
 ## Promoting to Project Memory
 
-When a learning is broadly applicable (not a one-off fix), promote it to permanent project memory.
+When a learning is broadly applicable (not a one-off fix), promote it to permanent memory. The destination depends on scope.
 
 ### When to Promote
 
-- Learning applies across multiple files/features
+- Learning has recurred 2+ times (across same or different projects)
 - Knowledge any contributor (human or AI) should know
 - Prevents recurring mistakes
 - Documents project-specific conventions
@@ -175,8 +192,22 @@ When a learning is broadly applicable (not a one-off fix), promote it to permane
 
 | Target | What Belongs There |
 |--------|-------------------|
-| `CLAUDE.md` | Project facts, conventions, gotchas for all Claude interactions |
-| `AGENTS.md` | Agent-specific workflows, tool usage patterns, automation rules |
+| `~/.claude/CLAUDE.md` | Cross-project engineering rules (auto-loaded every session — token-bounded, keep dense) |
+| `<repo>/.claude/CLAUDE.md` | Platform-specific rules (rivendell, gstack — loaded only in that repo) |
+| Project `CLAUDE.md` | Project facts, conventions, gotchas for all Claude interactions in that codebase |
+| Project `AGENTS.md` | Agent-specific workflows, tool usage patterns, automation rules |
+
+### Periodic Promotion Sprint
+
+Roughly monthly (or when `~/.claude/learnings/LEARNINGS.md` exceeds ~30 entries):
+
+1. Read all per-project `.learnings/` + `~/.claude/learnings/`
+2. Classify each entry: 🌍 generic / 🏛️ platform-meta / 🏠 project-specific / 🗑️ stale
+3. Generic entries → distill into dense rules in `~/.claude/CLAUDE.md`, archive originals
+4. Platform-meta → promote to `<platform-repo>/.claude/CLAUDE.md`
+5. Save a classification report (e.g. `reports/learnings-promotion-sprint-YYYY-MM-DD.md`) for history
+
+See `~/Documents/Projects/rivendell/reports/learnings-promotion-sprint-2026-05-13.md` for the seed-sprint template.
 
 ### How to Promote
 

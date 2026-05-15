@@ -1,5 +1,27 @@
 # Learnings
 
+> **2026-05-13 — promotion sprint**: Many entries below have been distilled into:
+> - `~/.claude/CLAUDE.md` (Engineering Gotchas section) — cross-project generic rules
+> - `rivendell/.claude/CLAUDE.md` (Rivendell Operations section) — platform-meta rules
+>
+> Originals are kept here for history. New **generic** learnings should go to
+> `~/.claude/learnings/LEARNINGS.md` (cross-project staging). New **rivendell-meta**
+> learnings stay here or get promoted directly to `rivendell/.claude/CLAUDE.md` if
+> they're a rule. See `reports/learnings-promotion-sprint-2026-05-13.md`.
+
+## 2026-05-13 — dashboard-next is launchd-managed; rebuild requires bootout/bootstrap, not `kill` + manual `next start`
+
+- **Category**: correction (followed by user "現在還是沒跑出來" + "畫面的 css 壞了")
+- **Context**: User reported overview page stuck on "載入中..." with broken CSS. First-pass fix: killed the stale `next-server` (PID 3194, running since prior Saturday), `mv .next .next.broken-* && npm run build && npx next start -p 3000`. Looked healthy via curl + headless probe (data rendered) so I called it done. But the user kept seeing 載入中 + unstyled. Investigation showed `/_next/static/chunks/*.css` 404 even though file was on disk, and stderr was full of `Cannot find module '../chunks/ssr/[turbopack]_runtime.js'` — Next 16 Turbopack runtime path issue.
+- **Real root cause**: dashboard-next is managed by **launchd** (`~/Library/LaunchAgents/com.sk.dashboard.web.plist`, label `com.sk.dashboard.web`, `KeepAlive=true`). When I `kill`ed the next-server, launchd respawned it (via `start-web.sh`). My `npx next start` race-collided with launchd's respawn → live next-server process loaded a half-rebuilt `.next/` (Turbopack runtime path went stale), then served partial 500s/404s. Sister service: `com.sk.dashboard.api` (currently unloaded; I started API manually instead).
+- **Correct fix sequence**:
+  1. `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.sk.dashboard.web.plist` (stops respawn)
+  2. Verify port 3000 freed: `lsof -iTCP:3000 -sTCP:LISTEN`
+  3. `mv .next .next.broken-$(date +%s) && npm run build && touch .next/.build-complete`
+  4. `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sk.dashboard.web.plist`
+- **Rule**: Before touching `dashboard-next/.next/` or restarting frontend, **always check `launchctl list | grep dashboard` first**. If service is loaded, drive it through `launchctl bootout`/`bootstrap`, never `kill`. Same logic for `com.sk.dashboard.api` and `com.sk.dashboard.watchdog`. start-web.sh is a launchd payload, not for direct invocation when launchd owns the service.
+- **Debug trick that nailed it**: `tail /Users/manibari/Library/Logs/sk-agent/com.sk.dashboard.web-stderr.log` revealed the Turbopack MODULE_NOT_FOUND that curl/probe didn't show. Always check launchd-managed service stderr logs when behavior is inconsistent with on-disk state.
+
 ## 2026-05-07 — Long-running `next-server` (production) on port 3000 won't pick up source edits; QA new code on a different dev port
 
 - **Category**: knowledge_gap (gotcha discovered while QAing dashboard-next)
