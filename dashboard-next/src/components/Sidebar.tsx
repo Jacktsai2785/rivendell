@@ -12,34 +12,95 @@ import {
   Wheat,
   Network,
   Workflow,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { apiFetch, type ProjectsData, type AgentsData } from "@/lib/api";
 import Logo from "./Logo";
 
-type NavEntry =
+type NavNode =
   | {
       kind: "link";
       href: string;
       label: string;
-      icon: typeof LayoutDashboard;
-      indent?: boolean;
+      icon?: typeof LayoutDashboard;
+      children?: NavNode[];
     }
   | {
       kind: "header";
       label: string;
+      children: NavNode[];
     };
 
-const NAV: NavEntry[] = [
+const NAV: NavNode[] = [
   { kind: "link", href: "/", label: "總覽", icon: LayoutDashboard },
-  { kind: "link", href: "/projects", label: "專案管理", icon: FolderOpen },
-  { kind: "link", href: "/agents", label: "Agent 管理", icon: Bot, indent: true },
-  { kind: "link", href: "/tokens", label: "Token 用量", icon: Coins, indent: true },
-  { kind: "link", href: "/projects/rivendell/workflow", label: "Workflow Map", icon: Workflow, indent: true },
-  { kind: "header", label: "skills" },
-  { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles, indent: true },
-  { kind: "link", href: "/harvest", label: "Skill Harvest", icon: Wheat, indent: true },
+  {
+    kind: "link",
+    href: "/projects",
+    label: "專案管理",
+    icon: FolderOpen,
+    children: [
+      { kind: "link", href: "/agents", label: "Agent 管理", icon: Bot },
+      { kind: "link", href: "/tokens", label: "Token 用量", icon: Coins },
+      {
+        kind: "link",
+        href: "/projects/rivendell/workflow",
+        label: "Workflow Map",
+        icon: Workflow,
+        children: [
+          { kind: "link", href: "/projects/rivendell/workflow/ui", label: "UI Feature" },
+          { kind: "link", href: "/projects/rivendell/workflow/backend", label: "Backend" },
+          { kind: "link", href: "/projects/rivendell/workflow/slide", label: "Slide" },
+          { kind: "link", href: "/projects/rivendell/workflow/maintenance", label: "Maintenance" },
+        ],
+      },
+    ],
+  },
+  {
+    kind: "header",
+    label: "skills",
+    children: [
+      { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles },
+      { kind: "link", href: "/harvest", label: "Skill Harvest", icon: Wheat },
+    ],
+  },
   { kind: "link", href: "/ports", label: "Port 對應", icon: Network },
 ];
+
+function nodeId(node: NavNode): string {
+  return node.kind === "link" ? node.href : `header:${node.label}`;
+}
+
+/** Returns the set of node ids whose subtree contains the active pathname.
+ *  Used as the initial expanded set so users always see their current
+ *  location's path expanded. */
+function ancestorsOfPath(
+  nodes: NavNode[],
+  pathname: string,
+): Set<string> {
+  const out = new Set<string>();
+  function visit(node: NavNode, ancestors: string[]): boolean {
+    const id = nodeId(node);
+    const selfMatches =
+      node.kind === "link" &&
+      (node.href === "/" ? pathname === "/" : pathname.startsWith(node.href));
+    let descendantMatches = false;
+    if (node.kind !== "link" || node.children) {
+      const children =
+        node.kind === "header" ? node.children : node.children ?? [];
+      for (const c of children) {
+        if (visit(c, [...ancestors, id])) descendantMatches = true;
+      }
+    }
+    if (descendantMatches) {
+      // Expand this node so the matching descendant is visible.
+      out.add(id);
+    }
+    return selfMatches || descendantMatches;
+  }
+  for (const n of nodes) visit(n, []);
+  return out;
+}
 
 interface RunningAgent {
   label: string;
@@ -150,12 +211,174 @@ function RunningAgentsPanel() {
 export default function Sidebar() {
   const pathname = usePathname();
   const [projects, setProjects] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => ancestorsOfPath(NAV, pathname),
+  );
+
+  // When the route changes, auto-expand the new path's ancestors but
+  // leave any user-collapsed branches alone.
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const id of ancestorsOfPath(NAV, pathname)) next.add(id);
+      return next;
+    });
+  }, [pathname]);
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Find the deepest matching link so only the leaf gets the "active" ring.
+  const leafHref = (() => {
+    let leaf: string | null = null;
+    let len = -1;
+    function visit(node: NavNode) {
+      if (node.kind === "link") {
+        const matches =
+          node.href === "/" ? pathname === "/" : pathname.startsWith(node.href);
+        if (matches && node.href.length > len) {
+          leaf = node.href;
+          len = node.href.length;
+        }
+      }
+      const children =
+        node.kind === "header"
+          ? node.children
+          : node.kind === "link" && node.children
+            ? node.children
+            : [];
+      for (const c of children) visit(c);
+    }
+    for (const n of NAV) visit(n);
+    return leaf;
+  })();
 
   useEffect(() => {
     apiFetch<ProjectsData>("/api/projects")
       .then((d) => setProjects(d.projects.map((p) => p.name)))
       .catch(() => {});
   }, []);
+
+  function renderNode(node: NavNode, depth: number, key: string): React.ReactElement {
+    const id = nodeId(node);
+    const children =
+      node.kind === "header"
+        ? node.children
+        : node.kind === "link" && node.children
+          ? node.children
+          : [];
+    const hasChildren = children.length > 0;
+    const isExpanded = expanded.has(id);
+    const padLeft =
+      depth === 0 ? 12 : depth === 1 ? 32 : 48;
+    const chevSize = 12;
+
+    const Chevron = hasChildren ? (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggle(id);
+        }}
+        aria-label={isExpanded ? "collapse" : "expand"}
+        className="flex items-center justify-center shrink-0 rounded p-0.5 transition-colors"
+        style={{
+          color: "var(--text-subtle)",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-subtle)")}
+      >
+        {isExpanded ? (
+          <ChevronDown size={chevSize} />
+        ) : (
+          <ChevronRight size={chevSize} />
+        )}
+      </button>
+    ) : null;
+
+    let rowEl: React.ReactElement;
+    if (node.kind === "header") {
+      // Header rows are pure toggles (no navigation).
+      rowEl = (
+        <button
+          type="button"
+          onClick={() => toggle(id)}
+          className="flex items-center gap-2 w-full text-left rounded-md py-1.5"
+          style={{
+            paddingLeft: padLeft,
+            paddingRight: 12,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10,
+            textTransform: "uppercase",
+            letterSpacing: "0.12em",
+            color: "var(--text-subtle)",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          <span>{node.label}</span>
+          <span className="ml-auto">{Chevron}</span>
+        </button>
+      );
+    } else {
+      const { href, label, icon: Icon } = node;
+      const active = href === leafHref;
+      const fontSize = depth === 0 ? 14 : depth === 1 ? 13 : 12;
+      rowEl = (
+        <div className="flex items-stretch">
+          <Link
+            href={href}
+            className={`flex items-center gap-3 rounded-md py-2 font-medium flex-1 transition-colors`}
+            style={{
+              paddingLeft: padLeft,
+              paddingRight: hasChildren ? 4 : 12,
+              fontSize,
+              background: active ? "var(--surface)" : "transparent",
+              color: active ? "var(--text)" : "var(--text-muted)",
+              boxShadow: active ? "0 0 0 1px var(--border)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!active) {
+                e.currentTarget.style.background = "var(--surface)";
+                e.currentTarget.style.color = "var(--text)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!active) {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }
+            }}
+          >
+            {Icon ? <Icon size={depth === 0 ? 18 : 16} /> : null}
+            <span>{label}</span>
+          </Link>
+          {hasChildren && (
+            <div className="flex items-center pr-2">{Chevron}</div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div key={key}>
+        {rowEl}
+        {hasChildren && isExpanded && (
+          <div>
+            {children.map((c, i) => renderNode(c, depth + 1, `${key}-${i}`))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <aside
@@ -194,58 +417,8 @@ export default function Sidebar() {
         </select>
       </div>
 
-      <nav className="flex flex-col gap-1 px-2">
-        {NAV.map((entry, i) => {
-          if (entry.kind === "header") {
-            return (
-              <div
-                key={`header-${i}`}
-                className="mt-3 mb-1 px-3"
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  color: "var(--text-subtle)",
-                }}
-              >
-                {entry.label}
-              </div>
-            );
-          }
-          const { href, label, icon: Icon, indent } = entry;
-          const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 rounded-md py-2 text-sm font-medium transition-colors ${
-                indent ? "pl-8 pr-3 text-[13px]" : "px-3"
-              }`}
-              style={{
-                background: active ? "var(--surface)" : "transparent",
-                color: active ? "var(--text)" : "var(--text-muted)",
-                boxShadow: active ? "0 0 0 1px var(--border)" : "none",
-              }}
-              onMouseEnter={(e) => {
-                if (!active) {
-                  e.currentTarget.style.background = "var(--surface)";
-                  e.currentTarget.style.color = "var(--text)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!active) {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }
-              }}
-            >
-              <Icon size={indent ? 16 : 18} />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex flex-col gap-0.5 px-2">
+        {NAV.map((n, i) => renderNode(n, 0, `n-${i}`))}
       </nav>
 
       <div className="mt-auto">

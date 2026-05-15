@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { workflows, type WorkflowId } from "../playbook-data";
+import { type WorkflowId } from "../playbook-data";
 import FlowView from "../FlowView";
 
 const VALID_FLOWS = new Set<WorkflowId>(["ui", "backend", "slide", "maintenance"]);
@@ -91,37 +91,8 @@ export default function ProjectWorkflowFlowPage() {
           ~/.claude/CLAUDE.md · click any chip for trigger / skip
         </div>
 
-        {/* Flow nav — real sub-routes via <Link> */}
-        <nav
-          className="flex gap-8 mt-8 mb-2 overflow-x-auto"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          {workflows.map((w) => {
-            const active = w.id === flowId;
-            return (
-              <Link
-                key={w.id}
-                href={`/projects/${encodeURIComponent(name)}/workflow/${w.id}`}
-                className="whitespace-nowrap transition-colors"
-                style={{
-                  padding: "10px 0",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: 14,
-                  fontWeight: active ? 500 : 400,
-                  color: active ? "var(--accent)" : "var(--text-muted)",
-                  borderBottom: `2px solid ${
-                    active ? "var(--accent)" : "transparent"
-                  }`,
-                  marginBottom: -1,
-                  textDecoration: "none",
-                }}
-              >
-                {w.label}
-              </Link>
-            );
-          })}
-        </nav>
-
+        {/* Flow switching now lives in the sidebar (workflow.NAV nested
+            children), so the page no longer renders its own tab strip. */}
         <section className="mt-8">
           <FlowView flowId={flowId} />
         </section>
