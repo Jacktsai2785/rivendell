@@ -16,22 +16,29 @@ import {
 import { apiFetch, type ProjectsData, type AgentsData } from "@/lib/api";
 import Logo from "./Logo";
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  indent?: boolean;
-}
+type NavEntry =
+  | {
+      kind: "link";
+      href: string;
+      label: string;
+      icon: typeof LayoutDashboard;
+      indent?: boolean;
+    }
+  | {
+      kind: "header";
+      label: string;
+    };
 
-const NAV: NavItem[] = [
-  { href: "/", label: "總覽", icon: LayoutDashboard },
-  { href: "/projects", label: "專案管理", icon: FolderOpen },
-  { href: "/agents", label: "Agent 管理", icon: Bot, indent: true },
-  { href: "/tokens", label: "Token 用量", icon: Coins, indent: true },
-  { href: "/projects/rivendell/workflow", label: "Workflow Map", icon: Workflow, indent: true },
-  { href: "/skills", label: "Skill 總覽", icon: Sparkles },
-  { href: "/harvest", label: "Skill Harvest", icon: Wheat, indent: true },
-  { href: "/ports", label: "Port 對應", icon: Network },
+const NAV: NavEntry[] = [
+  { kind: "link", href: "/", label: "總覽", icon: LayoutDashboard },
+  { kind: "link", href: "/projects", label: "專案管理", icon: FolderOpen },
+  { kind: "link", href: "/agents", label: "Agent 管理", icon: Bot, indent: true },
+  { kind: "link", href: "/tokens", label: "Token 用量", icon: Coins, indent: true },
+  { kind: "link", href: "/projects/rivendell/workflow", label: "Workflow Map", icon: Workflow, indent: true },
+  { kind: "header", label: "skills" },
+  { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles, indent: true },
+  { kind: "link", href: "/harvest", label: "Skill Harvest", icon: Wheat, indent: true },
+  { kind: "link", href: "/ports", label: "Port 對應", icon: Network },
 ];
 
 interface RunningAgent {
@@ -188,7 +195,25 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1 px-2">
-        {NAV.map(({ href, label, icon: Icon, indent }) => {
+        {NAV.map((entry, i) => {
+          if (entry.kind === "header") {
+            return (
+              <div
+                key={`header-${i}`}
+                className="mt-3 mb-1 px-3"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                  color: "var(--text-subtle)",
+                }}
+              >
+                {entry.label}
+              </div>
+            );
+          }
+          const { href, label, icon: Icon, indent } = entry;
           const active =
             href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
