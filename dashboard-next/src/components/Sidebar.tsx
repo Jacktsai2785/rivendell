@@ -60,7 +60,7 @@ const NAV: NavNode[] = [
   },
   {
     kind: "header",
-    label: "Skills",
+    label: "技能庫",
     icon: Library,
     children: [
       { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles },
