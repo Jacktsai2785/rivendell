@@ -28,9 +28,9 @@ const NAV: NavItem[] = [
   { href: "/projects", label: "專案管理", icon: FolderOpen },
   { href: "/agents", label: "Agent 管理", icon: Bot, indent: true },
   { href: "/tokens", label: "Token 用量", icon: Coins, indent: true },
+  { href: "/projects/rivendell/workflow", label: "Workflow Map", icon: Workflow, indent: true },
   { href: "/skills", label: "Skill 總覽", icon: Sparkles },
-  { href: "/harvest", label: "Skill Harvest", icon: Wheat },
-  { href: "/projects/rivendell/workflow", label: "Workflow Map", icon: Workflow },
+  { href: "/harvest", label: "Skill Harvest", icon: Wheat, indent: true },
   { href: "/ports", label: "Port 對應", icon: Network },
 ];
 
