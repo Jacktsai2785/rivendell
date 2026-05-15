@@ -27,6 +27,23 @@ Generate `.excalidraw` JSON files that **argue visually**, not just display info
 
 **Setup:** If the user asks you to set up this skill (renderer, dependencies, etc.), see `README.md` for instructions.
 
+> **Known issue (2026-05-16):** the bundled `references/render_template.html`
+> imports `@excalidraw/excalidraw` from `esm.sh`, whose transitive dep
+> `@braintree/sanitize-url@6.0.2/dist/constants.mjs` currently 404s. The
+> ESM graph fails to resolve and Playwright times out at `__moduleReady`.
+> Workarounds:
+>
+> 1. Switch the import in `render_template.html` to a different CDN
+>    (`https://cdn.jsdelivr.net/npm/@excalidraw/excalidraw@0.17/+esm` or
+>    `https://unpkg.com/...`), OR
+> 2. Self-host the bundle locally (clone @excalidraw/excalidraw, build,
+>    serve from a local file://), OR
+> 3. Wait for esm.sh to republish the missing constants.mjs.
+>
+> JSON generation (the main authoring task) still works regardless of
+> renderer state — you can produce the `.excalidraw` file and render
+> later when CDN heals.
+
 ## Customization
 
 **All colors and brand-specific styles live in one file:** `references/color-palette.md`. Read it before generating any diagram and use it as the single source of truth for all color choices — shape fills, strokes, text colors, evidence artifact backgrounds, everything.
