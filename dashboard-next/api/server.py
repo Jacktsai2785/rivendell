@@ -1897,19 +1897,25 @@ async def api_ports() -> dict[str, Any]:
             })
 
     async def check_port(port: int) -> str:
-        try:
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection("127.0.0.1", port),
-                timeout=0.8,
-            )
-            writer.close()
+        # Try IPv4 AND IPv6 -- a Node `next dev` server commonly binds to
+        # ::1 only, in which case 127.0.0.1 fails to connect and a service
+        # that's actually running gets reported as stopped. See global
+        # CLAUDE.md "Engineering Gotchas" / dual-listener entry.
+        for host in ("127.0.0.1", "::1"):
             try:
-                await writer.wait_closed()
+                _, writer = await asyncio.wait_for(
+                    asyncio.open_connection(host, port),
+                    timeout=0.4,
+                )
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+                return "live"
             except Exception:
-                pass
-            return "live"
-        except Exception:
-            return "stopped"
+                continue
+        return "stopped"
 
     statuses = await asyncio.gather(*[check_port(e["port"]) for e in entries])
     for entry, status in zip(entries, statuses):
