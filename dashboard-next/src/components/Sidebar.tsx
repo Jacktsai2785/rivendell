@@ -44,6 +44,14 @@ const NAV: NavNode[] = [
     children: [
       { kind: "link", href: "/agents", label: "Agent 管理", icon: Bot },
       { kind: "link", href: "/tokens", label: "Token 用量", icon: Coins },
+    ],
+  },
+  {
+    kind: "header",
+    label: "技能庫",
+    icon: Library,
+    children: [
+      { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles },
       {
         kind: "link",
         href: "/projects/rivendell/workflow",
@@ -56,14 +64,6 @@ const NAV: NavNode[] = [
           { kind: "link", href: "/projects/rivendell/workflow/maintenance", label: "Maintenance" },
         ],
       },
-    ],
-  },
-  {
-    kind: "header",
-    label: "技能庫",
-    icon: Library,
-    children: [
-      { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles },
       { kind: "link", href: "/harvest", label: "Skill Harvest", icon: Wheat },
     ],
   },
