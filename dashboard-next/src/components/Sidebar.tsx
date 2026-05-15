@@ -12,6 +12,7 @@ import {
   Wheat,
   Network,
   Workflow,
+  Library,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -29,6 +30,7 @@ type NavNode =
   | {
       kind: "header";
       label: string;
+      icon?: typeof LayoutDashboard;
       children: NavNode[];
     };
 
@@ -58,7 +60,8 @@ const NAV: NavNode[] = [
   },
   {
     kind: "header",
-    label: "skills",
+    label: "Skills",
+    icon: Library,
     children: [
       { kind: "link", href: "/skills", label: "Skill 總覽", icon: Sparkles },
       { kind: "link", href: "/harvest", label: "Skill Harvest", icon: Wheat },
@@ -305,25 +308,34 @@ export default function Sidebar() {
 
     let rowEl: React.ReactElement;
     if (node.kind === "header") {
-      // Header rows are pure toggles (no navigation).
+      // Header rows are toggle-only but styled like a top-level link so
+      // 總覽 / 專案管理 / Skills all read at the same visual weight.
+      const Icon = node.icon;
+      const fontSize = depth === 0 ? 14 : depth === 1 ? 13 : 12;
       rowEl = (
         <button
           type="button"
           onClick={() => toggle(id)}
-          className="flex items-center gap-2 w-full text-left rounded-md py-1.5"
+          className="flex items-center gap-3 w-full text-left rounded-md py-2 font-medium transition-colors"
           style={{
             paddingLeft: padLeft,
-            paddingRight: 12,
-            fontFamily: "var(--font-mono)",
-            fontSize: 10,
-            textTransform: "uppercase",
-            letterSpacing: "0.12em",
-            color: "var(--text-subtle)",
+            paddingRight: hasChildren ? 4 : 12,
+            fontSize,
             background: "transparent",
+            color: "var(--text-muted)",
             border: "none",
             cursor: "pointer",
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--surface)";
+            e.currentTarget.style.color = "var(--text)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "var(--text-muted)";
+          }}
         >
+          {Icon ? <Icon size={depth === 0 ? 18 : 16} /> : null}
           <span>{node.label}</span>
           <span className="ml-auto">{Chevron}</span>
         </button>
