@@ -3380,7 +3380,7 @@ cmd_bootstrap() {
   echo ""
 
   # Step 1: Pre-flight
-  echo -e "${YELLOW}[1/6] Pre-flight checks${NC}"
+  echo -e "${YELLOW}[1/7] Pre-flight checks${NC}"
   local missing=""
   command -v git &>/dev/null || missing="$missing git"
   command -v docker &>/dev/null || missing="$missing docker"
@@ -3395,7 +3395,7 @@ cmd_bootstrap() {
   echo ""
 
   # Step 2: Clone projects
-  echo -e "${YELLOW}[2/6] Cloning/updating projects${NC}"
+  echo -e "${YELLOW}[2/7] Cloning/updating projects${NC}"
   local clone_count=0 pull_count=0
   parse_profile "$profile_name" | while IFS='|' read -r type f1 f2 f3 f4; do
     [ "$type" = "project" ] || continue
@@ -3415,7 +3415,7 @@ cmd_bootstrap() {
   echo "$profile_name" > "$ACTIVE_PROFILE_FILE"
 
   # Step 3: Environment setup
-  echo -e "${YELLOW}[3/6] Environment setup${NC}"
+  echo -e "${YELLOW}[3/7] Environment setup${NC}"
   if ! $dry_run; then
     cmd_env
   else
@@ -3424,7 +3424,7 @@ cmd_bootstrap() {
   echo ""
 
   # Step 4: Docker build & up
-  echo -e "${YELLOW}[4/6] Docker services${NC}"
+  echo -e "${YELLOW}[4/7] Docker services${NC}"
   local flags=""
   while IFS= read -r p; do
     [ -n "$p" ] && flags="$flags --profile $p"
@@ -3439,7 +3439,7 @@ cmd_bootstrap() {
 
   # Step 5: macOS-only (skills + agents)
   if [ "$(uname)" = "Darwin" ]; then
-    echo -e "${YELLOW}[5/6] Skills & agents (macOS)${NC}"
+    echo -e "${YELLOW}[5/7] Skills & agents (macOS)${NC}"
     if ! $dry_run; then
       cmd_deploy
       # Run agent setup if profile has agents
@@ -3454,15 +3454,48 @@ cmd_bootstrap() {
       echo "  (dry-run: would deploy skills + setup agents)"
     fi
   else
-    echo -e "${YELLOW}[5/6] Skills (Linux — no launchd)${NC}"
+    echo -e "${YELLOW}[5/7] Skills (Linux — no launchd)${NC}"
     if ! $dry_run; then
       cmd_deploy
     fi
   fi
   echo ""
 
-  # Step 6: Set active profile + summary
-  echo -e "${YELLOW}[6/6] Summary${NC}"
+  # Step 6: External skill packs (e.g. gstack)
+  echo -e "${YELLOW}[6/7] External skill packs${NC}"
+  parse_profile "$profile_name" | while IFS='|' read -r type name url setup_cmd _; do
+    [ "$type" = "external_skill_pack" ] || continue
+    [ -z "$name" ] && continue
+    [ -z "$url" ] && continue
+    pack_dir="$HOME/.claude/skills/$name"
+    if $dry_run; then
+      echo "  (dry-run: would handle $name → $pack_dir)"
+      continue
+    fi
+    if [ -L "$pack_dir" ]; then
+      echo -e "  ${YELLOW}skip${NC}  $name (symlink at $pack_dir — dev install, not touching)"
+      continue
+    elif [ -d "$pack_dir/.git" ]; then
+      echo -e "  ${GREEN}pull${NC}  $name"
+      git -C "$pack_dir" pull --ff-only 2>&1 | sed 's/^/    /'
+    elif [ -e "$pack_dir" ]; then
+      echo -e "  ${RED}skip${NC}  $name (non-git path at $pack_dir — manual cleanup needed)"
+      continue
+    else
+      echo -e "  ${GREEN}clone${NC}  $name ← $url"
+      mkdir -p "$(dirname "$pack_dir")"
+      git clone --single-branch --depth 1 "$url" "$pack_dir" 2>&1 | sed 's/^/    /'
+    fi
+    if [ -n "$setup_cmd" ] && [ -d "$pack_dir" ]; then
+      echo -e "  ${GREEN}setup${NC} cd $pack_dir && $setup_cmd"
+      ( cd "$pack_dir" && eval "$setup_cmd" 2>&1 | sed 's/^/    /' ) || \
+        echo -e "  ${RED}    setup failed — manual: cd $pack_dir && $setup_cmd${NC}"
+    fi
+  done
+  echo ""
+
+  # Step 7: Set active profile + summary
+  echo -e "${YELLOW}[7/7] Summary${NC}"
   if ! $dry_run; then
     echo "$profile_name" > "$ACTIVE_PROFILE_FILE"
   fi
