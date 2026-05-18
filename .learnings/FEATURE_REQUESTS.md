@@ -5,6 +5,31 @@ entry: what was asked, why, agreed scope, what triggers picking it back up.
 
 ---
 
+## 2026-05-18 — Domain skill gaps surfaced by report-taxonomy redesign
+
+**Asked**: 整理 Text Report Generation routing 時，按 domain（商業洞察 / 製造運營 / 廠務優化 / 工安治理）拆 client work，發現除 /iot-factory-report (廠務) 外多數 domain 沒有專屬 skill。Trigger: chart-design skill 完成後，user 反饋「客戶交付類有點亂」並提出 domain-driven 分類。
+
+**Gaps** (by priority based on user's actual work):
+
+| Domain | Sub-area | 現況 fallback | 觸發時機 |
+|--------|----------|--------------|---------|
+| 商業洞察 | 市場調研 / 配給預測 | /doc-coauthoring + chart-design | 光泉 FMCG case 已 fit，下次再做時抽 |
+| 商業洞察 | 庫存水位預測 | manual + chart-design | 同上 |
+| 商業洞察 | 通路 / 採購分析 | manual | 客戶有實際需求時 |
+| 製造運營 | 時序製程分析 | /iot-factory-report 部分覆蓋 | 半導體 / FMCG 產線分析時 |
+| 製造運營 | 視覺檢測 (AOI/SPC) | 無 | 看到實際 AOI 報告需求時 |
+| 製造運營 | 排程 / 產能規劃 | 無 | 接到排程顧問案時 |
+| 工安治理 | EHS 全 branch | 無 | 客戶要求合規報告時 |
+| 法務文件 | RFP | /doc-coauthoring | 真實 RFP 撰寫需求 |
+| 法務文件 | NDA | /doc-coauthoring | 同上 |
+| 法務文件 | MOU | /doc-coauthoring | 同上 |
+
+**Proposed approach** (when picking up): 每個 domain 一個 skill；內部按 sub-area 分流（同 `/iot-factory-report` 按 equipment type 分流的模式）。Skills 都 sub-call /chart-design 做視覺化。
+
+**Trigger to revisit**: 接到該 domain 的真實案子時，從這份 gap 表挑對應 skill 抽出來做。優先順序按 user 接案頻率：商業洞察 (光泉再續) > 製造運營 (立積電/力成) > 法務文件 > 工安治理。
+
+---
+
 ## 2026-05-08 — Tiered skill discovery (INDEX-first, drill into SKILL.md only when needed)
 
 **Asked**: User asked whether skills should have a layered query system, so they can read a one-line index per skill (filtered by category) before deciding whether to invoke. Quote:「我只看後端相關 skills 的 index 一句話說明，來決定要不要調用」.
