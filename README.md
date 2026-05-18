@@ -46,7 +46,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (93 skills)
+## Skills Catalog (94 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -155,6 +155,7 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **chart-design** | 自動 | Chart / table / diagram sub-workflow shared by every report + deck skill. |
 | **discovery-interview** | 自動 | Run a structured Discovery interview with a potential consulting client to find |
 | **doc-coauthoring** | `/doc-coauthoring` 或自動 | Structured workflow for collaboratively co-authoring documentation through |
 | **excalidraw-diagram** | 自動 | Create Excalidraw diagram JSON files that make visual arguments |
