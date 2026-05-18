@@ -64,21 +64,26 @@ The path matters — agents.conf and launchd plist templates assume `~/Documents
 
 ### 3. Deploy skills + agents
 
-```bash
-./bin/sk deploy
-```
-
-This:
-- Symlinks every `skills/<cat>/<name>/` into `~/.claude/skills/<name>` so Claude Code sees them.
-- Installs `~/Library/LaunchAgents/com.sk.*.plist` files (replacing `REPO_PATH` placeholder with your actual path).
-
-To activate the launchd agents:
+For a fresh machine, the **full bootstrap** is recommended — installs rivendell skills + agents + external skill packs (gstack) + Docker services in one go:
 
 ```bash
-./bin/sk-setup-agents
+./bin/sk bootstrap dev-full     # full dev machine (macOS)
+./bin/sk bootstrap minimal      # rivendell + gstack only, no extra projects
+./bin/sk bootstrap --dry-run dev-full   # preview without changing anything
 ```
 
-Verify:
+Or run the individual steps manually:
+
+```bash
+./bin/sk deploy                 # symlink rivendell skills + install plists
+./bin/sk-setup-agents           # activate launchd agents
+```
+
+`sk deploy` only handles **rivendell's own** skills (`skills/<cat>/<name>/` → `~/.claude/skills/<name>`). External skill packs (gstack, defined in `profiles/profiles.conf` as `external_skill_pack` entries) are installed only via `sk bootstrap`. Re-run `sk bootstrap` on an existing machine to pick up new packs.
+
+External skill packs are git-cloned into `~/.claude/skills/<NAME>` and their `SETUP_CMD` is invoked. If the target is a symlink (typical for a dev copy of gstack pointing at `~/Documents/Projects/gstack`), bootstrap **skips** it — your dev install stays intact.
+
+Verify launchd agents:
 
 ```bash
 launchctl list | grep com.sk
