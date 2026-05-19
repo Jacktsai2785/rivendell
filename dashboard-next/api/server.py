@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1994,6 +1997,45 @@ def api_workflow() -> dict[str, Any]:
         "situational": len(wf.get("situational", [])),
     }
     return wf
+
+
+# ── Health ─────────────────────────────────────────────────────────────
+
+@app.get("/api/health", tags=["Health"])
+def api_health() -> dict[str, Any]:
+    """System health metrics.
+
+    Currently surfaces SSOT drift between `agents/agents.conf` (agent
+    identity SSOT) and `~/.claude/projects.json` (project metadata SSOT).
+    See README "Agent SSOT vs project metadata" section.
+    """
+    repo_dir = Path(__file__).resolve().parent.parent.parent
+    sk_bin = repo_dir / "bin" / "sk"
+    ssot_drift: dict[str, Any]
+    try:
+        result = subprocess.run(
+            [str(sk_bin), "check", "ssot", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(repo_dir),
+        )
+        # exit 0 = no drift, exit 1 = drift; both produce valid JSON on stdout
+        if result.stdout.strip():
+            ssot_drift = json.loads(result.stdout)
+        else:
+            ssot_drift = {"total_drift": 0, "agents_conf_only": [], "projects_json_only": [], "error": result.stderr.strip() or "empty stdout"}
+    except subprocess.TimeoutExpired:
+        ssot_drift = {"total_drift": -1, "error": "sk check ssot timed out (>10s)"}
+    except json.JSONDecodeError as e:
+        ssot_drift = {"total_drift": -1, "error": f"JSON decode failed: {e}"}
+    except FileNotFoundError:
+        ssot_drift = {"total_drift": -1, "error": f"sk binary not found at {sk_bin}"}
+
+    return {
+        "ssot_drift": ssot_drift,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @app.put("/api/workflow", tags=["Workflow"])

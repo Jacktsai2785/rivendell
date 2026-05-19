@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Scheduled SSOT drift check — diff agents.conf vs ~/.claude/projects.json daily.
+# Writes a report only if drift detected. Output to reports/ssot-drift-YYYY-MM-DD.md.
+#
+# Schedule: 03:00 daily (after token-snapshot 02:30, before workflow-retro 00:23
+# weekly). Sequenced after token-snapshot to avoid contending on the same SQLite
+# DB at startup.
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+REPORT_DIR="$REPO_DIR/reports"
+TODAY="$(date '+%Y-%m-%d')"
+REPORT_FILE="$REPORT_DIR/ssot-drift-$TODAY.md"
+
+mkdir -p "$REPORT_DIR"
+
+# Source exec lib (best-effort — used by dashboard for run tracking)
+set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
+
+# Capture drift in JSON form for parsing + text form for the report
+JSON_OUT="$("$REPO_DIR/bin/sk" check ssot --json 2>/dev/null || true)"
+TEXT_OUT="$("$REPO_DIR/bin/sk" check ssot 2>/dev/null || true)"
+
+# Extract total_drift from JSON (no jq dependency needed for this one field)
+TOTAL_DRIFT="$(echo "$JSON_OUT" | grep -o '"total_drift":[0-9-]*' | head -1 | cut -d: -f2)"
+TOTAL_DRIFT="${TOTAL_DRIFT:-0}"
+
+# Record run for dashboard observability
+if declare -f _sk_exec_record_run > /dev/null 2>&1; then
+    if [ "$TOTAL_DRIFT" -gt 0 ]; then
+        _sk_exec_record_run "ssot-drift" "drift_detected" "drift=$TOTAL_DRIFT" || true
+    else
+        _sk_exec_record_run "ssot-drift" "clean" "" || true
+    fi
+fi
+
+# Only write a report if drift detected — sticking to "noisy when broken, silent
+# when fine" convention used elsewhere in reports/.
+if [ "$TOTAL_DRIFT" -eq 0 ]; then
+    exit 0
+fi
+
+cat > "$REPORT_FILE" <<EOF
+---
+date: $TODAY
+type: ssot-drift
+total_drift: $TOTAL_DRIFT
+status: drift-detected
+---
+
+# SSOT Drift Report — $TODAY
+
+Daily check by \`bin/sk-ssot-drift-cron\` (03:00). Compares \`agents/agents.conf\`
+(agent identity SSOT) with \`~/.claude/projects.json\` (project metadata SSOT).
+See README "Agent SSOT vs project metadata" section.
+
+## Summary
+
+\`\`\`
+$TEXT_OUT
+\`\`\`
+
+## Raw JSON
+
+\`\`\`json
+$JSON_OUT
+\`\`\`
+
+## How to fix
+
+- **agents.conf has, projects.json lacks**: agent exists but project metadata
+  is incomplete. Add the agent to \`projects.json\`'s \`agents\` array, or
+  remove it from \`agents.conf\` if obsolete.
+- **projects.json claims, agents.conf doesn't**: project metadata references
+  an agent that no-longer runs. Remove from \`projects.json\` or add a matching
+  row to \`agents.conf\`.
+
+## Next reports
+
+Re-runs daily at 03:00. To suppress until next-run, fix the underlying drift
+or hide this report (will be regenerated tomorrow if drift persists).
+EOF
+
+echo "Drift detected — wrote $REPORT_FILE"
+exit 0
