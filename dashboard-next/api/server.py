@@ -41,6 +41,7 @@ from lib.tokens import (
     get_total_stats,
     get_filtered_usage,
     get_project_usage,
+    get_all_time_usage,
 )
 from lib.skills import list_skills
 from lib.hooks import list_hooks
@@ -930,35 +931,46 @@ def api_collaboration() -> dict[str, Any]:
 # ── Tokens ────────────────────────────────────────────────────────────
 
 @app.get("/api/tokens", tags=["Tokens"])
-def api_tokens(days: int = 30) -> dict[str, Any]:
-    daily = get_daily_usage(days)
-    models = get_model_summary()
-    totals = get_total_stats()
+def api_tokens() -> dict[str, Any]:
+    """All-time token usage (cached). For date-filtered queries use /api/tokens/filtered.
 
+    Returns the same shape as /api/tokens/filtered (with no date), but hits the
+    in-process TTL cache — avoids re-parsing ~500MB of JSONL on every request.
+    """
+    f = get_all_time_usage()
     return {
-        "totals": totals,
+        "total_sessions": f.total_sessions,
+        "total_messages": f.total_messages,
+        "total_cost_usd": f.total_cost_usd,
+        "total_tokens": f.total_tokens,
         "daily": [
             {
                 "date": d.date,
                 "sessions": d.sessions,
                 "messages": d.messages,
-                "tool_calls": d.tool_calls,
                 "tokens_total": d.tokens_total,
                 "cost_usd": d.cost_usd,
-                "models": d.models,
             }
-            for d in daily
+            for d in f.daily
         ],
         "models": [
             {
                 "model": m.model,
                 "input_tokens": m.input_tokens,
                 "output_tokens": m.output_tokens,
-                "cache_read_tokens": m.cache_read_tokens,
-                "cache_create_tokens": m.cache_create_tokens,
                 "cost_usd": m.cost_usd,
             }
-            for m in models
+            for m in f.models
+        ],
+        "projects": [
+            {
+                "project": p.project,
+                "sessions": p.sessions,
+                "messages": p.messages,
+                "tokens_total": p.tokens_total,
+                "cost_usd": p.cost_usd,
+            }
+            for p in f.projects
         ],
     }
 

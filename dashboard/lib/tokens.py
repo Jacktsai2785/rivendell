@@ -87,6 +87,14 @@ def _cached_full_usage() -> "FilteredUsage":
     return _CACHE["result"]
 
 
+def get_all_time_usage() -> "FilteredUsage":
+    """Public alias for the cached all-time usage. Use for default
+    (no-date-filter) dashboard queries — avoids re-parsing 500MB+ of JSONL
+    on every request. For date-filtered queries, call `get_filtered_usage`
+    directly (uncached)."""
+    return _cached_full_usage()
+
+
 def get_daily_usage(days: int | None = 30) -> list[DailyUsage]:
     """Daily usage merged from SQLite history (older dates) + JSONL (recent).
 
@@ -493,5 +501,5 @@ def _parse_jsonl_unified(
 
 
 def get_project_usage() -> list[ProjectUsage]:
-    """Get token usage aggregated by project from JSONL session files."""
-    return get_filtered_usage().projects
+    """Get token usage aggregated by project (cached, all-time JSONL)."""
+    return list(_cached_full_usage().projects)

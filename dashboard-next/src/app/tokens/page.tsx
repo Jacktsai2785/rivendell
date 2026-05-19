@@ -60,13 +60,18 @@ export default function TokensPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (dateStart) params.set("date_start", dateStart);
-    if (dateEnd) params.set("date_end", dateEnd);
-    const qs = params.toString();
-    apiFetch<FilteredTokensData>(
-      `/api/tokens/filtered${qs ? `?${qs}` : ""}`
-    )
+    // Route default load to /api/tokens (cached, all-time). Only hit /filtered
+    // when user actually picks a date — that path re-parses JSONL.
+    let endpoint: string;
+    if (dateStart || dateEnd) {
+      const params = new URLSearchParams();
+      if (dateStart) params.set("date_start", dateStart);
+      if (dateEnd) params.set("date_end", dateEnd);
+      endpoint = `/api/tokens/filtered?${params.toString()}`;
+    } else {
+      endpoint = `/api/tokens`;
+    }
+    apiFetch<FilteredTokensData>(endpoint)
       .then(setData)
       .catch((e) => setErr(e.message));
   }, [dateStart, dateEnd]);
