@@ -27,6 +27,8 @@ Commands:
   import-gh <url>     Clone skill from GitHub URL
   list                Show all skills + deployment status
   check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
+  check ssot          SSOT drift: diff agents.conf vs ~/.claude/projects.json
+                      Flags: --json (structured), --quiet (only output if drift, exit non-zero)
   run <task>          Run a task as single-shot agent (claude -p)
   audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
   permissions [dir]   Scan project tooling and update .claude/settings.local.json
@@ -3020,10 +3022,110 @@ print(f'_{L[\"pricing\"]}_')
 # ═══════════════════════════════════════════════════════════════
 
 PROFILES_CONF="$REPO_DIR/profiles/profiles.conf"
+AGENTS_CONF_FILE="$REPO_DIR/agents/agents.conf"
+PROJECTS_JSON_FILE="$HOME/.claude/projects.json"
 COMPOSE_FILE="$REPO_DIR/docker-compose.yml"
 ACTIVE_PROFILE_FILE="$REPO_DIR/.active-profile"
 ENV_SHARED_FILE="$REPO_DIR/.env.shared"
 PROJECTS_DIR="$(cd "$REPO_DIR/.." && pwd)"
+
+# ─── SSOT drift check (agents.conf vs projects.json) ───────────────────
+# Surfaces inconsistencies between rivendell agent SSOT and project metadata.
+# See README "Agent SSOT vs project metadata" section.
+cmd_check_ssot() {
+  local mode="text" quiet=false
+  for arg in "$@"; do
+    case "$arg" in
+      --json)  mode="json" ;;
+      --quiet) quiet=true ;;
+    esac
+  done
+
+  # Extract (project, agent_short_name) pairs from agents.conf labels
+  # matching `com.sk.agent.<project>.<name>`. Service-style labels like
+  # `com.sk.dashboard.api` are intentionally excluded — they're services,
+  # not project-scoped agents.
+  local conf_pairs=""
+  while IFS='|' read -r label _rest; do
+    label="$(echo "$label" | xargs)"
+    [[ "$label" =~ ^# ]] && continue
+    [ -z "$label" ] && continue
+    if [[ "$label" =~ ^com\.sk\.agent\.([^.]+)\.(.+)$ ]]; then
+      conf_pairs+="${BASH_REMATCH[1]}|${BASH_REMATCH[2]}"$'\n'
+    fi
+  done < "$AGENTS_CONF_FILE"
+
+  # Extract (project, agent) pairs from projects.json
+  local json_pairs=""
+  if [ -f "$PROJECTS_JSON_FILE" ] && command -v jq &>/dev/null; then
+    json_pairs="$(jq -r 'to_entries[] | .key as $p | (.value.agents // []) | .[] | "\($p)|\(.)"' "$PROJECTS_JSON_FILE" 2>/dev/null)"
+  fi
+
+  local conf_sorted json_sorted
+  conf_sorted="$(echo "$conf_pairs" | sort -u | grep -v '^$' || true)"
+  json_sorted="$(echo "$json_pairs" | sort -u | grep -v '^$' || true)"
+
+  local conf_only json_only
+  conf_only="$(comm -23 <(echo "$conf_sorted") <(echo "$json_sorted") | grep -v '^$' || true)"
+  json_only="$(comm -13 <(echo "$conf_sorted") <(echo "$json_sorted") | grep -v '^$' || true)"
+
+  local conf_only_count json_only_count total_drift
+  conf_only_count="$(echo -n "$conf_only" | grep -c '^' || echo 0)"
+  json_only_count="$(echo -n "$json_only" | grep -c '^' || echo 0)"
+  total_drift=$((conf_only_count + json_only_count))
+
+  if [ "$mode" = "json" ]; then
+    local pairs_to_json
+    pairs_to_json() {
+      local first=true item
+      printf '['
+      while IFS='|' read -r p n; do
+        [ -z "$p" ] && continue
+        $first || printf ','
+        first=false
+        printf '{"project":"%s","agent":"%s"}' "$p" "$n"
+      done <<< "$1"
+      printf ']'
+    }
+    printf '{"total_drift":%d,"agents_conf_only":' "$total_drift"
+    pairs_to_json "$conf_only"
+    printf ',"projects_json_only":'
+    pairs_to_json "$json_only"
+    printf '}\n'
+  else
+    if $quiet && [ "$total_drift" -eq 0 ]; then
+      return 0
+    fi
+    echo -e "${CYAN}=== SSOT Drift Check ===${NC}"
+    echo "agents.conf:   $AGENTS_CONF_FILE"
+    echo "projects.json: $PROJECTS_JSON_FILE"
+    echo ""
+    if [ "$conf_only_count" -gt 0 ]; then
+      echo -e "${YELLOW}agents.conf has, but projects.json lacks metadata:${NC}"
+      while IFS='|' read -r p n; do
+        [ -z "$p" ] && continue
+        echo "  $p / $n"
+      done <<< "$conf_only"
+      echo ""
+    fi
+    if [ "$json_only_count" -gt 0 ]; then
+      echo -e "${YELLOW}projects.json claims agent, but agents.conf doesn't define it:${NC}"
+      while IFS='|' read -r p n; do
+        [ -z "$p" ] && continue
+        echo "  $p / $n"
+      done <<< "$json_only"
+      echo ""
+    fi
+    if [ "$total_drift" -eq 0 ]; then
+      echo -e "${GREEN}No drift detected.${NC}"
+    else
+      echo -e "${RED}Total drift: $total_drift${NC}"
+    fi
+  fi
+
+  [ "$total_drift" -gt 0 ] && return 1
+  return 0
+}
 
 # Parse profiles.conf — output: type|field1|field2|...
 # Usage: parse_profile "dev-full"
@@ -3528,7 +3630,13 @@ case "${1:-help}" in
   import)     cmd_import "${2:-}" ;;
   import-gh)  cmd_import_gh "${2:-}" ;;
   list)       cmd_list ;;
-  check)      cmd_check "${2:-}" ;;
+  check)
+    shift
+    case "${1:-}" in
+      ssot) shift; cmd_check_ssot "$@" ;;
+      *)    cmd_check "${1:-}" ;;
+    esac
+    ;;
   run)        shift; cmd_run "$@" ;;
   audit)      shift; cmd_audit "$@" ;;
   permissions) cmd_permissions "${2:-.}" ;;
