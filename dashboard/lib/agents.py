@@ -283,7 +283,17 @@ def list_agents() -> list[AgentInfo]:
             agents.append(agent)
             seen_labels.add(agent.label)
 
-    # 3. Enrich from projects.json (authoritative source for project + working_directory)
+    # 3. Enrich from projects.json
+    #
+    # projects.json provides project metadata: repo path / working_directory and
+    # (currently) the agent→project binding. agents.conf is the SSOT for agent
+    # identity and schedule per README.md "Agent SSOT vs project metadata", but
+    # the project-binding derivation is currently read from projects.json here.
+    # Drift between the two is surfaced by `bin/sk check ssot`.
+    #
+    # TODO (Ship 4): derive agent.project from agents.conf label convention
+    # (com.sk.agent.<project>.<name>) so projects.json becomes purely enrichment.
+    # Tracked in docs/plans/2026-05-19-token-ingestion-ssot-plan.md.
     from lib.projects import load_projects
     projects = load_projects()
     for agent in agents:

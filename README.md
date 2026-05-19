@@ -255,6 +255,11 @@ rivendell runs three classes of long-lived processes, all managed by macOS `laun
 `bin/sk-setup-agents` reads it, generates one plist per row in `~/Library/LaunchAgents/`,
 and `launchctl load`s them. Re-run after editing the conf.
 
+**Agent SSOT vs project metadata** (two separate vaults, don't conflate):
+- **`agents/agents.conf`** is authoritative for: agent label, schedule, script path, log directory, project binding (via label convention `com.sk.agent.<project>.<name>`).
+- **`~/.claude/projects.json`** is authoritative for: project metadata — repo path, description, mission brief. The dashboard uses it to *enrich* agent rows with the project's working directory, but it does NOT define what agents exist.
+- An agent in `projects.json`'s `agents` list but missing from `agents.conf` is **drift**, not a working agent. Run `./bin/sk check ssot` (when implemented) to surface this.
+
 **Why a custom runner (`sk-agent-run`)?** macOS TCC blocks `launchd`-spawned processes
 from reading `~/Documents/`. The compiled C wrapper runs `chdir()` before `execvp()`,
 which TCC permits. All `launchd` stdout/stderr go to `~/Library/Logs/sk-agent/` to
