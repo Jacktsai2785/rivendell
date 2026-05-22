@@ -299,3 +299,78 @@ launchctl list | grep com.sk      # 應該空
 - 有沒有 uncommitted changes？（決定 Phase 3 前要不要先 commit/stash）
 
 Phase 0 結果再來談要不要進 Phase 1。
+
+---
+
+## Phase 0 Findings (executed 2026-05-22)
+
+### 0.1 iCloud stub state
+- `brctl download ~/Documents` exit 0 — nothing left to download
+- `☁` marker 是 iCloud-tracking marker（不代表 cloud-only）
+- `du -sh`: rivendell 825 MB / ChimesFlow **66 GB** / gstack 1.2 GB — 都是 real local bytes
+- **結論**：cloud-only stub 不是阻礙
+
+### 0.2 Path-reference scan
+
+要 sed 的目標**比 plan 原版多 2 類**：
+
+| 類別 | 數量 | 處置 |
+|------|-----|------|
+| `~/Library/LaunchAgents/com.sk.*.plist` | 17 個 | Phase 4 sed |
+| `~/.claude/projects.json` | 1 檔 17 處 | Phase 4 sed |
+| `~/.claude/projects/-Users-manibari-Documents-Projects-*` 目錄 | ★ 待算個數 | Phase 4 **rename 目錄**（Claude Code 用路徑當資料夾名找 session） |
+| `~/.claude/projects/<X>/memory/*.md` | 部分 | Phase 4 sed |
+| `~/.claude/history.jsonl` | 1（read-only history） | 忽略 |
+| `~/.claude/plans/*.md` `~/.claude/sessions/*.json` | 少數 | 忽略（歷史） |
+| `rivendell/docker-compose.yml` | 1 | Phase 4 sed |
+| `rivendell/bin/sk` | 待確認 | Phase 4 verify |
+| 各 repo `.env` / Docker volumes / Python | 待 Phase 4 細掃 | Phase 4 grep + sed |
+
+### 0.3 Git status sweep (17 repos)
+
+**Clean (4)**: Edict (+1 unpushed), Family-Fiscal, Marketing-Pal, TailTrack
+
+**Dirty (13)** — working state，不阻擋遷移但要記錄：
+- 綻放計畫, lorien, rakucamp, resume-pool — `.learnings/` updates
+- ChimesFlow — 1 new doc
+- curia — backend + frontend + plist 新檔
+- gstack — 多個 SKILL.md 修改
+- MingOS — planning-with-files artifacts
+- news_stock — branch `feat/mops-scraper-fallback`, 多檔
+- odb-dfm — `legacy_svg/` 未追蹤
+- rivendell — **6 unpushed commits**（chart-design / Ship 1/3 / 本 plan）+ deleted reports
+- RTK — config + page
+- sales-assistant — backend + DB migration + .learnings
+
+### 0.4 Critical discoveries (改 plan)
+
+1. **同一 filesystem** (`/dev/disk3s5`) → **Phase 3 改用 `mv`**（atomic + instant），**不用 rsync**
+2. **磁碟剩 15GB / 460GB (97% 滿)** — `mv` 不需空間，但 rsync 會臨時複製 = 完全跑不動。確認用 mv 是 mandatory not optional
+3. **rivendell 必須先 push 6 個 unpushed commits 才能搬** — 給自己一個 remote backup（如果搬掛了還能 clone 回來）
+
+## Plan Revisions (post Phase 0)
+
+| 原 plan | 修正 |
+|--------|------|
+| Phase 3 用 `rsync -a --remove-source-files` | 改 `mv`（同 fs atomic） |
+| Phase 4 只 sed plists + projects.json | 加 **rename `~/.claude/projects/` 內的目錄** |
+| 沒提磁碟空間 | 加 risk: 15GB free — 不允許 rsync / 不允許複製 |
+| 沒要求 push 前置動作 | 加 **Phase 0.5 / Phase 2.5**: push 所有 unpushed |
+| Phase 3 沒考慮 dirty state | 確認：dirty 不阻擋 mv，working tree 跟著搬 |
+
+## Go / No-Go Decision
+
+**Recommend: GO to Phase 0.5 (push rivendell + clean repos with unpushed), then PAUSE before Phase 1**
+
+理由：
+- ✅ 沒有阻擋性 cloud stub
+- ✅ 路徑 ref 數量可控（17 plists + 1 projects.json + 一些 .claude 子目錄）
+- ✅ mv 是 atomic，不需要磁碟空間
+- ⚠️ rivendell 6 個 unpushed commits 必須先 push 當 backup
+- ⚠️ ChimesFlow 66GB 雖 mv 是 instant，但內部可能有 hardcoded path / 大 DB / .env，要 Phase 4 細掃
+- ⚠️ 13 個 dirty repos 不阻擋 mv，但搬完要記得在新位置 commit/push（同樣的工作但路徑不同）
+
+**Pause before Phase 1** 讓 user 看完 findings、決定要不要：
+- 推 rivendell + 其他 unpushed 到 GitHub
+- 確認最終目的地是 `~/code/`
+- 確認排除 Peter vault（separate ship）
