@@ -29,6 +29,8 @@ Commands:
   check [--verbose]   Health check: symlinks, reviews, gdrive, frontmatter
   check ssot          SSOT drift: diff agents.conf vs ~/.claude/projects.json
                       Flags: --json (structured), --quiet (only output if drift, exit non-zero)
+  check disk          Disk capacity: data volume backing \$HOME (WARN ≥90%, CRIT ≥95%)
+                      Flags: --json (structured), --quiet (only output if not ok, exit non-zero)
   run <task>          Run a task as single-shot agent (claude -p)
   audit               Generate audit report → reports/skill-audit-YYYY-MM-DD.md
   permissions [dir]   Scan project tooling and update .claude/settings.local.json
@@ -3127,6 +3129,78 @@ cmd_check_ssot() {
   return 0
 }
 
+# ─── Disk capacity check (data volume backing $HOME) ───────────────────
+# Surfaces macOS data-volume usage so the dashboard / cron can alert before
+# the disk fills. On 2026-05-23 the volume hit 100% (<450MB free), causing
+# `/tmp` write failures and risking agent/report/git breakage.
+# Thresholds: WARN >=90%, CRIT >=95%. Fast — `df` only, never `du`.
+# Exit: 0 ok, 1 warn, 2 crit (mirrors check-ssot's non-zero-on-problem).
+cmd_check_disk() {
+  local mode="text" quiet=false
+  local warn_pct="${SK_DISK_WARN_PCT:-90}" crit_pct="${SK_DISK_CRIT_PCT:-95}"
+  for arg in "$@"; do
+    case "$arg" in
+      --json)  mode="json" ;;
+      --quiet) quiet=true ;;
+    esac
+  done
+
+  # df the volume backing $HOME (on macOS this resolves to /System/Volumes/Data).
+  # -k → 1024-byte blocks for portable arithmetic across df implementations.
+  local df_line
+  df_line="$(df -k "$HOME" 2>/dev/null | tail -1)"
+
+  local fs size_k used_k avail_k pct mount
+  fs="$(echo "$df_line" | awk '{print $1}')"
+  size_k="$(echo "$df_line" | awk '{print $2}')"
+  used_k="$(echo "$df_line" | awk '{print $3}')"
+  avail_k="$(echo "$df_line" | awk '{print $4}')"
+  pct="$(echo "$df_line" | awk '{print $5}' | tr -d '%')"
+  mount="$(echo "$df_line" | awk '{print $NF}')"
+
+  # Guard against parse failure (empty df, unexpected format)
+  if ! [[ "$pct" =~ ^[0-9]+$ ]]; then
+    if [ "$mode" = "json" ]; then
+      printf '{"percent":-1,"status":"error","error":"failed to parse df output"}\n'
+    else
+      echo -e "${RED}Disk check failed: could not parse df output for \$HOME${NC}"
+    fi
+    return 2
+  fi
+
+  local size_gb used_gb avail_gb
+  size_gb="$(awk "BEGIN{printf \"%.0f\", ${size_k}/1024/1024}")"
+  used_gb="$(awk "BEGIN{printf \"%.0f\", ${used_k}/1024/1024}")"
+  avail_gb="$(awk "BEGIN{printf \"%.1f\", ${avail_k}/1024/1024}")"
+
+  local status rc
+  if   [ "$pct" -ge "$crit_pct" ]; then status="crit"; rc=2
+  elif [ "$pct" -ge "$warn_pct" ]; then status="warn"; rc=1
+  else status="ok"; rc=0
+  fi
+
+  if [ "$mode" = "json" ]; then
+    printf '{"volume":"%s","mount":"%s","size_gb":%s,"used_gb":%s,"avail_gb":%s,"percent":%s,"status":"%s","warn_threshold":%d,"crit_threshold":%d}\n' \
+      "$fs" "$mount" "$size_gb" "$used_gb" "$avail_gb" "$pct" "$status" "$warn_pct" "$crit_pct"
+  else
+    if $quiet && [ "$status" = "ok" ]; then
+      return 0
+    fi
+    # Suppress ANSI colors when output isn't a terminal (e.g. captured by the
+    # cron into a markdown report) so reports stay clean.
+    local c_cyan="$CYAN" c_nc="$NC" color="$GREEN"
+    [ "$status" = "warn" ] && color="$YELLOW"
+    [ "$status" = "crit" ] && color="$RED"
+    if [ ! -t 1 ]; then c_cyan=""; c_nc=""; color=""; fi
+    echo -e "${c_cyan}=== Disk Capacity Check ===${c_nc}"
+    echo "volume: $mount ($fs)"
+    echo "used:   ${used_gb}G / ${size_gb}G    avail: ${avail_gb}G"
+    echo -e "usage:  ${color}${pct}%${c_nc} (warn ≥${warn_pct}%, crit ≥${crit_pct}%) → ${color}${status}${c_nc}"
+  fi
+
+  return $rc
+}
+
 # Parse profiles.conf — output: type|field1|field2|...
 # Usage: parse_profile "dev-full"
 parse_profile() {
@@ -3634,6 +3708,7 @@ case "${1:-help}" in
     shift
     case "${1:-}" in
       ssot) shift; cmd_check_ssot "$@" ;;
+      disk) shift; cmd_check_disk "$@" ;;
       *)    cmd_check "${1:-}" ;;
     esac
     ;;

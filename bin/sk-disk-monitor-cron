@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Scheduled disk-capacity monitor — checks the data volume backing $HOME daily.
+# Writes a report only when usage crosses WARN (>=90%) / CRIT (>=95%).
+# Output to reports/disk-capacity-YYYY-MM-DD.md.
+#
+# Schedule: 03:30 daily (after ssot-drift 03:00). Cheap (df only, no du), so
+# ordering vs other agents doesn't matter much — sequenced for tidy logs.
+#
+# Why this exists: on 2026-05-23 the volume hit 100% (<450MB free), silently
+# breaking /tmp writes and risking agent/report/git failures. "Noisy when
+# broken, silent when fine" — same convention as sk-ssot-drift-cron.
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+PROJECT_NAME="$(basename "$REPO_DIR")"
+REPORT_DIR="$REPO_DIR/reports"
+TODAY="$(date '+%Y-%m-%d')"
+REPORT_FILE="$REPORT_DIR/disk-capacity-$TODAY.md"
+
+mkdir -p "$REPORT_DIR"
+
+# Source exec lib (best-effort — used by dashboard for run tracking)
+set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
+
+start_epoch="$(date +%s)"
+
+# Capture disk state in JSON form for parsing + text form for the report
+JSON_OUT="$("$REPO_DIR/bin/sk" check disk --json 2>/dev/null || true)"
+TEXT_OUT="$("$REPO_DIR/bin/sk" check disk 2>/dev/null || true)"
+
+# Extract status + percent from JSON (no jq dependency for these two fields)
+STATUS="$(echo "$JSON_OUT" | grep -o '"status":"[a-z]*"' | head -1 | cut -d'"' -f4)"
+STATUS="${STATUS:-error}"
+PERCENT="$(echo "$JSON_OUT" | grep -o '"percent":[0-9-]*' | head -1 | cut -d: -f2)"
+PERCENT="${PERCENT:-(-1)}"
+
+end_epoch="$(date +%s)"
+
+# Record run for dashboard observability. The "run" succeeded as long as the
+# check executed (ok/warn/crit); a parse failure (status=error) is exit 1.
+# NOTE: _sk_exec_record_run's real signature is
+#   project agent start_epoch end_epoch exit_code log_path [commit files qa branch pr]
+# (see bin/sk-harvest-cron:114). The 3-arg form used in sk-ssot-drift-cron is a
+# latent bug — it dies on `$4: unbound variable` whenever the fn is defined.
+record_exit=0
+[ "$STATUS" = "error" ] && record_exit=1
+if declare -f _sk_exec_record_run > /dev/null 2>&1; then
+    _sk_exec_record_run "$PROJECT_NAME" "disk-monitor" "$start_epoch" "$end_epoch" \
+      "$record_exit" "" "" "" "" "" "" || true
+fi
+
+# Only write a report when not ok (warn / crit / error)
+if [ "$STATUS" = "ok" ]; then
+    exit 0
+fi
+
+cat > "$REPORT_FILE" <<EOF
+---
+date: $TODAY
+type: disk-capacity
+percent: $PERCENT
+status: $STATUS
+---
+
+# Disk Capacity Report — $TODAY
+
+Daily check by \`bin/sk-disk-monitor-cron\` (03:30). Monitors the macOS data
+volume backing \`\$HOME\`. Thresholds: WARN ≥90%, CRIT ≥95%.
+
+## Summary
+
+\`\`\`
+$TEXT_OUT
+\`\`\`
+
+## Raw JSON
+
+\`\`\`json
+$JSON_OUT
+\`\`\`
+
+## How to fix
+
+Free space without touching personal data (largest safe wins first):
+
+- **Docker** — \`docker system df\`, then \`docker builder prune -f\` and
+  \`docker image prune -a -f\`. NOTE: \`image prune -a\` won't remove images
+  pinned by *stopped* containers — \`docker rm <stale-container>\` first.
+  Docker.raw is a sparse image; it shrinks back via APFS TRIM after prune.
+- **Xcode** — \`rm -rf ~/Library/Developer/Xcode/DerivedData/*\` (regenerates);
+  \`xcrun simctl delete unavailable\`.
+- **Caches / logs** — \`~/Library/Caches\` (disposable), \`~/Library/Logs\`
+  (preserve \`sk-agent/\` observability logs).
+- **Dev artifacts** — stale \`node_modules\` / \`.next\` in inactive repos.
+
+See \`docs/plans/2026-05-23-disk-space-cleanup.md\` for the full playbook.
+
+## Next reports
+
+Re-runs daily at 03:30. Report regenerates each day usage stays ≥90%.
+EOF
+
+echo "Disk $STATUS (${PERCENT}%) — wrote $REPORT_FILE"
+exit 0

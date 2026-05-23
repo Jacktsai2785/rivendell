@@ -2005,35 +2005,50 @@ def api_workflow() -> dict[str, Any]:
 def api_health() -> dict[str, Any]:
     """System health metrics.
 
-    Currently surfaces SSOT drift between `agents/agents.conf` (agent
-    identity SSOT) and `~/.claude/projects.json` (project metadata SSOT).
-    See README "Agent SSOT vs project metadata" section.
+    Surfaces:
+    - SSOT drift between `agents/agents.conf` (agent identity SSOT) and
+      `~/.claude/projects.json` (project metadata SSOT). See README
+      "Agent SSOT vs project metadata" section.
+    - Disk capacity of the data volume backing `$HOME` (WARN ≥90%, CRIT ≥95%).
     """
     repo_dir = Path(__file__).resolve().parent.parent.parent
     sk_bin = repo_dir / "bin" / "sk"
-    ssot_drift: dict[str, Any]
-    try:
-        result = subprocess.run(
-            [str(sk_bin), "check", "ssot", "--json"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=str(repo_dir),
-        )
-        # exit 0 = no drift, exit 1 = drift; both produce valid JSON on stdout
-        if result.stdout.strip():
-            ssot_drift = json.loads(result.stdout)
-        else:
-            ssot_drift = {"total_drift": 0, "agents_conf_only": [], "projects_json_only": [], "error": result.stderr.strip() or "empty stdout"}
-    except subprocess.TimeoutExpired:
-        ssot_drift = {"total_drift": -1, "error": "sk check ssot timed out (>10s)"}
-    except json.JSONDecodeError as e:
-        ssot_drift = {"total_drift": -1, "error": f"JSON decode failed: {e}"}
-    except FileNotFoundError:
-        ssot_drift = {"total_drift": -1, "error": f"sk binary not found at {sk_bin}"}
+
+    def _sk_check_json(check: str, empty_default: dict[str, Any]) -> dict[str, Any]:
+        """Run `sk check <check> --json`; return parsed JSON or an error dict.
+
+        exit 0 = ok, non-zero = problem detected; both emit valid JSON on stdout.
+        """
+        try:
+            result = subprocess.run(
+                [str(sk_bin), "check", check, "--json"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=str(repo_dir),
+            )
+            if result.stdout.strip():
+                return json.loads(result.stdout)
+            return {**empty_default, "error": result.stderr.strip() or "empty stdout"}
+        except subprocess.TimeoutExpired:
+            return {**empty_default, "error": f"sk check {check} timed out (>10s)"}
+        except json.JSONDecodeError as e:
+            return {**empty_default, "error": f"JSON decode failed: {e}"}
+        except FileNotFoundError:
+            return {**empty_default, "error": f"sk binary not found at {sk_bin}"}
+
+    ssot_drift = _sk_check_json(
+        "ssot",
+        {"total_drift": -1, "agents_conf_only": [], "projects_json_only": []},
+    )
+    disk = _sk_check_json(
+        "disk",
+        {"percent": -1, "status": "error"},
+    )
 
     return {
         "ssot_drift": ssot_drift,
+        "disk": disk,
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
 

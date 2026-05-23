@@ -183,6 +183,34 @@ export interface IssuesData {
   issues: IssueItem[];
 }
 
+// ── Health ───────────────────────────────────────────────────────────
+
+export interface DiskInfo {
+  volume: string;
+  mount: string;
+  size_gb: number;
+  used_gb: number;
+  avail_gb: number;
+  percent: number;
+  status: "ok" | "warn" | "crit" | "error";
+  warn_threshold: number;
+  crit_threshold: number;
+  error?: string;
+}
+
+export interface SsotDriftInfo {
+  total_drift: number;
+  agents_conf_only: { project: string; agent: string }[];
+  projects_json_only: { project: string; agent: string }[];
+  error?: string;
+}
+
+export interface HealthData {
+  ssot_drift: SsotDriftInfo;
+  disk: DiskInfo;
+  checked_at: string;
+}
+
 export interface SkillInfo {
   name: string;
   category: string;

@@ -5,6 +5,7 @@ import { apiFetch, type OverviewData, type AgentInfo } from "@/lib/api";
 import MetricsRow from "@/components/MetricsRow";
 import PendingIssues from "@/components/PendingIssues";
 import StatusDot from "@/components/StatusDot";
+import DiskCapacity from "@/components/DiskCapacity";
 
 function AgentStatusRow({ agent }: { agent: AgentInfo }) {
   let dot: "ok" | "warn" | "err" | "idle";
@@ -89,6 +90,24 @@ export default function OverviewPage() {
           { label: "專案數", value: metrics.total_projects },
         ]}
       />
+
+      {/* System health */}
+      <section className="mt-8">
+        <h2
+          className="mb-3"
+          style={{
+            fontSize: 18,
+            fontWeight: 500,
+            color: "var(--text)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          系統健康
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <DiskCapacity />
+        </div>
+      </section>
 
       {/* Projects status table */}
       {projects_summary && projects_summary.length > 0 && (

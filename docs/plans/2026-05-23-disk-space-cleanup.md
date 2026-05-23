@@ -90,9 +90,25 @@ Filesystem        Size    Used   Avail  Cap   Mounted on
 - [ ] `~/Downloads` 7.6G、`~/Desktop` 5.3G、`~/Documents` 4.9G — 逐項檢視
 - [ ] discord 1.4G 快取
 
-### Phase 5 — 常態監測（防止再次爆滿）
-- [ ] rivendell health endpoint / doctor 加入 disk usage 檢查（資料卷 > 90% → WARN，> 95% → CRIT）
-- [ ] 納入 `bin/sk-agent-doctor` 或 daily cron，dashboard 可見
+### Phase 5 — 常態監測（防止再次爆滿）✅ 已實作 2026-05-23
+功能組「空間容量監控」，mirror 既有 `ssot_drift` 範式：
+- [x] `bin/sk check disk`（CLI，`--json`/`--quiet`，門檻可用 `SK_DISK_WARN_PCT`/`SK_DISK_CRIT_PCT` 覆寫；df-only 快速）
+- [x] `/api/health` 加 `disk` 欄位（`dashboard-next/api/server.py`，重構出 `_sk_check_json` helper 與 ssot 共用）
+- [x] `bin/sk-disk-monitor-cron`（daily 3:30，只在 warn/crit 寫 `reports/disk-capacity-YYYY-MM-DD.md`，記錄 run 到 dashboard DB）
+- [x] `agents/agents.conf` 註冊 `com.sk.agent.rivendell.disk-monitor`
+- [x] launchd plist 手動建立 + bootstrap（**沒跑 `sk-setup-agents`** — 見下方地雷）
+- [x] dashboard「系統健康 → 磁碟容量」卡片（`src/components/DiskCapacity.tsx`，遵循 DESIGN.md，截圖驗證）
+- 門檻：WARN ≥90%、CRIT ≥95%。WARN/CRIT 路徑、報告生成、run 記錄皆測試通過。
+
+> ⚠️ **地雷（連帶發現，屬 iCloud detach Phase 4 收尾）**：`bin/sk-setup-agents:22`
+> 仍寫死 `PROJECTS_DIR="$HOME/Documents/Projects"`（iCloud detach 前舊路徑）。
+> 現有 17 個 agent 的 plist 已遷移到 `~/code`，但若重跑 `sk-setup-agents` 會把**所有 plist
+> 重新生成回舊路徑** → 整個 fleet 壞掉。這也是 `ssot-drift` plist 至今未載入的原因（跑了會炸）。
+> 修法：`PROJECTS_DIR` 改 derive（`$(dirname "$REPO_DIR")` 或 env），符合 CLAUDE.md「never hardcode」。
+> 在修好前，新增 agent 一律手動建 plist + `launchctl bootstrap`（如本次 disk-monitor）。
+
+> 備註：`doctor` 的 disk 檢查未做（選的範圍是 CLI+health+cron+dashboard，未含 doctor）；
+> 健康可見性已由 health endpoint + cron 報告 + dashboard 卡片三路覆蓋。
 
 ## Reclaimable Summary（不動個人資料的安全上限）
 
