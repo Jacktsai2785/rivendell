@@ -28,8 +28,8 @@ services:
       - ${HOME}/Library/LaunchAgents:/root/Library/LaunchAgents:ro
       - ${HOME}/.claude/projects:/root/.claude/projects:ro
       - ${HOME}/.claude/skills:/root/.claude/skills:ro
-      - ./skills:/Users/manibari/Documents/Projects/rivendell/skills:ro
-      - ${PROJECTS_DIR:-/Users/manibari/Documents/Projects}/gstack:/Users/manibari/Documents/Projects/gstack:ro
+      - ./skills:/Users/manibari/code/rivendell/skills:ro
+      - ${PROJECTS_DIR:-/Users/manibari/code}/gstack:/Users/manibari/code/gstack:ro
     restart: unless-stopped
 
   dashboard-web:
