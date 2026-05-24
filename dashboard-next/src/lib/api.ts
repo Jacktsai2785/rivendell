@@ -227,6 +227,19 @@ export interface HealthData {
   checked_at: string;
 }
 
+export interface RecentErrorItem {
+  name: string;
+  size: number;
+  mtime: string;
+  tail: string;
+}
+
+export interface RecentErrorsData {
+  recent_days: number;
+  total: number;
+  errors: RecentErrorItem[];
+}
+
 export interface DiskTreeNode {
   name: string;
   path: string;
