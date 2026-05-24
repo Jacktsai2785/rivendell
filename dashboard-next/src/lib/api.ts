@@ -227,6 +227,23 @@ export interface HealthData {
   checked_at: string;
 }
 
+export interface GitRepoStatus {
+  name: string;
+  branch: string;
+  dirty: number;
+  ahead: number;
+  behind: number;
+  has_upstream: boolean;
+}
+
+export interface GitHealthData {
+  root: string;
+  total: number;
+  dirty: number;
+  unpushed: number;
+  repos: GitRepoStatus[];
+}
+
 export interface RecentErrorItem {
   name: string;
   size: number;

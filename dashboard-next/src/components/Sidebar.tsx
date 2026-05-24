@@ -18,6 +18,7 @@ import {
   GitCompare,
   CalendarClock,
   FileWarning,
+  GitBranch,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -91,6 +92,7 @@ const NAV: NavNode[] = [
       { kind: "link", href: "/health/ssot", label: "SSOT 漂移", icon: GitCompare },
       { kind: "link", href: "/health/agents", label: "排程健康", icon: CalendarClock },
       { kind: "link", href: "/health/errors", label: "最近錯誤", icon: FileWarning },
+      { kind: "link", href: "/health/git", label: "Git 衛生", icon: GitBranch },
     ],
   },
   { kind: "link", href: "/ports", label: "Port 對應", icon: Network },
