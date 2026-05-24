@@ -27,3 +27,6 @@ node_modules/
 .env
 .env.shared
 .gstack/
+
+# Disk usage snapshot (regenerated daily by sk-disk-snapshot)
+dashboard/data/disk-tree.json

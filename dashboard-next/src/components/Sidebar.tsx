@@ -13,6 +13,8 @@ import {
   Network,
   Workflow,
   Library,
+  Activity,
+  HardDrive,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -75,6 +77,14 @@ const NAV: NavNode[] = [
         ],
       },
       { kind: "link", href: "/harvest", label: "Skill Harvest", icon: Wheat },
+    ],
+  },
+  {
+    kind: "header",
+    label: "系統健康",
+    icon: Activity,
+    children: [
+      { kind: "link", href: "/health/disk", label: "磁碟容量", icon: HardDrive },
     ],
   },
   { kind: "link", href: "/ports", label: "Port 對應", icon: Network },

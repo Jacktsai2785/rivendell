@@ -49,6 +49,10 @@ if declare -f _sk_exec_record_run > /dev/null 2>&1; then
       "$record_exit" "" "" "" "" "" "" || true
 fi
 
+# Refresh the WizTree-style disk-usage snapshot for the dashboard 磁碟容量 page.
+# Best-effort + slow (du over $HOME); a failure here must not block the report.
+"$REPO_DIR/bin/sk-disk-snapshot" >/dev/null 2>&1 || true
+
 # Only write a report when not ok (warn / crit / error)
 if [ "$STATUS" = "ok" ]; then
     exit 0

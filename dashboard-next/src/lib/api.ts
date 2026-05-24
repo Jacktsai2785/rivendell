@@ -211,6 +211,31 @@ export interface HealthData {
   checked_at: string;
 }
 
+export interface DiskTreeNode {
+  name: string;
+  path: string;
+  size_kb: number;
+  children: DiskTreeNode[];
+}
+
+export interface DiskTreeData {
+  available: boolean;
+  root?: string;
+  depth?: number;
+  generated_at?: string;
+  duration_sec?: number;
+  df?: {
+    size_kb: number;
+    used_kb: number;
+    avail_kb: number;
+    percent: number;
+    mount: string;
+  };
+  tree: DiskTreeNode | null;
+  hint?: string;
+  error?: string;
+}
+
 export interface SkillInfo {
   name: string;
   category: string;
