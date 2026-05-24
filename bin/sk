@@ -3074,8 +3074,8 @@ cmd_check_ssot() {
   json_only="$(comm -13 <(echo "$conf_sorted") <(echo "$json_sorted") | grep -v '^$' || true)"
 
   local conf_only_count json_only_count total_drift
-  conf_only_count="$(echo -n "$conf_only" | grep -c '^' || echo 0)"
-  json_only_count="$(echo -n "$json_only" | grep -c '^' || echo 0)"
+  conf_only_count="$(echo -n "$conf_only" | grep -c '^' || true)"
+  json_only_count="$(echo -n "$json_only" | grep -c '^' || true)"
   total_drift=$((conf_only_count + json_only_count))
 
   if [ "$mode" = "json" ]; then
