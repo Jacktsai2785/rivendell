@@ -16,6 +16,7 @@ import {
   Activity,
   HardDrive,
   GitCompare,
+  CalendarClock,
   ChevronRight,
   ChevronDown,
 } from "lucide-react";
@@ -87,6 +88,7 @@ const NAV: NavNode[] = [
     children: [
       { kind: "link", href: "/health/disk", label: "磁碟容量", icon: HardDrive },
       { kind: "link", href: "/health/ssot", label: "SSOT 漂移", icon: GitCompare },
+      { kind: "link", href: "/health/agents", label: "排程健康", icon: CalendarClock },
     ],
   },
   { kind: "link", href: "/ports", label: "Port 對應", icon: Network },

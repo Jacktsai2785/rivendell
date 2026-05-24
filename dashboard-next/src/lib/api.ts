@@ -205,9 +205,25 @@ export interface SsotDriftInfo {
   error?: string;
 }
 
+export interface AgentDriftPair {
+  label: string;
+  project: string;
+  agent: string;
+}
+
+export interface AgentDriftInfo {
+  total_drift: number;
+  defined: number;
+  loaded: number;
+  not_loaded: AgentDriftPair[];
+  loaded_not_in_conf: AgentDriftPair[];
+  error?: string;
+}
+
 export interface HealthData {
   ssot_drift: SsotDriftInfo;
   disk: DiskInfo;
+  agent_drift: AgentDriftInfo;
   checked_at: string;
 }
 

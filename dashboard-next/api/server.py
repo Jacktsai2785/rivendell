@@ -2045,10 +2045,15 @@ def api_health() -> dict[str, Any]:
         "disk",
         {"percent": -1, "status": "error"},
     )
+    agent_drift = _sk_check_json(
+        "agents",
+        {"total_drift": -1, "defined": 0, "loaded": 0, "not_loaded": [], "loaded_not_in_conf": []},
+    )
 
     return {
         "ssot_drift": ssot_drift,
         "disk": disk,
+        "agent_drift": agent_drift,
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
 
