@@ -9,6 +9,7 @@ import DiskCapacity from "@/components/DiskCapacity";
 import SsotDriftCard from "@/components/SsotDriftCard";
 import ScheduleHealthCard from "@/components/ScheduleHealthCard";
 import RecentErrorsCard from "@/components/RecentErrorsCard";
+import CostAnomalyCard from "@/components/CostAnomalyCard";
 
 function AgentStatusRow({ agent }: { agent: AgentInfo }) {
   let dot: "ok" | "warn" | "err" | "idle";
@@ -112,6 +113,7 @@ export default function OverviewPage() {
           <SsotDriftCard />
           <ScheduleHealthCard />
           <RecentErrorsCard />
+          <CostAnomalyCard />
         </div>
       </section>
 
