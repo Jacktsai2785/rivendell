@@ -9,6 +9,54 @@
 > learnings stay here or get promoted directly to `rivendell/.claude/CLAUDE.md` if
 > they're a rule. See `reports/learnings-promotion-sprint-2026-05-13.md`.
 
+## 2026-05-23 — `sk-setup-agents` PROJECTS_DIR 寫死舊 iCloud 路徑；重跑會把全部 plist 倒回壞路徑
+
+- **Category**: knowledge_gap
+- **Seen in**: rivendell — 加 `disk-monitor` agent、要載入 plist 時才發現
+- **Context**: `bin/sk-setup-agents:22` 仍是 `PROJECTS_DIR="$HOME/Documents/Projects"`（iCloud detach 前路徑）。iCloud detach 已把 17 個 repo 搬到 `~/code`、各 agent 的 plist 也（手動/遷移）更新成 `~/code`，但 setup-agents **本體沒改**。重跑 `./bin/sk-setup-agents` 會用 `$PROJECTS_DIR/$project_rel` 重新生成**所有** plist → 全指向不存在的 `~/Documents/Projects/...` → 整個 agent fleet 壞掉。這也是 `ssot-drift` plist 自 2026-05-20 加入後一直沒被載入的根因（跑 setup-agents 會炸，所以沒人跑）。
+- **Rule**:
+  1. 修好前，**新增 agent 一律手動建 plist + `launchctl bootstrap gui/$(id -u) <plist>`**（mirror 既有已載入的，如 `com.sk.agent.rivendell.doctor.plist`，路徑用 `~/code`）。disk-monitor 已這樣處理。
+  2. 正解：`PROJECTS_DIR` 改 derive — e.g. `PROJECTS_DIR="${SK_PROJECTS_DIR:-$(cd "$(dirname "$REPO_DIR")" && pwd)}"`（repo 的上層目錄），符合 `~/.claude/CLAUDE.md`「never hardcode the repo/project name / path」。
+  3. 修完後重跑一次正式納管 `ssot-drift` + `disk-monitor`，並 verify `grep -L /code ~/Library/LaunchAgents/com.sk.*.plist` 為空。
+- **Promote when**: 修好 derive 後 → 把「never hardcode PROJECTS_DIR；未修前新 agent 走 manual bootstrap」併進 `rivendell/.claude/CLAUDE.md` Rivendell Operations。相關：[[同日 sk undeploy orphan-symlink 條]]（同屬 iCloud detach 搬遷殘留）。
+
+---
+
+## 2026-05-23 — `_sk_exec_record_run` 是 11-arg；cron 用 3-arg 會死在 `$4: unbound variable`
+
+- **Category**: knowledge_gap
+- **Seen in**: rivendell — 寫 `sk-disk-monitor-cron` 照抄 `sk-ssot-drift-cron` 時踩到
+- **Context**: `bin/sk-exec-lib` 的 `_sk_exec_record_run` 真實簽名是
+  `project agent start_epoch end_epoch exit_code log_path [commit files qa branch pr]`（11 參數，正確用法見 `bin/sk-harvest-cron:114`）。但 `bin/sk-ssot-drift-cron` 用了自創的 3-arg 形式 `_sk_exec_record_run "ssot-drift" "clean" ""` → 在 `set -u` 下函式內引用未傳的 `$4` 直接 fatal，且 `|| true` 救不回（unbound var 在 set -u 下終止 shell）。所以只要 `_sk_exec_record_run` 有被 source 進來，ssot-drift cron 就會在記錄 run 那行死掉、寫不出 drift 報告。
+- **Rule**: 新 cron 要記 run，**照抄 `sk-harvest-cron:114` 的 11-arg 形式**，別自創簽名：
+  `_sk_exec_record_run "$PROJECT_NAME" "<agent>" "$start_epoch" "$end_epoch" "$run_exit" "" "" "" "" "" ""`。`sk-disk-monitor-cron` 已用對；`sk-ssot-drift-cron` 仍壞，待修。
+- **Promote when**: 修掉 ssot-drift cron 後屬一次性 bug，不需 promote；但「cron 記 run 用 11-arg」可考慮寫進 agent-observability skill。
+
+---
+
+## 2026-05-23 — `bin/sk undeploy` 只認 current `$REPO_DIR` 為主的 symlink；舊路徑 symlink 是 orphan
+
+- **Category**: knowledge_gap
+- **Seen in**: 2026-05-22 iCloud detach migration — 搬完 rivendell 到 `~/code/rivendell` 後，`~/.claude/skills/*` 還是 94 個 dangling symlinks 指向 `~/Documents/Projects/rivendell/skills/...`
+- **Context**: `cmd_undeploy` 的核心邏輯（`bin/sk` 接近行 113）：
+  ```bash
+  if [[ "$link_dest" == "$REPO_DIR"/* ]]; then rm "$target"; fi
+  ```
+  只 unlink「target 指向 *當前 REPO_DIR*」的 symlink。Rivendell 搬到新路徑後，`$REPO_DIR` 變成 `~/code/rivendell`，但所有 dangling symlinks 還指 `~/Documents/Projects/rivendell` — 不匹配 → 視為「不是我管的」→ 不刪。`sk deploy` 接著跑時看到「target 已存在（symlink）」就 skip → **94 個 dangling 永遠清不掉**。
+- **Rule**:
+  1. **rivendell repo 整體搬路徑時必加一個 manual cleanup 步驟**：
+     ```bash
+     for l in ~/.claude/skills/*; do
+       [ -L "$l" ] && [ ! -e "$l" ] && rm "$l"
+     done
+     ./bin/sk deploy
+     ```
+  2. 或者在 `cmd_undeploy` 加個 `--orphans` flag：清掉任何 dangling symlink，不檢查 target 是否屬於 current REPO_DIR
+  3. 注意：deploy hook 預設的「skip if already linked」會把 dangling 也當成「linked」— `if [ -L "$target" ]` 對 dangling symlink 仍 returns true
+- **Promote when**: 若加 `sk undeploy --orphans` flag → 直接 promote 為 rivendell `.claude/CLAUDE.md` 內 Rivendell Operations section 的 rule（取代手動 for-loop）。
+
+---
+
 ## 2026-05-13 — dashboard-next is launchd-managed; rebuild requires bootout/bootstrap, not `kill` + manual `next start`
 
 - **Category**: correction (followed by user "現在還是沒跑出來" + "畫面的 css 壞了")
