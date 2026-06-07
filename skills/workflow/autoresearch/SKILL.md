@@ -138,15 +138,17 @@ individual iterations if needed.
 
 ## Integration Points
 
-### launchd
+### systemd (scheduling)
 
-Schedule via `agents.conf` like any other headless agent:
+Schedule via `agents/agents.conf` like any other headless agent (pipe-delimited):
 
 ```
-autoresearch  keyword-coverage  02:00  daily  sk-autoresearch --goal keyword-coverage
+com.sk.agent.sales.autoresearch | sales-assistant | sk-autoresearch-wrapper.sh | calendar | 0:2:00 | reports
 ```
 
-The `sk-launchd-gen` skill picks this up and generates the plist automatically.
+`bin/sk-setup-systemd` picks this up and generates the `.service` + `.timer` user
+units automatically (Sunday 02:00 in this example). See the **launchd-agent** skill
+(systemd Scheduled-Agent guide) for the full fleet pattern.
 
 ### dashboard
 

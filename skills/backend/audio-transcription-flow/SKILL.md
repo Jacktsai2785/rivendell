@@ -222,7 +222,7 @@ export function TranscriptEditor({ initial }: { initial: string }) {
 
 | Issue | Fix |
 |-------|-----|
-| `ffmpeg not found` | `brew install ffmpeg` — needed for webm/ogg conversion |
+| `ffmpeg not found` | `sudo apt install ffmpeg` (Linux/WSL2) — needed for webm/ogg conversion |
 | Slow transcription | Switch to `faster-whisper` or use `small` model instead of `base` |
 | Large file timeout | Set `max_upload_size` and add chunked upload |
 | Chinese/mixed lang | Add `language="zh"` param to whisper call |

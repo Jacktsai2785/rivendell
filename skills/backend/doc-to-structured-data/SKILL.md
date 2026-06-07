@@ -29,13 +29,16 @@ Determine extraction strategy by file type:
 |--------|----------|------|
 | `.pdf` | Read tool (native PDF support) | Read with `pages` parameter |
 | `.docx` | Read tool or python-docx | Preserves tables, headings |
-| `.doc` (legacy) | `textutil -convert html` (macOS) → parse HTML | Fallback: `antiword` or `catdoc` |
+| `.doc` (legacy) | `antiword input.doc` or `libreoffice --headless --convert-to html` → parse | `catdoc` as a lighter fallback |
 | `.xlsx` | openpyxl or Read tool | Direct table access |
 | `.html` | BeautifulSoup | Table extraction |
 
-For `.doc` files on macOS:
+For `.doc` files on Linux / WSL2:
 ```bash
-textutil -convert html input.doc -output /tmp/converted.html
+sudo apt install antiword libreoffice
+antiword input.doc > /tmp/converted.txt
+# or, preserving structure:
+libreoffice --headless --convert-to html --outdir /tmp input.doc
 ```
 
 ### Step 2: Document Structure Analysis

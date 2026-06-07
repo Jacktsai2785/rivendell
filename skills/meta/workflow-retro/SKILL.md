@@ -55,7 +55,7 @@ Who is actually getting used, who is dead weight.
 - **Skill never fired in 30 days** → same endpoint, no entries with date >= today-30d.
   These are candidates for retirement, not because they're bad but because either
   the description doesn't trigger or the use case never came up. Both are signals.
-- **Agent execution status** → `launchctl list | grep com.sk` then per-agent
+- **Agent execution status** → `systemctl --user list-units 'com.sk.*'` (or `list-timers`) then per-agent
   `GET /api/agents/{label}/runs` for exit-code history.
   Note `0` = success, `1+` = failure, `-` = never ran (suspicious if the agent is
   scheduled and the schedule has passed).
@@ -66,7 +66,7 @@ Repetition is the signal — a one-off bug is noise; a pattern that surfaces thr
 weeks in a row is a workflow gap.
 
 - **Source A**: `.learnings/LEARNINGS.md` — scan section headers for repeated
-  topics (e.g., "next.js build", "launchd plist", "TCC permission").
+  topics (e.g., "next.js build", "systemd unit", "WSL2 path").
 - **Source B**: `reports/harvest-*.md` from the last 14 days — look for the same
   skill candidate being suggested across multiple reports without being built.
 - **Source C**: `reports/skill-audit-*.md` issue counts — issues that persist

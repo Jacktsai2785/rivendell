@@ -48,7 +48,7 @@ Key rules:
 
 - MUST use `export` before source (not inline `VAR=val source`)
 - Guard with `if [ -f ]` so script works without rivendell
-- Agent name should match the launchd label suffix
+- Agent name should match the systemd unit / `agents.conf` label suffix
 
 ## Layer 2: Progress Logging (Python)
 
@@ -73,9 +73,9 @@ Dated log files (`scraper-YYYY-MM-DD.log`) are matched to runs by timestamp.
 The dashboard finds logs via two methods:
 
 1. `reports/{agent-name}-stdout.log` (default)
-2. plist `StandardOutPath` (for non-standard log dirs)
+2. the systemd unit's `StandardOutput=append:<path>` (mirrored from the `LOG_DIR` column in `agents.conf`), for non-standard log dirs
 
-If your agent logs to a custom directory (e.g. `materials/tenders/`), no code changes needed — the dashboard reads the path from the plist automatically.
+If your agent logs to a custom directory (e.g. `materials/tenders/`), no code changes needed — the dashboard reads the path from the generated unit / `agents.conf` automatically. (`journalctl --user -u <label>` is always available as a fallback.)
 
 For the `/files` endpoint to list your log files, name them with the agent name prefix or `scraper-` prefix.
 
@@ -85,7 +85,7 @@ For the `/files` endpoint to list your log files, name them with the agent name 
 |------|------|--------|
 | 1 | Shell wrapper with exec-lib | Run once → check DB: `SELECT * FROM agent_runs WHERE agent_name='...'` |
 | 2 | Python `[step N/M]` logging | Run → check log file has step prefixes |
-| 3 | Plist StandardOutPath correct | `plutil -p ~/Library/LaunchAgents/com.sk.agent.*.plist \| grep StandardOutPath` |
+| 3 | Unit StandardOutput correct | `systemctl --user cat com.sk.agent.* \| grep StandardOutput` |
 | 4 | Dashboard shows history | Visit /agents/{label} → 執行歷史 should have rows |
 | 5 | Dashboard shows timeline | Click a run → should show log events, not "無時間線資料" |
 | 6 | Live monitoring works | Click "立即執行" → should stream output in real-time |
@@ -95,6 +95,6 @@ For the `/files` endpoint to list your log files, name them with the agent name 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | 執行歷史空白 | No exec-lib in wrapper | Add source + record_run |
-| "等待輸出..." forever | Log path mismatch | Check plist StandardOutPath matches actual log |
+| "等待輸出..." forever | Log path mismatch | Check the unit's `StandardOutput=` matches actual log |
 | "無時間線資料" | No dated log file | Ensure `scraper-YYYY-MM-DD.log` or agent log exists |
 | Timeline all same type (no colors) | Python not using logging module | Use `logging.error()` not `print("ERROR")` |

@@ -236,7 +236,7 @@ services:
       - /app/node_modules   # keep container node_modules
     environment:
       - NODE_ENV=development
-      - WATCHPACK_POLLING=true   # required for file watching on macOS Docker
+      - WATCHPACK_POLLING=true   # required for file watching on WSL2 / macOS Docker (host FS over a VM boundary)
     command: npm run dev
     read_only: false
     cap_drop: []
@@ -600,7 +600,7 @@ Check: Are they on the same network?
 | Port already in use | Check `port-map.html`, change `WEB_PORT`/`API_PORT` in `.env` |
 | `Path(__file__).parent*N` wrong in container | Use env var: `Path(os.environ.get("REPORTS_DIR", fallback))` |
 | node_modules conflict | Mount override: `- /app/node_modules` in volumes |
-| Hot reload not working | Ensure dev override is loaded; check `WATCHPACK_POLLING=true` for Docker on macOS |
+| Hot reload not working | Ensure dev override is loaded; check `WATCHPACK_POLLING=true` for Docker on WSL2 / macOS |
 | DB connection refused | Add `depends_on: db: condition: service_healthy`; verify `pg_isready` healthcheck |
 | `exec format error` | Architecture mismatch -- build for correct platform: `docker buildx build --platform linux/amd64` |
 | `Read-only file system` | Add `tmpfs` for writable paths or mount a volume for data dirs |

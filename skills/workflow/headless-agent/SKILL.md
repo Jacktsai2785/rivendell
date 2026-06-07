@@ -23,7 +23,7 @@ Run Claude Code as a headless agent — no human in the loop. The agent receives
 **Core components:**
 1. Runner script (bash) — invokes Claude with the right flags
 2. Log parser (python) — converts stream-json to structured JSONL
-3. Scheduler (launchd/cron/systemd) — triggers runs on schedule
+3. Scheduler (systemd user timer; cron as fallback) — triggers runs on schedule
 
 ## Runner Script Template
 
@@ -98,92 +98,12 @@ Each event includes a timestamp (`ts` field).
 
 The parser from `scripts/parse-agent-log.py` (in the rivendell repo) can be used directly or copied into your project.
 
-## macOS Scheduling (launchd)
+## Scheduling (Linux / WSL2 — systemd user timer)
 
-### Plist Template
-
-Save to `~/Library/LaunchAgents/com.user.agent-name.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.user.agent-name</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/path/to/runner.sh</string>
-    <string>daily</string>
-  </array>
-  <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key><integer>7</integer>
-    <key>Minute</key><integer>30</integer>
-  </dict>
-  <key>StandardOutPath</key>
-  <string>/path/to/logs/launchd-stdout.log</string>
-  <key>StandardErrorPath</key>
-  <string>/path/to/logs/launchd-stderr.log</string>
-  <key>WorkingDirectory</key>
-  <string>/path/to/project</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
-    <key>HOME</key>
-    <string>/Users/username</string>
-  </dict>
-</dict>
-</plist>
-```
-
-### Management Commands
-
-```bash
-# Load (enable)
-launchctl load ~/Library/LaunchAgents/com.user.agent-name.plist
-
-# Unload (disable)
-launchctl unload ~/Library/LaunchAgents/com.user.agent-name.plist
-
-# Check status
-launchctl list | grep agent-name
-
-# Run immediately (for testing)
-launchctl start com.user.agent-name
-```
-
-### launchd Gotchas
-
-- **PATH must be set explicitly.** launchd provides a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`). Claude Code, Homebrew tools, and python3 will not be found without setting PATH.
-- **HOME must be set.** Claude Code reads config from `~/.claude/`, which requires HOME to resolve correctly.
-- **WorkingDirectory** sets cwd for the script — use this instead of `cd` in the plist.
-- **StartCalendarInterval** for cron-like scheduling (specific times). **StartInterval** for fixed-interval in seconds.
-- **Weekday** key: 0 = Sunday, 1 = Monday, ..., 6 = Saturday. Use an array of dicts for multiple days.
-
-## Linux Scheduling (cron / systemd)
-
-### cron
-
-```bash
-# Edit crontab
-crontab -e
-
-# Run daily at 07:30
-30 7 * * * /path/to/runner.sh daily >> /path/to/logs/cron.log 2>&1
-
-# Run weekly on Sunday at 10:00
-0 10 * * 0 /path/to/runner.sh weekly >> /path/to/logs/cron.log 2>&1
-```
-
-Ensure PATH is set at the top of crontab:
-```
-PATH=/usr/local/bin:/usr/bin:/bin:/home/user/.local/bin
-```
-
-### systemd Timer
+This machine is WSL2 + systemd. Schedule headless runs with a `.service` (what to
+run) + `.timer` (when), or — for many agents — declare them in `agents/agents.conf`
+and let `bin/sk-setup-systemd` generate the units. See the **launchd-agent** skill
+(now the systemd Scheduled-Agent guide) for the full fleet pattern.
 
 Service file (`~/.config/systemd/user/agent.service`):
 ```ini
@@ -194,7 +114,9 @@ Description=Headless Claude Agent
 Type=oneshot
 ExecStart=/path/to/runner.sh daily
 WorkingDirectory=/path/to/project
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Minimal PATH — include nvm node, ~/.local/bin, and HOME so Claude finds ~/.claude/
+Environment=PATH=/home/jacktsai/.nvm/versions/node/current/bin:/home/jacktsai/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/jacktsai
 ```
 
 Timer file (`~/.config/systemd/user/agent.timer`):
@@ -211,9 +133,34 @@ WantedBy=timers.target
 ```
 
 ```bash
+loginctl enable-linger "$USER"          # survive logout (critical on WSL2)
+systemctl --user daemon-reload
 systemctl --user enable --now agent.timer
 systemctl --user status agent.timer
-journalctl --user -u agent.service
+journalctl --user -u agent.service -f   # live log
+```
+
+### systemd Gotchas
+
+- **PATH is minimal.** Set `Environment=PATH=` explicitly covering node (nvm),
+  python3, and `~/.local/bin`, or Claude/tools won't be found.
+- **HOME must be set.** Claude Code reads `~/.claude/`; set `Environment=HOME=`.
+- **Enable the `.timer`, not the `.service`** — enabling only the service runs it
+  once at boot, never on schedule.
+- **`daemon-reload` after every edit** — disk changes don't apply until reloaded.
+- **Linger** — without `loginctl enable-linger`, user units die on logout.
+
+### cron (fallback, if systemd is unavailable)
+
+```bash
+crontab -e
+# Run daily at 07:30
+30 7 * * * /path/to/runner.sh daily >> /path/to/logs/cron.log 2>&1
+```
+
+Set PATH at the top of the crontab:
+```
+PATH=/home/jacktsai/.nvm/versions/node/current/bin:/usr/local/bin:/usr/bin:/bin:/home/jacktsai/.local/bin
 ```
 
 ## Output Management
@@ -280,7 +227,7 @@ Adjust `--max-turns` per mode — daily checks need fewer turns than full resear
 1. **Always set `--max-turns`.** Without it, a confused agent can loop indefinitely, burning tokens.
 2. **Use `--dangerously-skip-permissions` only for trusted prompts on your own machine.** For shared environments, use `--allowedTools` to whitelist specific tools.
 3. **Keep prompts in the script** (not separate files) for auditability — you can see exactly what the agent was told in `git log`.
-4. **Set explicit PATH** in launchd/cron. This is the most common cause of "works manually, fails when scheduled."
+4. **Set explicit PATH (and HOME)** in the systemd unit / cron. This is the most common cause of "works manually, fails when scheduled."
 5. **Monitor stderr** for unexpected errors — agent output on stdout may look normal while stderr contains critical failures.
 6. **Use structured JSONL** to track cost over time. Token usage accumulates fast with daily runs.
 7. **Test manually before scheduling.** Run the script by hand, verify output, then add the schedule.
@@ -394,7 +341,7 @@ To record execution history to the dashboard DB, source `sk-exec-lib` from riven
 
 ```bash
 # Must export BEFORE sourcing — not inline
-export SK_EXEC_REPO_DIR="$HOME/Documents/Projects/rivendell"
+export SK_EXEC_REPO_DIR="$HOME/rivendell"
 
 # Guard so the script still works without rivendell installed
 if [ -f "$SK_EXEC_REPO_DIR/bin/sk-exec-lib" ]; then
@@ -412,7 +359,7 @@ Key points:
 
 ### Dashboard Log Discovery
 
-The dashboard API reads the `StandardOutPath` value from each agent's launchd plist to locate log files. If your agent writes logs to a non-standard directory (somewhere other than `reports/`), no code changes are needed — the dashboard resolves the path from the plist automatically. Just ensure your plist's `StandardOutPath` points to the correct log file.
+The dashboard API locates each agent's log from its `StandardOutput=append:<path>` line in the generated systemd `.service` unit (mirrored from the `LOG_DIR` column in `agents/agents.conf`). If your agent writes logs to a non-standard directory (somewhere other than `reports/`), no code changes are needed — the dashboard resolves the path from the unit/config automatically. Just ensure the unit's `StandardOutput=` points to the correct log file. (`journalctl --user -u <label>` always works as a fallback.)
 
 ### Live Monitoring
 
@@ -424,8 +371,8 @@ Tips for better visibility:
 
 ## Portability
 
-Hardcoded paths in launchd plists break when moving to a new machine. For managing multiple agents portably, see the **Portable Multi-Agent Fleet Pattern** in the `launchd-agent` skill, which provides:
-- Declarative `agents.conf` — all agents in one file
-- Auto-detect PATH (conda, homebrew, npm)
-- Compiled C launcher with FDA for `~/Documents/` access
-- One-command bootstrap: `./bin/sk-setup-agents`
+Hardcoded paths in unit files break when moving to a new machine. For managing multiple agents portably, see the **Portable Multi-Agent Fleet Pattern** in the `launchd-agent` skill (the systemd Scheduled-Agent guide), which provides:
+- Declarative `agents/agents.conf` — all agents in one file
+- Auto-detect PATH (nvm node, `~/.local/bin`, system bins)
+- Unit generation from config (no per-agent unit editing)
+- One-command bootstrap: `./bin/sk-setup-systemd`

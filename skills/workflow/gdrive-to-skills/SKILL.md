@@ -62,9 +62,9 @@ Google Drive `listFolder` does NOT reliably distinguish Google Docs from Google 
 | `application/vnd.google-apps.document` | `downloadFile` with `text/plain` or `readGoogleDoc` with `format=markdown` |
 | `application/vnd.google-apps.spreadsheet` | `downloadFile` with `text/csv` or `getGoogleSheetContent` |
 | `application/vnd.google-apps.presentation` | `downloadFile` with `text/plain` or `getGoogleSlidesContent` |
-| `.docx` (uploaded file) | `downloadFile` (no exportMimeType needed), then `textutil -convert txt` on macOS |
+| `.docx` (uploaded file) | `downloadFile` (no exportMimeType needed), then extract text with `pandoc file.docx -t plain` (or `libreoffice --headless --convert-to txt`) |
 | `.pdf` (uploaded file) | `downloadFile`, then read with Read tool |
-| `.pptx` (uploaded file) | `downloadFile`, then `textutil -convert txt` on macOS |
+| `.pptx` (uploaded file) | `downloadFile`, then `libreoffice --headless --convert-to txt file.pptx` (or the office-pptx skill) |
 
 **IMPORTANT — Avoid parallel MCP call cascading failures:**
 When one MCP tool call fails in a parallel batch, ALL sibling calls get cancelled. To prevent this:

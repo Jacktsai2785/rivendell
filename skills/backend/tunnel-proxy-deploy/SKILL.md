@@ -141,10 +141,11 @@ load_dotenv()
 ## Python Version Compatibility
 
 - `list[str] | None` syntax requires Python 3.10+
-- If deploying on older machines, install Python 3.12 via Homebrew:
+- If deploying on older machines, install Python 3.12 (Linux / WSL2):
   ```bash
-  brew install python@3.12
-  /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv .venv
+  sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt update
+  sudo apt install python3.12 python3.12-venv
+  python3.12 -m venv .venv
   ```
 - Always verify venv Python version matches: `.venv/bin/python3 --version`
 - After recreating venv, kill old processes — they may hold the old port
@@ -152,8 +153,8 @@ load_dotenv()
 ## Node.js Version
 
 - Next.js 15+ requires Node.js >= 18.18.0
-- Install via Homebrew: `brew install node@22`
-- Use full path: `/opt/homebrew/opt/node@22/bin/npx next build`
+- Install via nvm (Linux / WSL2): `nvm install 22 && nvm use 22`
+- Use full path: `~/.nvm/versions/node/$(nvm version)/bin/npx next build`
 
 ## QA Checklist for Tunnel Deploy
 
@@ -191,5 +192,5 @@ done
 | `TELEGRAM_BOT_TOKEN not set` | `.env` not loaded | `set -a && source .env` before uvicorn |
 | `Port XXXX is not available` | Old process still running | `lsof -i :PORT -t \| xargs kill` |
 | Wrong app on port (e.g. NBA instead of CRM) | Stale Python 3.9 process | Kill old process, rebuild venv with correct Python |
-| `error 1033` on Cloudflare | Tunnel process died | `launchctl unload/load` the plist |
-| Next.js build fails | Wrong Node.js version | Use `/opt/homebrew/opt/node@22/bin/npx` |
+| `error 1033` on Cloudflare | Tunnel process died | `systemctl --user restart <tunnel>.service` (or restart `cloudflared`) |
+| Next.js build fails | Wrong Node.js version | Use the nvm node: `nvm use 22 && npx next build` |

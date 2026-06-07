@@ -31,7 +31,8 @@ cd ~/any-project && claude
 
 | Command | Description |
 |---------|-------------|
-| `./bin/sk deploy` | Symlink all skills → `~/.claude/skills/` + install plist templates → `~/Library/LaunchAgents/` |
+| `./bin/sk deploy` | Symlink all skills → `~/.claude/skills/` |
+| `./bin/sk-setup-systemd` | Generate + load systemd user units (`.service`/`.timer`) from `agents/agents.conf` (Linux/WSL2) |
 | `./bin/sk undeploy` | Remove repo symlinks from `~/.claude/skills/` |
 | `./bin/sk create <cat/name>` | Scaffold new skill (e.g. `quality/my-linter`) |
 | `./bin/sk import <name>` | Import from SkillsMP via `agent-skills-cli` |
@@ -89,7 +90,7 @@ cd ~/any-project && claude
 | **investment-research** | `/investment-research` 或自動 | 投資研究流程：總經掃描 → 選股池 → Alpha 發現 → 風險評估 → 回測 → 四大報表 → 報告 |
 | **jd-writer** | 自動 | Generate structured Job Descriptions (JD / 職缺描述) from organizational context. |
 | **keyword-discovery** | 自動 | 自動分析爬蟲未匹配項目，發現新關鍵字候選詞，高信心詞自動升級至 active 列表 |
-| **launchd-agent** | 自動 | 建立、設定、除錯 macOS launchd agents（plist 產生、排程、launchctl 生命週期管理） |
+| **launchd-agent** | 自動 | 建立、設定、除錯 Linux/WSL2 systemd user 排程 agents（`.service`/`.timer` 產生、OnCalendar 排程、systemctl --user 生命週期、agents.conf fleet 模式） |
 | **material-health** | `/material-health` | Health check for the sales materials library — detects missing frontmatter |
 | **mockup** | `/mockup` 或自動 | 三階段 UI mockup（ASCII → 靜態 HTML → 互動 HTML），讀取 design system，支援 Figma 匯出 |
 | **mops-financial-scraper** | 自動 | 自動化從 MOPS（`mopsov.twse.com. |
@@ -121,7 +122,7 @@ cd ~/any-project && claude
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
 | **auto-stage** | Hook (PostToolUse) | 檔案編輯/建立後自動 git add，跳過 .env 和 node_modules |
-| **repo-rename** | `/repo-rename` | Repo 改名時全系統審計引用（plist、Claude 設定、腳本、兄弟 repo），產出遷移清單並執行 |
+| **repo-rename** | `/repo-rename` | Repo 改名時全系統審計引用（systemd user units、Claude 設定、腳本、兄弟 repo），產出遷移清單並執行 |
 
 ### frontend/ — 前端設計、iOS、測試
 
@@ -177,19 +178,19 @@ cd ~/any-project && claude
 
 Each skill directory gets symlinked individually into `~/.claude/skills/`. Edits to skill files take effect immediately — re-deploy only when adding new skills.
 
-Deploy also installs `com.*.plist` templates into `~/Library/LaunchAgents/`, replacing `REPO_PATH` with the actual repo path.
+Scheduling is separate: run `./bin/sk-setup-systemd` to (re)generate systemd user units from `agents/agents.conf`.
 
 ## System Architecture
 
-rivendell runs three classes of long-lived processes, all managed by macOS `launchd`:
+rivendell runs three classes of long-lived processes on **Linux / WSL2**, all managed by **systemd user units** (`systemctl --user`):
 
 ```
-┌─ Dashboard (always-on) ─────────────────────────┐
+┌─ Dashboard (always-on, keepalive) ──────────────┐
 │  com.sk.dashboard.api     FastAPI :8000         │
 │  com.sk.dashboard.web     Next.js :3000         │
 │  com.sk.dashboard.watchdog  HTTP health probe   │  ← restarts hung API/web
 └─────────────────────────────────────────────────┘
-┌─ Scheduled agents (cron-like) ──────────────────┐
+┌─ Scheduled agents (timers) ─────────────────────┐
 │  rivendell.harvest    every 8h  → reports/      │
 │  rivendell.maintain   daily 22:00               │
 │  rivendell.tester     daily 6:00                │
@@ -199,15 +200,18 @@ rivendell runs three classes of long-lived processes, all managed by macOS `laun
 ```
 
 **Single source of truth:** `agents/agents.conf` — pipe-delimited list of every agent.
-`bin/sk-setup-agents` reads it, generates one plist per row in `~/Library/LaunchAgents/`,
-and `launchctl load`s them. Re-run after editing the conf.
+`bin/sk-setup-systemd` reads it, generates one `.service` (+ `.timer` for scheduled
+ones) per row in `~/.config/systemd/user/`, runs `loginctl enable-linger` (so units
+survive logout — critical on WSL2), then `systemctl --user enable --now`s them. Re-run
+after editing the conf.
 
-**Why a custom runner (`sk-agent-run`)?** macOS TCC blocks `launchd`-spawned processes
-from reading `~/Documents/`. The compiled C wrapper runs `chdir()` before `execvp()`,
-which TCC permits. All `launchd` stdout/stderr go to `~/Library/Logs/sk-agent/` to
-avoid the same restriction.
+**WSL2 prerequisite:** systemd must be enabled — `[boot]\nsystemd=true` in
+`/etc/wsl.conf`, then `wsl --shutdown` once. On Linux a normal user can read its own
+`$HOME` freely, so no custom runner / Full-Disk-Access dance is needed (that was a
+macOS launchd/TCC concern). Logs go to each unit's `StandardOutput=append:` path
+under the project's `logs/` or `reports/`, and to `journalctl --user -u <label>`.
 
-**Schedule types** (column 4 of `agents.conf`):
+**Schedule types** (column 4 of `agents.conf`, mapped to systemd by `sk-setup-systemd`):
 | Type | Value | Meaning |
 |------|-------|---------|
 | `interval` | seconds | Run every N seconds (e.g. `60`, `28800`) |
@@ -219,14 +223,14 @@ avoid the same restriction.
 
 ```bash
 # Status
-launchctl list | grep com.sk.dashboard
+systemctl --user list-units 'com.sk.dashboard.*'
 
-# Manual restart (kills + relaunches via launchd)
-launchctl kickstart -k gui/$UID/com.sk.dashboard.api
-launchctl kickstart -k gui/$UID/com.sk.dashboard.web
+# Manual restart
+systemctl --user restart com.sk.dashboard.api.service
+systemctl --user restart com.sk.dashboard.web.service
 
 # Logs
-tail -f ~/Library/Logs/sk-agent/com.sk.dashboard.api-stderr.log
+journalctl --user -u com.sk.dashboard.api.service -f
 tail -f reports/api-stderr.log    # also captured here
 tail -f reports/watchdog.log       # only written when health checks fail
 ```
@@ -237,7 +241,7 @@ The dashboard URLs are http://localhost:8000 (API) and http://localhost:3000 (we
 ### How the watchdog works
 
 `bin/sk-watchdog` runs every 60s (via `com.sk.dashboard.watchdog`) and HTTP-probes
-both services. `launchd`'s `KeepAlive` only catches process death — it cannot detect
+both services. systemd's `Restart=always` only catches process death — it cannot detect
 a hung process whose port is still listening. The watchdog covers that gap:
 
 - Failure threshold: **3 consecutive failures** (~3 min) before restart
@@ -250,21 +254,22 @@ Tune by editing `THRESHOLD` / `GRACE_SECONDS` at the top of `bin/sk-watchdog`.
 ### Adding or changing an agent
 
 1. Edit `agents/agents.conf` (add a row, comment out, or change schedule)
-2. Run `./bin/sk-setup-agents` — regenerates plists and re-loads them all
-3. Verify: `launchctl list | grep com.sk.<your-label>`
+2. Run `./bin/sk-setup-systemd` — regenerates `.service`/`.timer` units and re-enables them all
+3. Verify: `systemctl --user list-timers --all | grep <your-label>` (or `list-units`)
 
-To temporarily disable an agent, comment its row in `agents.conf` and re-run setup,
-**then** delete the stale plist from `~/Library/LaunchAgents/` (the script does not
-clean up rows that no longer exist).
+To temporarily disable an agent, comment its row in `agents.conf`, then
+`systemctl --user disable --now <label>.timer` (or `.service`) and remove its unit
+files from `~/.config/systemd/user/` (the generator does not clean up rows that no
+longer exist). `./bin/sk-setup-systemd --stop` disables the whole managed fleet.
 
 ### Troubleshooting
 
 | Symptom | Where to look |
 |---------|---------------|
-| Dashboard returns nothing | `tail -f reports/api-stderr.log` and `~/Library/Logs/sk-agent/com.sk.dashboard.api-stderr.log` |
+| Dashboard returns nothing | `tail -f reports/api-stderr.log` and `journalctl --user -u com.sk.dashboard.api.service` |
 | Watchdog restarting every 3 min | `cat reports/watchdog.log` — find the failing endpoint, then read the API stderr log |
-| Agent didn't run on schedule | `launchctl list \| grep com.sk.<label>` — last column is exit code; `0` = success, `-` = never ran |
-| Permission errors writing to `reports/` | macOS TCC — re-run `./bin/sk-setup-agents` to recompile `sk-agent-run` |
+| Agent didn't run on schedule | `systemctl --user list-timers --all \| grep <label>` (next/last fire); `systemctl --user status <label>.service` for exit code |
+| Units gone after reboot | systemd not enabled in WSL — set `[boot] systemd=true` in `/etc/wsl.conf`, `wsl --shutdown`; ensure `loginctl enable-linger "$USER"` |
 | Audit / health questions | `./bin/sk audit` (writes `reports/skill-audit-YYYY-MM-DD.md`) |
 
 ## Using Skills in Other Projects

@@ -1,6 +1,6 @@
 ---
 name: repo-rename
-description: Systematically audit all cross-location references when renaming a git repo, generate a migration checklist, and execute the rename safely. Covers launchd plists, Claude Code configs, shell scripts, sibling repos, and package manifests.
+description: Systematically audit all cross-location references when renaming a git repo, generate a migration checklist, and execute the rename safely. Covers systemd user units, Claude Code configs, shell scripts, sibling repos, and package manifests.
 tags: [git, refactoring, migration]
 version: 1
 source: harvest-2026-03-18
@@ -31,14 +31,14 @@ Scan **before** renaming (grep needs old path to exist):
 
 | Location | Scan |
 |----------|------|
-| LaunchAgents | `grep -rl OLD_NAME ~/Library/LaunchAgents/*.plist` |
+| systemd user units | `grep -rl OLD_NAME ~/.config/systemd/user/*.service ~/.config/systemd/user/*.timer` |
 | Claude projects | `~/.claude/projects.json` path-based keys |
 | Claude settings | `~/.claude/settings.json`, `.claude/settings.local.json` hook paths |
 | Project settings | `.claude/settings.local.json` in sibling projects |
 | Shell scripts | `grep -r OLD_NAME bin/ scripts/` |
 | Package manifests | `package.json` name/repository, `pyproject.toml` |
 | Git remote | `git remote -v` — GitHub URL |
-| Sibling repos | `grep -r OLD_NAME ~/Documents/Projects/*/` (exclude .git, node_modules) |
+| Sibling repos | `grep -r OLD_NAME ~/*/` (project tree; exclude .git, node_modules) |
 | agents.conf | `rivendell/agents/agents.conf` project paths |
 | profiles.conf | `rivendell/profiles/profiles.conf` git URLs, local dirs |
 | docker-compose | `rivendell/docker-compose.yml` build context paths |
@@ -55,17 +55,17 @@ Scan **before** renaming (grep needs old path to exist):
 
 Order matters:
 
-1. `launchctl unload` all agents referencing old path
+1. `./bin/sk-setup-systemd --stop` (stop + disable all managed units referencing old path)
 2. `mv OLD_PATH NEW_PATH`
-3. `sed -i` for plist, scripts, config (auto-fixable items)
+3. `sed -i` for unit files, scripts, config (auto-fixable items)
 4. `git remote set-url origin` (if GitHub name also changes — use `gh repo rename`)
-5. `launchctl load` updated plists
-6. `./bin/sk-setup-agents` (regenerate plists from agents.conf)
+5. `systemctl --user daemon-reload`
+6. `./bin/sk-setup-systemd` (regenerate .service/.timer units from agents.conf)
 7. `./bin/sk deploy` (fix skill symlinks)
 
 ### Step 5: Verify
 
-- `launchctl list | grep com.sk` — agents loaded
+- `systemctl --user list-units 'com.sk.*'` — agents loaded
 - `./bin/sk check` — no broken symlinks
 - `git status` — repo clean
 - Claude Code projects index updated

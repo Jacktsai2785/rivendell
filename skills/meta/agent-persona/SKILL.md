@@ -98,7 +98,7 @@ You are a {role} agent for the {project_name} project.
 ### Step 4: Configure Execution
 
 Generate the corresponding entries for:
-- `agents.conf` (launchd scheduling)
+- `agents.conf` (systemd scheduling, via `bin/sk-setup-systemd`)
 - `.claude/agents.json` (agent metadata)
 - Wrapper script in `bin/` (execution entry point)
 

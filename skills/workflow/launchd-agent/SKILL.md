@@ -1,358 +1,342 @@
 ---
-name: LaunchD Agent
+name: Scheduled Agent (systemd)
 description: >
-  Create, configure, debug, and manage macOS launchd agents (LaunchAgents plist files).
-  Covers plist generation, scheduling with StartCalendarInterval, launchctl lifecycle
-  (load/unload/start/list), log configuration, troubleshooting common issues, and
-  portable multi-agent fleet management with declarative config + bootstrap script.
-  TRIGGER when: user asks to create a scheduled task on macOS, mentions plist/launchctl/LaunchAgent,
-  wants to set up cron-like automation on Mac, asks about launchd scheduling, is debugging
-  why a scheduled agent isn't running, or wants to make launchd agents portable across machines.
-  Also trigger when user says "排程", "定時執行", "自動化任務", or "引繼".
-  DO NOT TRIGGER when: user is working on Linux (use cron/systemd), building CI pipelines
-  (use ci-pipeline), or deploying to cloud (use deploy).
+  Create, configure, debug, and manage scheduled / always-on agents on Linux & WSL2
+  using systemd user units (.service + .timer). Covers OnCalendar/OnUnitActiveSec
+  scheduling, systemctl --user lifecycle (enable/start/status/list), journald + file
+  logging, troubleshooting, and the declarative multi-agent fleet pattern
+  (agents.conf + sk-setup-systemd bootstrap) used in this repo.
+  TRIGGER when: user asks to create a scheduled / cron-like task on Linux or WSL2,
+  mentions systemd / systemctl / OnCalendar / user timer / .service / .timer, wants
+  cron-like automation that survives logout, is debugging why a scheduled agent isn't
+  running, or wants to make a fleet of agents portable across machines.
+  Also trigger when user says "排程", "定時執行", "自動化任務", "開機自啟", or "引繼".
+  DO NOT TRIGGER when: building CI pipelines (use ci-pipeline), deploying to cloud
+  (use deploy), or setting up a long-running web service with health checks where
+  systemd-user-service already fits better.
 when_to_use: >
-  When creating or managing scheduled tasks on macOS via launchd.
-version: 2.0.0
-tags: [workflow, macos, launchd, scheduling, automation, portability]
-languages: [bash, python, c]
+  When creating or managing scheduled / keep-alive tasks on Linux or WSL2 via systemd
+  user units. This is the cron/launchd replacement for this machine (WSL2 + systemd).
+version: 3.0.0
+tags: [workflow, linux, wsl2, systemd, scheduling, automation, portability]
+languages: [bash, python]
 ---
 
-# LaunchD Agent Management
+# Scheduled Agent Management (systemd user units)
 
-Guide for creating and managing macOS LaunchAgents — the macOS equivalent of cron jobs, but with richer scheduling, logging, and lifecycle control.
+Guide for creating and managing scheduled and always-on agents on **Linux / WSL2**
+using **systemd user units** — the replacement for cron and (on this machine,
+formerly) macOS launchd. systemd gives richer scheduling, journald logging,
+crash-restart, and per-unit lifecycle control.
+
+> **Platform note.** This machine is WSL2 + systemd. All scheduling goes through
+> `systemctl --user`. If you find yourself writing a `.plist` or calling
+> `launchctl`, you are on the wrong platform — stop and use the patterns below.
+> The actual deployed fleet lives in `agents/agents.conf` and is installed by
+> `bin/sk-setup-systemd`.
 
 ## Quick Reference
 
 | Task | Command |
 |------|---------|
-| Load agent | `launchctl load ~/Library/LaunchAgents/<label>.plist` |
-| Unload agent | `launchctl unload ~/Library/LaunchAgents/<label>.plist` |
-| Run immediately | `launchctl start <label>` |
-| Check status | `launchctl list <label>` |
-| See all agents | `launchctl list \| grep <prefix>` |
+| Install/refresh whole fleet | `./bin/sk-setup-systemd` |
+| Preview units (no install) | `./bin/sk-setup-systemd --dry-run` |
+| Stop + disable fleet | `./bin/sk-setup-systemd --stop` |
+| Reload after editing a unit | `systemctl --user daemon-reload` |
+| Enable + start a timer | `systemctl --user enable --now <label>.timer` |
+| Run a unit immediately | `systemctl --user start <label>.service` |
+| Check status | `systemctl --user status <label>.timer` |
+| List all timers | `systemctl --user list-timers --all` |
+| List managed units | `systemctl --user list-units 'com.sk.*'` |
+| Tail a unit's log | `journalctl --user -u <label>.service -f` |
 
-## Plist Template
+## Service + Timer Templates
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.example.my-agent</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/path/to/script.sh</string>
-    </array>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>9</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
-    <key>WorkingDirectory</key>
-    <string>/path/to/working/dir</string>
-    <key>StandardOutPath</key>
-    <string>/path/to/stdout.log</string>
-    <key>StandardErrorPath</key>
-    <string>/path/to/stderr.log</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin</string>
-    </dict>
-</dict>
-</plist>
+systemd splits "what to run" (`.service`) from "when to run it" (`.timer`).
+Both live in `~/.config/systemd/user/`.
+
+### Service unit (`<label>.service`)
+
+```ini
+[Unit]
+Description=rivendell: com.sk.agent.example
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jacktsai/rivendell
+Environment=PATH=/home/jacktsai/.nvm/versions/node/current/bin:/home/jacktsai/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=REPO_DIR=/home/jacktsai/rivendell
+ExecStart=/bin/bash /home/jacktsai/rivendell/scripts/task.sh
+StandardOutput=append:/home/jacktsai/rivendell/logs/example.log
+StandardError=append:/home/jacktsai/rivendell/logs/example-error.log
+Restart=no
+
+[Install]
+WantedBy=default.target
 ```
 
-## Scheduling Patterns
+### Timer unit (`<label>.timer`)
 
-### Single schedule (daily at 9:00)
-```xml
-<key>StartCalendarInterval</key>
-<dict>
-    <key>Hour</key><integer>9</integer>
-    <key>Minute</key><integer>0</integer>
-</dict>
+```ini
+[Unit]
+Description=Timer for com.sk.agent.example
+Requires=com.sk.agent.example.service
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+Unit=com.sk.agent.example.service
+
+[Install]
+WantedBy=timers.target
 ```
 
-### Multiple schedules (9:00 and 18:00)
-Use an **array** of dicts — this is a common gotcha:
-```xml
-<key>StartCalendarInterval</key>
-<array>
-    <dict>
-        <key>Hour</key><integer>9</integer>
-        <key>Minute</key><integer>0</integer>
-    </dict>
-    <dict>
-        <key>Hour</key><integer>18</integer>
-        <key>Minute</key><integer>0</integer>
-    </dict>
-</array>
+`Persistent=true` makes a missed run (machine asleep / WSL shut down) fire on
+next boot — the systemd equivalent of launchd's catch-up behavior.
+
+## Scheduling Patterns (`OnCalendar`)
+
+| Goal | `OnCalendar=` |
+|------|---------------|
+| Daily at 09:00 | `*-*-* 09:00:00` |
+| Twice daily (09:00 & 18:00) | two `OnCalendar=` lines in one `[Timer]` |
+| Every Monday 09:00 | `Mon *-*-* 09:00:00` |
+| Mon **and** Thu 08:00 | `Mon,Thu *-*-* 08:00:00` |
+| 1st of month 03:00 | `*-*-01 03:00:00` |
+| Every 5 minutes (interval) | use `OnUnitActiveSec=300` instead of `OnCalendar` |
+
+Multiple schedules = repeat the line:
+
+```ini
+[Timer]
+OnCalendar=*-*-* 09:00:00
+OnCalendar=Mon *-*-* 18:00:00
+Persistent=true
 ```
 
-### Weekly (every Monday at 9:00)
-Weekday: 0=Sunday, 1=Monday, ..., 6=Saturday
-```xml
-<key>StartCalendarInterval</key>
-<dict>
-    <key>Weekday</key><integer>1</integer>
-    <key>Hour</key><integer>9</integer>
-    <key>Minute</key><integer>0</integer>
-</dict>
+Interval-based (every N seconds after boot, then after each run):
+
+```ini
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=28800   # every 8h
+Unit=com.sk.agent.example.service
 ```
 
-### Interval-based (every 5 minutes)
-```xml
-<key>StartInterval</key>
-<integer>300</integer>
+Always-on service (no timer — restart on crash), the keep-alive pattern:
+
+```ini
+[Service]
+...
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=default.target
 ```
 
-### Run at load
-Add `RunAtLoad` to also run when the agent is first loaded:
-```xml
-<key>RunAtLoad</key>
-<true/>
+Validate any `OnCalendar` expression before deploying:
+
+```bash
+systemd-analyze calendar 'Mon,Thu *-*-* 08:00:00'   # prints next elapse times
 ```
-
-## Available Calendar Keys
-
-| Key | Type | Range | Notes |
-|-----|------|-------|-------|
-| Month | integer | 1-12 | |
-| Day | integer | 1-31 | Day of month |
-| Weekday | integer | 0-6 | 0=Sunday |
-| Hour | integer | 0-23 | |
-| Minute | integer | 0-59 | |
-
-Omitted keys mean "any" — a dict with only `Minute: 0` runs every hour at :00.
 
 ## Installation Flow
 
-The correct sequence for installing/updating an agent:
+The correct sequence for installing/updating a unit by hand:
 
 ```bash
-# 1. If already loaded, unload first (avoids error 5)
-launchctl unload ~/Library/LaunchAgents/com.example.plist 2>/dev/null
+# 1. Write/replace the unit files in ~/.config/systemd/user/
+cp example.service example.timer ~/.config/systemd/user/
 
-# 2. Copy/generate the plist (replace template vars if needed)
-sed "s|REPO_PATH|$PWD|g" template.plist > ~/Library/LaunchAgents/com.example.plist
+# 2. Reload systemd's view of unit files (REQUIRED after any edit)
+systemctl --user daemon-reload
 
-# 3. Load the agent
-launchctl load ~/Library/LaunchAgents/com.example.plist
+# 3. Enable + start (timer for scheduled, service for keep-alive)
+systemctl --user enable --now com.sk.agent.example.timer
 
-# 4. Verify it's loaded
-launchctl list com.example
+# 4. Verify
+systemctl --user list-timers --all | grep example
 ```
 
-The unload-before-load pattern is important because `launchctl load` on an already-loaded agent returns error 5 ("Input/output error").
+Unlike launchd, re-running `enable --now` on an already-active unit is
+**idempotent** — no unload-first dance. But you MUST `daemon-reload` after
+editing a unit file on disk, or systemd keeps running the old version.
 
-## Reading Plist in Python
+## WSL2 essentials
+
+1. **Enable systemd in WSL.** `/etc/wsl.conf` must contain:
+   ```ini
+   [boot]
+   systemd=true
+   ```
+   then `wsl --shutdown` from Windows and reopen. Check with `systemctl --user`.
+
+2. **Linger — survive logout.** User units stop when you log out unless linger
+   is on. `sk-setup-systemd` runs this for you; manually it's:
+   ```bash
+   loginctl enable-linger "$USER"
+   ```
+   Critical on WSL2, where closing the terminal counts as a logout.
+
+3. **PATH is minimal.** Like cron/launchd, systemd units get a bare PATH. Set it
+   explicitly with `Environment=PATH=...` (include the nvm node bin, `~/.local/bin`).
+
+## Reading / Writing Units in Python
+
+systemd units are plain INI text — no `plistlib`. Parse with `configparser`
+(note: systemd allows duplicate keys like multiple `OnCalendar=`, so for those
+read the file as text):
 
 ```python
-import plistlib
 from pathlib import Path
-
-plist_path = Path.home() / "Library/LaunchAgents/com.example.plist"
-with open(plist_path, "rb") as f:
-    data = plistlib.load(f)
-
-# Schedule can be dict (single) or list (multiple)
-schedule = data.get("StartCalendarInterval", {})
-if isinstance(schedule, dict):
-    schedule = [schedule]
-# Now schedule is always a list of dicts
+unit = Path.home() / ".config/systemd/user/com.sk.agent.example.timer"
+text = unit.read_text()
+on_calendar = [l.split("=", 1)[1].strip()
+               for l in text.splitlines() if l.startswith("OnCalendar=")]
 ```
 
-## Modifying Schedule Programmatically
+After writing a unit file from Python, shell out to apply:
 
 ```python
-import plistlib
-
-with open(plist_path, "rb") as f:
-    data = plistlib.load(f)
-
-# Set multiple schedules
-data["StartCalendarInterval"] = [
-    {"Hour": 9, "Minute": 0},
-    {"Hour": 18, "Minute": 0, "Weekday": 1},
-]
-
-with open(plist_path, "wb") as f:
-    plistlib.dump(data, f)
-
-# Must unload + load to apply changes
+import subprocess
+subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+subprocess.run(["systemctl", "--user", "restart", "com.sk.agent.example.timer"], check=True)
 ```
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `load` returns error 5 | Agent already loaded | Unload first, then load |
-| Agent doesn't run | PATH not set in plist | Add `EnvironmentVariables` with PATH |
-| Agent runs but script fails | Working directory wrong | Set `WorkingDirectory` in plist |
-| `launchctl list` shows exit code 78 | Configuration error | Check plist syntax with `plutil -lint` |
-| Agent not in `launchctl list` | Not loaded or wrong path | Ensure plist is in `~/Library/LaunchAgents/` |
-| Agent runs at wrong time | Schedule timezone | launchd uses system timezone |
+| Unit not found | Never installed / wrong name | `systemctl --user daemon-reload`; check `~/.config/systemd/user/` |
+| Edits have no effect | Forgot to reload | `systemctl --user daemon-reload` then restart |
+| Runs but script fails | Wrong working dir / PATH | Set `WorkingDirectory=` and `Environment=PATH=` |
+| `status` shows `code=exited, status=127` | command not found | Fix PATH in the `[Service]` section |
+| Timer never fires | Timer not enabled, only service | `systemctl --user enable --now <label>.timer` |
+| Stops on logout | Linger off | `loginctl enable-linger "$USER"` |
+| Whole thing missing after reboot | systemd not enabled in WSL | Set `[boot] systemd=true` in `/etc/wsl.conf`, `wsl --shutdown` |
+| Wrong run time | Timezone | systemd uses system tz; check `timedatectl` |
+
+Diagnostics:
+
+```bash
+systemctl --user status <label>.service   # last result, recent log lines
+journalctl --user -u <label>.service -n 50 --no-pager
+systemctl --user list-timers --all        # next/last elapse for every timer
+```
 
 ## Common Gotchas
 
-1. **PATH is minimal** — launchd agents run with a very limited PATH (`/usr/bin:/bin:/usr/sbin:/sbin`). Always set PATH explicitly or use absolute paths in scripts.
+1. **`daemon-reload` after every edit** — editing a `.service`/`.timer` on disk
+   does nothing until you reload. The most common "why didn't my change take"
+   bug.
 
-2. **Single vs array schedule** — A single `StartCalendarInterval` dict vs an array of dicts. Python's `plistlib` handles both, but your code must check `isinstance(schedule, dict)`.
+2. **Timer enables the schedule, service does the work** — for scheduled jobs
+   enable the **`.timer`**, not the `.service`. Enabling only the service makes
+   it run once at boot, never again.
 
-3. **Changes need reload** — Editing a plist file does nothing until you `unload` + `load` the agent.
+3. **Linger or it dies** — without `enable-linger`, user units die on logout.
+   Non-negotiable on WSL2.
 
-4. **User agents only** — `~/Library/LaunchAgents/` runs as the current user and only while logged in. For system-wide agents that run at boot, use `/Library/LaunchDaemons/` (requires root).
+4. **PATH is minimal** — always set `Environment=PATH=` covering node (nvm),
+   python3, and `~/.local/bin`, or use absolute paths in scripts.
 
-5. **Log rotation** — launchd doesn't rotate logs. Use dated log paths (e.g., `agent-$(date +%F).log`) or set up a separate rotation mechanism.
+5. **No log rotation by default** — `StandardOutput=append:` files grow forever.
+   Use dated paths or rely on `journalctl` (which rotates) instead of file
+   append.
 
-6. **TCC / Full Disk Access** — launchd agents accessing `~/Documents/`, `~/Desktop/`, or `~/Downloads/` need the executable to have Full Disk Access (FDA). `/bin/bash` does NOT have FDA by default. See the Portable Fleet Pattern below for the solution.
-
-7. **Cross-project `source` causes EDEADLK (exit 78)** — When a launchd script sources a lib from a *different* project directory (e.g., `source ~/Documents/OtherProject/bin/lib.sh`), macOS TCC can intermittently return "Resource deadlock avoided" (errno 78). Under `set -euo pipefail` this silently aborts the entire script. Wrap the `source` defensively:
-
-   ```bash
-   # Bad — aborts script on TCC failure
-   source "$OTHER_PROJECT/bin/sk-exec-lib"
-
-   # Good — TCC failure is non-fatal; main task continues
-   set +e; source "$OTHER_PROJECT/bin/sk-exec-lib" 2>/dev/null || true; set -e
-   ```
-
-   This applies especially when the sourced lib is optional (e.g., dashboard telemetry). If the lib is mandatory, log the failure and exit cleanly rather than proceeding silently.
+6. **`%` must be escaped** — in unit files a literal `%` is written `%%`
+   (systemd uses `%` for specifiers like `%h` = home dir).
 
 ---
 
 ## Portable Multi-Agent Fleet Pattern
 
-When managing multiple launchd agents across machines, hardcoded absolute paths make plists non-portable. This pattern solves it with three components:
+When managing multiple scheduled agents across machines, hand-writing unit files
+is unmaintainable. This repo solves it with a declarative config + a bootstrap
+generator. **This is the real, deployed system — read these files for live
+examples.**
 
 ### Architecture
 
 ```
-project/
+rivendell/
 ├── agents/
-│   ├── agents.conf          # Declarative agent definitions
-│   └── sk-agent-run.c       # Compiled launcher (gets FDA)
+│   └── agents.conf          # Declarative agent definitions (one line each)
 └── bin/
-    └── sk-setup-agents      # Bootstrap: detect PATH → compile → generate plists → load
+    └── sk-setup-systemd     # Bootstrap: read agents.conf → generate .service/.timer → enable
 ```
 
-New machine setup: `./bin/sk-setup-agents` → grant FDA → done.
+New machine setup: ensure `[boot] systemd=true` in `/etc/wsl.conf`, then
+`./bin/sk-setup-systemd` → done. No FDA / TCC dance (that was a macOS concern);
+on Linux a normal user can read its own `$HOME` freely.
 
-### 1. Declarative Config (`agents.conf`)
+### 1. Declarative Config (`agents/agents.conf`)
 
-All agents defined in one file — no plist editing needed:
+All agents defined in one file — no unit editing needed:
 
 ```
 # LABEL | PROJECT_REL | SCRIPT | SCHEDULE_TYPE | SCHEDULE_VALUE | LOG_DIR | EXTRA_ARGS
 #
 # SCHEDULE_TYPE: interval | calendar | calendar_multi | keepalive
 # SCHEDULE_VALUE:
-#   interval       → seconds (28800 = 8h)
-#   calendar       → H:MM or W:H:MM (W=weekday 0-6)
-#   calendar_multi → W1:H:MM,W2:H:MM
-#   keepalive      → - (always running)
+#   interval       → seconds (28800 = 8h)          → OnUnitActiveSec
+#   calendar       → H:MM or W:H:MM (W=weekday 0-6) → OnCalendar
+#   calendar_multi → W1:H:MM,W2:H:MM                → multiple OnCalendar lines
+#   keepalive      → -  (always running, Restart=always)
 
-com.example.daily-task   | my-project | scripts/task.sh   | calendar       | 7:30         | logs
-com.example.weekly-task  | my-project | scripts/weekly.sh | calendar       | 0:10:00      | logs | weekly
-com.example.twice-weekly | my-project | scripts/scrape.sh | calendar_multi | 1:8:00,4:8:00 | logs
-com.example.web-server   | my-project | scripts/start.sh  | keepalive      | -            | logs
+com.sk.agent.rivendell.harvest  | rivendell | bin/sk-harvest-cron  | interval       | 28800         | reports
+com.sk.agent.rivendell.maintain | rivendell | bin/sk-maintain-cron | calendar       | 22:00         | reports
+com.sk.agent.sales.subsidy      | sales     | scripts/subsidy.sh   | calendar_multi | 1:8:00,4:8:00 | materials
+com.sk.dashboard.api            | rivendell | dashboard-next/start-api.sh | keepalive | -          | logs
 ```
 
-### 2. Compiled Launcher (`sk-agent-run.c`)
+`PROJECT_REL` is resolved relative to rivendell's parent dir, so the same config
+works on any machine where the project tree lives side by side.
 
-A tiny C program that `cd`s into the project dir and execs the script. Compiled during setup so it can receive FDA — `/bin/bash` cannot.
+### 2. Bootstrap Generator (`bin/sk-setup-systemd`)
 
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
+Key responsibilities (see the script for the full implementation):
 
-int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "Usage: sk-agent-run <project_dir> <script> [args...]\n");
-        return 1;
-    }
-    if (chdir(argv[1]) != 0) { perror("chdir"); return 1; }
-
-    int new_argc = argc - 1;
-    char **new_argv = malloc((new_argc + 1) * sizeof(char *));
-    new_argv[0] = "/bin/bash";
-    for (int i = 2; i < argc; i++) new_argv[i - 1] = argv[i];
-    new_argv[new_argc] = NULL;
-
-    execv("/bin/bash", new_argv);
-    perror("execv"); return 1;
-}
-```
-
-Why not just a shell script? macOS TCC blocks `/bin/bash` from accessing `~/Documents/` when launched by launchd. A compiled binary can be granted FDA individually.
-
-### 3. Bootstrap Script (`sk-setup-agents`)
-
-Key responsibilities:
-1. **Auto-detect PATH** — scans for conda, homebrew, npm global, ~/.local/bin
-2. **Compile launcher** — `cc -O2 -o ~/.local/bin/sk-agent-run agents/sk-agent-run.c`
-3. **Generate plists** — reads agents.conf, expands `$HOME`-relative paths
-4. **Load into launchd** — unload-then-load each agent
+1. **Detect PATH** — locates node (nvm) + `~/.local/bin` + system bins.
+2. **Enable linger** — `loginctl enable-linger "$USER"` so units survive logout.
+3. **Generate units** — reads `agents.conf`, maps each SCHEDULE_TYPE to the
+   right `[Timer]`/`[Service]` stanza, writes to `~/.config/systemd/user/`.
+4. **Reload + enable** — `daemon-reload`, then `enable --now` each timer/service.
 
 ```bash
-# PATH detection pattern — finds tools regardless of install location
-detect_path() {
-  local parts="/usr/local/bin:/usr/bin:/bin"
-  [ -d "/opt/homebrew/bin" ] && parts="/opt/homebrew/bin:$parts"
-  for conda_bin in "$HOME/miniconda3/bin" "$HOME/anaconda3/bin" \
-    "/opt/homebrew/Caskroom/miniconda/base/bin"; do
-    [ -d "$conda_bin" ] && { parts="$conda_bin:$parts"; break; }
-  done
-  local npm_bin="$(npm config get prefix 2>/dev/null)/bin"
-  [ -d "$npm_bin" ] && parts="$parts:$npm_bin"
-  parts="$parts:$HOME/.local/bin"
-  echo "$parts"
-}
+./bin/sk-setup-systemd            # install + start everything
+./bin/sk-setup-systemd --dry-run  # print generated units without installing
+./bin/sk-setup-systemd --stop     # stop + disable all managed units
 ```
 
-### FDA Setup (one-time per machine)
+### 3. Auto-Heal Script (`bin/sk-agent-doctor`)
 
-After running `sk-setup-agents`:
-
-1. Open **System Settings → Privacy & Security → Full Disk Access**
-2. Click **+**, navigate to `~/.local/bin/sk-agent-run`
-3. Toggle ON
-
-Without FDA, agents accessing `~/Documents/` will fail with "Operation not permitted" (exit 126).
-
-### 4. Auto-Heal Script (`sk-agent-doctor`)
-
-Diagnoses failing agents by reading stderr/stdout logs and applies known fixes:
+Diagnoses failing agents by reading their logs / journald and applies known
+fixes:
 
 | Pattern | Auto-Fix |
 |---------|----------|
-| `command not found` | Re-run `sk-setup-agents` (regenerate PATH) |
+| `command not found` / status 127 | Re-run `sk-setup-systemd` (regenerate PATH) |
 | `No module named 'X'` | `pip3 install X` (with name mapping) |
-| `EADDRINUSE` / `address already in use` | Kill stale process, restart agent |
+| `address already in use` (EADDRINUSE) | Kill stale process, restart unit |
 | `ENOTEMPTY .next` | Remove stale build cache |
-| `Operation not permitted` | Report: grant FDA (manual) |
+| `Permission denied` | Report (check file ownership) |
 | `OAuth token has expired` | Report: `claude login` (manual) |
 | `Push failed` | Report: check git remote (manual) |
-| `ENOTFOUND` / API unreachable | Report: check network (manual) |
+| API unreachable | Report: check network (manual) |
 
 ```bash
 ./bin/sk-agent-doctor            # diagnose + auto-fix
 ./bin/sk-agent-doctor --check    # diagnose only (dry run)
 ```
 
-Integrates with `sk-tester-cron` — tester auto-triggers doctor when agent health check fails.
+Integrates with `sk-tester-cron` — tester auto-triggers doctor when an agent
+health check fails.
 
 ### Cron-Script Conventions (rivendell flavor)
 
 Every cron-style script under `bin/sk-*-cron` (or any `bin/sk-*` invoked by a
-launchd agent) follows the same shape. Following these conventions means the
+systemd unit) follows the same shape. Following these conventions means the
 fleet behaves predictably — anomalies surface naturally and re-runs are safe.
 
 ```bash
@@ -362,7 +346,7 @@ fleet behaves predictably — anomalies surface naturally and re-runs are safe.
 # <2-3 line explanation of what it does and what failure mode it solves>
 set -euo pipefail
 
-# Resolve repo root from script location, NOT from $PWD — launchd's cwd is unreliable
+# Resolve repo root from script location, NOT from $PWD — a unit's cwd is unreliable
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 STATE_DIR="$REPO_DIR/reports"
 STATE_FILE="$STATE_DIR/.<name>-state"   # gitignored runtime state
@@ -376,7 +360,7 @@ set +e; source "$REPO_DIR/bin/sk-exec-lib" 2>/dev/null || true; set -e
 # ... do the work ...
 
 # Always exit 0 for maintenance scripts; failures live in the log, not the
-# launchd exit code. Use exit 1 only when the script itself broke (config
+# unit exit code. Use exit 1 only when the script itself broke (config
 # missing, prerequisite absent), not when "nothing was wrong to fix".
 exit 0
 ```
@@ -387,32 +371,29 @@ exit 0
    changed (`FIXED`, `RESTART`, `ARCHIVED`). A healthy fleet produces empty
    logs, which makes anomalies obvious. A noisy log buries the signal.
 
-2. **State in `reports/.<name>-state`.** Hidden file, gitignored. Format is
-   plain text, parseable by `grep`/`cut`. Anything stateful (last-run timestamp,
-   counters) goes here. Examples in this repo: `.watchdog-state`,
-   `.harvest-state`, `.harvest-done`.
+2. **State in `reports/.<name>-state`.** Hidden file, gitignored. Plain text,
+   parseable by `grep`/`cut`. Anything stateful (last-run timestamp, counters)
+   goes here. Examples in this repo: `.watchdog-state`, `.harvest-state`,
+   `.harvest-done`.
 
 3. **Pipefail trap defense.** With `set -euo pipefail`, a `grep` that finds no
    match returns 1 and kills the whole script. Wrap risky pipelines:
    ```bash
    { grep "^$key:" "$STATE_FILE" 2>/dev/null | cut -d: -f2-; } || true
    ```
-   The `{ ...; } || true` catches the pipeline's exit and gives back 0. Common
-   trap when reading state files that may be empty on first run.
 
 4. **Idempotent re-run.** Running the script twice in a row on already-clean
-   state must be a no-op. Validate this manually before deploying the agent:
+   state must be a no-op. Validate before deploying the unit:
    ```bash
    ./bin/sk-<name>; echo "first: $?"
    ./bin/sk-<name>; echo "second: $?"   # both 0, no log change between them
    ```
-   This is what makes `launchctl kickstart` safe and lets the cron's interval
-   be tuned freely.
+   This is what makes `systemctl --user start` / timer re-fires safe.
 
 5. **`exit 0` always for maintenance.** Maintenance scripts are not health
-   checks. If you exit 1 when "nothing needed fixing", launchd will retry
-   aggressively and `launchctl list` will show alarming failure counts that
-   mean nothing. Reserve non-zero exit codes for "the script itself broke."
+   checks. If you exit non-zero when "nothing needed fixing", systemd marks the
+   unit `failed` and `list-units` shows alarming failures that mean nothing.
+   Reserve non-zero exit codes for "the script itself broke."
 
 **See live examples:** `bin/sk-watchdog`, `bin/sk-deploy-symlink-fix`,
 `bin/sk-reports-janitor`, `bin/sk-workflow-retro-cron`. All follow this shape.
@@ -420,26 +401,25 @@ exit 0
 ### Debugging the Fleet
 
 ```bash
-# All agents at a glance
-launchctl list | grep com.sk | awk '{printf "%-50s exit=%s pid=%s\n", $3, $2, $1}'
+# All managed units at a glance
+systemctl --user list-units 'com.sk.*' --no-pager
 
-# Common exit codes
+# Next/last fire time for every timer
+systemctl --user list-timers --all --no-pager
+
+# One unit's recent result + log
+systemctl --user status com.sk.agent.rivendell.harvest.service
+journalctl --user -u com.sk.agent.rivendell.harvest.service -n 50 --no-pager
+
+# Common exit statuses (systemctl status → "status=N")
 #   0   = success
-#   1   = script error (check stderr log)
-#   126 = permission denied (grant FDA)
-#   127 = command not found (check PATH in plist)
-#   256 = script exited 1 (launchd multiplies by 256)
+#   1   = script error (check the log)
+#   127 = command not found (fix PATH in the unit)
+#   203 = ExecStart not found / not executable
 
-# Reload a single agent after config change
-launchctl unload ~/Library/LaunchAgents/com.example.plist
-launchctl load ~/Library/LaunchAgents/com.example.plist
+# Reload all after editing agents.conf
+./bin/sk-setup-systemd
 
-# Reload all
-./bin/sk-setup-agents
-
-# Unload all
-./bin/sk-setup-agents --unload
-
-# Preview without installing
-./bin/sk-setup-agents --dry-run
+# Stop + disable all
+./bin/sk-setup-systemd --stop
 ```
