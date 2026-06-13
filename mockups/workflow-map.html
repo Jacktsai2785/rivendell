@@ -263,6 +263,7 @@ const DEFAULT_DATA = {
     'subsidy-scraper':         { source:'local', desc:'自動化政府補助爬蟲' },
     'swiftui-patterns':        { source:'local', desc:'SwiftUI 架構模式與最佳實踐' },
     'sync-readme':             { source:'local', desc:'保持 README.md 與程式碼結構同步' },
+    'task-brief':              { source:'local', desc:'四階段判斷（思考/探索/決定/執行）+ 五欄位任務定義 brief' },
     'telegram-bot':            { source:'local', desc:'建立 Telegram bots 的完整指南' },
     'tender-scraper':          { source:'local', desc:'自動化政府標案爬蟲' },
     'tunnel-proxy-deploy':     { source:'local', desc:'FastAPI + Next.js 透過 Cloudflare Tunnel 部署' },
@@ -319,6 +320,7 @@ const DEFAULT_DATA = {
       label: 'UI Feature / New Page',
       icon: '🖥',
       steps: [
+        { num:0, label:'任務定義',       desc:'先判斷任務在思考/探索/決定/執行哪一階段——前三階段分別走反問/選項/評估模式（不出成品）；確認進入「執行」後，才用五欄位 brief（目標/背景/素材/邊界/完成定義）定義任務再動手。（已有 prompt 時改走稽核模式逐欄補缺）', mandatory:['task-brief'], optional:[] },
         { num:1, label:'驗證 Why',       desc:'確認需求合理性、使用者故事、驗收標準', mandatory:['requirement'], optional:['gstack-office-hours'] },
         { num:2, label:'畫面流程',       desc:'Screen transitions + 分支設計', mandatory:['user-flow'], optional:[] },
         { num:3, label:'品牌方向',       desc:'設計系統 / 品牌諮詢', mandatory:['gstack-design-consultation'], optional:[] },
@@ -336,6 +338,7 @@ const DEFAULT_DATA = {
       label: 'Backend / Bug Fix / Refactor',
       icon: '🔧',
       steps: [
+        { num:0, label:'任務定義',   desc:'先判斷任務在思考/探索/決定/執行哪一階段——前三階段分別走反問/選項/評估模式（不出成品）；確認進入「執行」後，用五欄位 brief 劃定範圍：症狀 / 重現條件 / 已排除假設（即背景・素材・邊界），先定 AI 該往哪找再調查。（已有 prompt 時改走稽核模式逐欄補缺）', mandatory:['task-brief'], optional:[] },
         { num:1, label:'調查根因',   desc:'系統性除錯找出根本原因', mandatory:['gstack-investigate'], optional:[] },
         { num:2, label:'實作',       desc:'修復或實作', mandatory:[], optional:[] },
         { num:3, label:'Diff 審查',  desc:'提交前 diff 審查', mandatory:['gstack-review'], optional:[] },
