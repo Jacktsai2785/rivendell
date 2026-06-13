@@ -150,6 +150,7 @@
           <button onclick="collapseAll('core')" class="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">收合全部</button>
         </div>
       </div>
+      <div id="stage-router" class="mb-4"></div>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" id="core-tracks"></div>
       <!-- Maintenance table -->
       <div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
@@ -311,6 +312,18 @@ const DEFAULT_DATA = {
     'gstack-unfreeze':         { source:'gstack', desc:'清除 freeze 設定的邊界' },
     'gstack-upgrade':          { source:'gstack', desc:'升級 gstack 到最新版本' },
     'gstack.bak':              { source:'gstack', desc:'（備份檔案）gstack 的備份副本' },
+  },
+
+  // ── Stage router（前置 gate）──
+  stageRouter: {
+    title: '任務階段判斷',
+    subtitle: '由 task-brief 主導的前置 gate：先判斷任務落在哪一階段，前三階段各有自己的模式且不出成品；只有「執行」才往下進入核心開發流程。',
+    branches: [
+      { stage:'思考', mode:'反問模式',   desc:'問題本身還沒想清 → 丟 5–8 個鋒利問題逼出具體，不出成品', skills:['gstack-office-hours'], enters:false },
+      { stage:'探索', mode:'選項模式',   desc:'問題清楚要看選項 → 列 2–4 方向 + trade-off，不下推薦', skills:['task-brief'], enters:false },
+      { stage:'決定', mode:'評估模式',   desc:'選項已知要選一個 → 拿你的判準評分、給傾向，不重新發散', skills:['task-brief'], enters:false },
+      { stage:'執行', mode:'五欄位 brief', desc:'方向已定要產出 → 用五欄位定義任務，再進入下方 track', skills:['task-brief'], enters:true },
+    ],
   },
 
   // ── Core tracks ──
@@ -592,6 +605,46 @@ function renderStats() {
   `;
 }
 
+function renderStageRouter() {
+  const container = document.getElementById('stage-router');
+  const r = state.stageRouter;
+  if (!r) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <div class="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 overflow-hidden">
+      <details open data-group="core">
+        <summary class="flex items-center gap-2 px-4 py-3 bg-zinc-900/50 cursor-pointer select-none">
+          <span class="chevron text-zinc-500">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+          <span class="text-sm">🧭</span>
+          <span class="text-sm font-semibold text-zinc-200">${r.title}</span>
+          <span class="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">前置 gate · 進入下方 track 前</span>
+          <span class="ml-auto text-xs text-zinc-500">${r.branches.length} 階段</span>
+        </summary>
+        <div class="px-4 py-3">
+          <p class="text-xs leading-relaxed text-zinc-500 mb-3">${r.subtitle}</p>
+          <div class="space-y-1.5">
+            ${r.branches.map(b => `
+              <div class="flex items-start gap-3 rounded-md px-3 py-2 ${b.enters ? 'border border-violet-500/40 bg-violet-500/10' : 'bg-zinc-800/40'}" data-step="router-${b.stage}">
+                <span class="mt-0.5 inline-flex h-6 shrink-0 items-center justify-center rounded px-2 text-[11px] font-semibold ${b.enters ? 'bg-violet-500/30 text-violet-200' : 'bg-zinc-700 text-zinc-300'}">${b.stage}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs font-medium text-zinc-300 mb-1">${b.mode}
+                    <span class="text-zinc-600 font-normal ml-1">— ${b.desc}</span>
+                  </div>
+                  <div class="step-skills flex flex-wrap items-center gap-1.5">
+                    ${b.skills.map(sk => chipHtml(sk, false)).join('')}
+                    ${b.enters ? '<span class="ml-1 text-[11px] font-medium text-violet-400">↓ 進入下方 track</span>' : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
 function renderTracks() {
   const container = document.getElementById('core-tracks');
   container.innerHTML = state.tracks.map(track => `
@@ -731,6 +784,7 @@ function renderOrphaned() {
 
 function renderAll() {
   renderStats();
+  renderStageRouter();
   renderTracks();
   renderMaintenance();
   renderDomainFlows();

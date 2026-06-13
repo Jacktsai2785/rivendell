@@ -485,6 +485,48 @@
       "desc": "配對遠端 AI agent 與瀏覽器"
     }
   },
+  "stageRouter": {
+    "title": "任務階段判斷",
+    "subtitle": "由 task-brief 主導的前置 gate：先判斷任務落在哪一階段，前三階段各有自己的模式且不出成品；只有「執行」才往下進入核心開發流程。",
+    "branches": [
+      {
+        "stage": "思考",
+        "mode": "反問模式",
+        "desc": "問題本身還沒想清 → 丟 5–8 個鋒利問題逼出具體，不出成品",
+        "skills": [
+          "gstack-office-hours"
+        ],
+        "enters": false
+      },
+      {
+        "stage": "探索",
+        "mode": "選項模式",
+        "desc": "問題清楚要看選項 → 列 2–4 方向 + trade-off，不下推薦",
+        "skills": [
+          "task-brief"
+        ],
+        "enters": false
+      },
+      {
+        "stage": "決定",
+        "mode": "評估模式",
+        "desc": "選項已知要選一個 → 拿你的判準評分、給傾向，不重新發散",
+        "skills": [
+          "task-brief"
+        ],
+        "enters": false
+      },
+      {
+        "stage": "執行",
+        "mode": "五欄位 brief",
+        "desc": "方向已定要產出 → 用五欄位定義任務，再進入下方 track",
+        "skills": [
+          "task-brief"
+        ],
+        "enters": true
+      }
+    ]
+  },
   "tracks": [
     {
       "id": "ui-feature",

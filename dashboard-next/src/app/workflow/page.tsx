@@ -58,8 +58,23 @@ interface Orphan {
   reason: string;
 }
 
+interface StageBranch {
+  stage: string;
+  mode: string;
+  desc: string;
+  skills: string[];
+  enters: boolean;
+}
+
+interface StageRouter {
+  title: string;
+  subtitle: string;
+  branches: StageBranch[];
+}
+
 interface WorkflowData {
   skillMeta: Record<string, SkillMeta>;
+  stageRouter?: StageRouter;
   tracks: CoreTrack[];
   maintenance: Maintenance[];
   domainFlows: DomainFlow[];
@@ -127,6 +142,102 @@ function SkillChip({
 }
 
 // ── Section Components ───────────────────────────────────────────────────────
+
+function StageRouterSection({
+  router,
+  skillMeta,
+  search,
+}: {
+  router: StageRouter;
+  skillMeta: Record<string, SkillMeta>;
+  search: string;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="text-lg">🧭</span>
+        <span className="font-semibold text-zinc-200">{router.title}</span>
+        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+          前置 gate · 進入下方 track 前
+        </span>
+        <span className="ml-auto text-xs text-zinc-500">
+          {router.branches.length} 階段
+        </span>
+        <span
+          className={`text-zinc-500 transition-transform ${open ? "rotate-90" : ""}`}
+        >
+          ▸
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-zinc-800 px-4 py-3">
+          <p className="mb-3 text-xs leading-relaxed text-zinc-500">
+            {router.subtitle}
+          </p>
+          <div className="space-y-1.5">
+            {router.branches.map((b) => {
+              const matches =
+                !search ||
+                b.stage.includes(search) ||
+                b.mode.toLowerCase().includes(search) ||
+                b.skills.some((s) => s.includes(search));
+
+              return (
+                <div
+                  key={b.stage}
+                  className={`flex items-start gap-3 rounded-md px-3 py-2 ${
+                    b.enters
+                      ? "border border-violet-500/40 bg-violet-500/10"
+                      : "bg-zinc-800/40"
+                  } ${matches ? "" : "opacity-10"}`}
+                >
+                  <span
+                    className={`mt-0.5 inline-flex h-6 shrink-0 items-center justify-center rounded px-2 text-[11px] font-semibold ${
+                      b.enters
+                        ? "bg-violet-500/30 text-violet-200"
+                        : "bg-zinc-700 text-zinc-300"
+                    }`}
+                  >
+                    {b.stage}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xs font-medium text-zinc-300">
+                        {b.mode}
+                      </span>
+                      <span className="text-xs text-zinc-500">{b.desc}</span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {b.skills.map((s) => (
+                        <SkillChip
+                          key={s}
+                          name={s}
+                          meta={skillMeta[s]}
+                          variant="optional"
+                          highlight={!!search && s.includes(search)}
+                        />
+                      ))}
+                      {b.enters && (
+                        <span className="ml-1 text-[11px] font-medium text-violet-400">
+                          ↓ 進入下方 track
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CoreFlowSection({
   track,
@@ -347,6 +458,13 @@ export default function WorkflowPage() {
           核心開發流程
         </h2>
         <div className="space-y-3">
+          {data.stageRouter && (
+            <StageRouterSection
+              router={data.stageRouter}
+              skillMeta={data.skillMeta}
+              search={q}
+            />
+          )}
           {data.tracks.map((t) => (
             <CoreFlowSection
               key={t.id}

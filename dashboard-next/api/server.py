@@ -2050,6 +2050,8 @@ def api_workflow() -> dict[str, Any]:
             referenced.update(step.get("skills", []))
     for sit in wf.get("situational", []):
         referenced.update(sit.get("skills", []))
+    for branch in wf.get("stageRouter", {}).get("branches", []):
+        referenced.update(branch.get("skills", []))
     for orph in wf.get("orphaned", []):
         referenced.add(orph.get("skill", ""))
 
