@@ -11,7 +11,7 @@ skills/
 ├── quality/    # 程式品質、審查、除錯、測試 (11)
 ├── git/        # Git/GitHub 操作 (3)
 ├── frontend/   # 前端設計、iOS、測試 (5)
-├── backend/    # 後端服務 (11)
+├── backend/    # 後端服務 (12)
 └── docs/       # 文件處理與 MCP 建置 (6)
 ```
 
@@ -74,16 +74,16 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **1-service-watchdog-launchd** | 自動 | 為 Linux / WSL2 上的 HTTP 服務（FastAPI / Next. |
 | **agent-observability** | 自動 | 讓 script-based agent 在 rivendell 可見：exec-lib 執行歷史、progress logging、log discovery 三層整合指南 |
 | **autoresearch** | `/autoresearch` 或自動 | Autonomous goal-directed iteration loop for Claude Code agents. |
 | **candidate-analysis** | `/candidate-analysis` 或自動 | 面試候選人管理：PDF 履歷解析、GitHub repo 程式品質分析、候選人 profile markdown 產出 |
 | **claude-to-telegram** | `/claude-to-im setup` | 設定 Telegram 橋接器遠端控制 Claude Code，支援兩種實作方式 |
-| **client-kickoff-docs** | 自動 | 新客戶 kickoff 時（NDA 簽過、首次討論前），讀客戶提供的 homework 檔 → 建立 `scope.md` + `deadline. |
 | **context-recovery** | 自動 + hook | Session 壓縮後自動復原工作上下文，使用 Git 狀態與專案 metadata |
 | **crm-projection** | `/crm-projection` | Project nx_client + nx_deal data to local markdown files at materials/clients/. |
+| **cron-script-範式段落-加進-headless-agent-或-launchd-agent** | 自動 | rivendell 所有 cron-style 維護腳本（bin/sk-*-cron，由 systemd user timer 觸發）共用的「shape」。 |
 | **customer-intel** | `/customer-intel` 或自動 | B2B 客戶情蒐：公司名 → WebSearch + Playwright → 結構化報告（概覽、管理層、財務、競爭、痛點、策略建議） |
 | **dispatching-parallel-agents** | 自動 | 3+ 個獨立問題時，派 subagent 並行處理 |
-| **env-doctor** | 自動 | 為專案產生 `doctor.sh`（或 `doctor. |
 | **executing-plans** | 自動 | 分批執行計畫，每批有 review checkpoint |
 | **gdrive-to-skills** | `/gdrive-to-skills` | 讀取 Google Drive 文件，分類並自動建立 knowledge skills |
 | **headless-agent** | 自動 | 將 Claude Code 作為非互動式 agent 執行，含排程、結構化日誌、auto-commit/push、QA gate、branch workflow、multi-role agents |
@@ -93,15 +93,14 @@ cd ~/any-project && claude
 | **launchd-agent** | 自動 | 建立、設定、除錯 Linux/WSL2 systemd user 排程 agents（`.service`/`.timer` 產生、OnCalendar 排程、systemctl --user 生命週期、agents.conf fleet 模式） |
 | **material-health** | `/material-health` | Health check for the sales materials library — detects missing frontmatter |
 | **mockup** | `/mockup` 或自動 | 三階段 UI mockup（ASCII → 靜態 HTML → 互動 HTML），讀取 design system，支援 Figma 匯出 |
-| **mops-financial-scraper** | 自動 | 自動化從 MOPS（`mopsov.twse.com. |
+| **mops-filer-list-reconcile** | 自動 | 把本地 `mops_master.filers` 名單與權威來源（TWSE 上市 / OTC 上櫃 / ROTC 興櫃 / 公發 四份 opendata |
 | **planning-with-files** | `/planning-with-files` | Manus 風格的檔案式規劃，用 task_plan.md 追蹤進度，支援 session 恢復 |
-| **presales-pipeline** | 自動 | 以檔案系統（`01_presales/<client-slug>/`）管理 B2B 售前 pipeline：`new-client. |
-| **repro-exam** | 自動 | 依照專案的核心邏輯（如 backtest engine、portfolio strategy）產生一組 deterministic 測驗（input → |
 | **requirement** | `/requirement` 或自動 | 定義需求：user story、acceptance criteria、scope boundary |
 | **sales-material** | `/sales-material` | Assemble client-specific sales presentations by matching customer intelligence |
 | **settings-audit** | 自動 | 審查清理 .claude/settings.local.json — 移除無效 permissions、修正 JSON 語法、偵測一次性指令誤存為永久權限 |
 | **subsidy-scraper** | `/subsidy-scraper` | Automated government subsidy scraper — fetches grant listings from Taiwan |
 | **tender-scraper** | `/tender-scraper` 或自動 | 自動爬取政府標案（g0v API）、data-driven 關鍵字篩選（keywords.yml + 自動發現）、網路韌性（retry/backoff）、歸檔過期、生成索引、dashboard 可觀測性 |
+| **tw-company-website-finder** | 自動 | 給定台灣公司名稱與統一編號，用 WebSearch 找出最可能的官方網站 URL。 寧缺勿錯：找不到就回 null，絕不因「同名異公司」或「舊名」誤判統編不符。 |
 | **user-flow** | `/user-flow` 或自動 | 用 Mermaid 繪製使用者流程圖，含 happy path 與 error branch |
 | **writing-plans** | 自動 | 產出 bite-sized 實作計畫，假設工程師零 codebase context |
 
@@ -137,6 +136,7 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **audio-transcription** | 自動 | 在 Web App 中加入音訊上傳 → 語音辨識 → 逐字稿顯示。支援 faster-whisper / OpenAI Whisper / OpenAI API 三種後端。 |
 | **audio-transcription-flow** | 自動 | Implement a complete audio upload → speech-to-text → transcript display |
 | **db-migration** | 自動 | 偵測 DB stack，設定 migration 工具（Alembic/Prisma/Drizzle），指導安全 schema 變更 |
 | **doc-to-structured-data** | 自動 | 非結構化技術文件（.doc/.pdf 測試計畫、規格書、datasheet）→ 結構化 CSV/JSON，含格式偵測、欄位對映、驗證 |
