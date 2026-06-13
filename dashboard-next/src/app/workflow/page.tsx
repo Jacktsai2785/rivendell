@@ -58,12 +58,18 @@ interface Orphan {
   reason: string;
 }
 
+interface StageField {
+  name: string;
+  desc: string;
+}
+
 interface StageBranch {
   stage: string;
   mode: string;
   desc: string;
   skills: string[];
   enters: boolean;
+  fields?: StageField[];
 }
 
 interface StageRouter {
@@ -207,9 +213,33 @@ function StageRouterSection({
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-xs font-medium text-zinc-300">
-                        {b.mode}
-                      </span>
+                      {b.fields && b.fields.length > 0 ? (
+                        <span className="group relative cursor-help whitespace-nowrap border-b border-dotted border-violet-400/60 text-xs font-medium text-zinc-300">
+                          {b.mode}
+                          <span className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-[22rem] rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-left normal-case shadow-xl group-hover:block">
+                            <span className="mb-2 block text-[11px] font-semibold text-violet-300">
+                              五欄位 brief — 逐欄要問什麼
+                            </span>
+                            {b.fields.map((f, i) => (
+                              <span key={f.name} className="mb-2 block last:mb-0">
+                                <span className="text-[11px] font-semibold text-zinc-200">
+                                  {i + 1}. {f.name}
+                                </span>
+                                <span className="mt-0.5 block text-[11px] leading-relaxed text-zinc-400">
+                                  {f.desc}
+                                </span>
+                              </span>
+                            ))}
+                            <span className="mt-2 block border-t border-zinc-800 pt-2 text-[10px] leading-relaxed text-zinc-500">
+                              這份 brief 即下方 1–10 步的輸入 spec。
+                            </span>
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium text-zinc-300">
+                          {b.mode}
+                        </span>
+                      )}
                       <span className="text-xs text-zinc-500">{b.desc}</span>
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">

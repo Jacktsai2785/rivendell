@@ -66,6 +66,8 @@
     .tooltip-wrap .tooltip-box { display:none; position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:#27272a; color:#e4e4e7; font-size:11px; padding:4px 8px; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:100; border:1px solid #3f3f46; }
     html.light .tooltip-wrap .tooltip-box { background:#fff; color:#18181b; border-color:#d4d4d8; box-shadow:0 2px 6px rgba(0,0,0,.1); }
     .tooltip-wrap:hover .tooltip-box { display:block; }
+    /* 寬版多行 tooltip（五欄位說明用） */
+    .tooltip-wrap .tooltip-fields { white-space:normal; width:22rem; left:0; transform:none; bottom:auto; top:calc(100% + 6px); padding:12px; text-align:left; line-height:1.5; box-shadow:0 8px 24px rgba(0,0,0,.4); }
   </style>
 </head>
 
@@ -610,7 +612,7 @@ function renderStageRouter() {
   const r = state.stageRouter;
   if (!r) { container.innerHTML = ''; return; }
   container.innerHTML = `
-    <div class="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30 overflow-hidden">
+    <div class="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/30">
       <details open data-group="core">
         <summary class="flex items-center gap-2 px-4 py-3 bg-zinc-900/50 cursor-pointer select-none">
           <span class="chevron text-zinc-500">
@@ -628,7 +630,7 @@ function renderStageRouter() {
               <div class="flex items-start gap-3 rounded-md px-3 py-2 ${b.enters ? 'border border-violet-500/40 bg-violet-500/10' : 'bg-zinc-800/40'}" data-step="router-${b.stage}">
                 <span class="mt-0.5 inline-flex h-6 shrink-0 items-center justify-center rounded px-2 text-[11px] font-semibold ${b.enters ? 'bg-violet-500/30 text-violet-200' : 'bg-zinc-700 text-zinc-300'}">${b.stage}</span>
                 <div class="flex-1 min-w-0">
-                  <div class="text-xs font-medium text-zinc-300 mb-1">${b.mode}
+                  <div class="text-xs font-medium text-zinc-300 mb-1">${b.fields && b.fields.length ? `<span class="tooltip-wrap" style="cursor:help;border-bottom:1px dotted rgba(167,139,250,.6)">${b.mode}<span class="tooltip-box tooltip-fields"><span style="display:block;font-weight:600;color:#c4b5fd;margin-bottom:6px">五欄位 brief — 逐欄要問什麼</span>${b.fields.map((f,i)=>`<span style="display:block;margin-bottom:6px"><span style="font-weight:600;color:#e4e4e7">${i+1}. ${f.name}</span><span style="display:block;color:#a1a1aa;margin-top:2px">${f.desc}</span></span>`).join('')}<span style="display:block;border-top:1px solid #3f3f46;padding-top:6px;margin-top:2px;color:#71717a;font-size:10px">這份 brief 即下方 1–10 步的輸入 spec。</span></span></span>` : b.mode}
                     <span class="text-zinc-600 font-normal ml-1">— ${b.desc}</span>
                   </div>
                   <div class="step-skills flex flex-wrap items-center gap-1.5">
