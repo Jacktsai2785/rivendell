@@ -7,11 +7,11 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 ```
 skills/
 ├── meta/       # Claude Code 自身管理工具 (13)
-├── workflow/   # 工作流程與規劃 (24)
+├── workflow/   # 工作流程與規劃 (27)
 ├── quality/    # 程式品質、審查、除錯、測試 (11)
 ├── git/        # Git/GitHub 操作 (3)
 ├── frontend/   # 前端設計、iOS、測試 (5)
-├── backend/    # 後端服務 (12)
+├── backend/    # 後端服務 (13)
 └── docs/       # 文件處理與 MCP 建置 (6)
 ```
 
@@ -47,7 +47,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (89 skills)
+## Skills Catalog (93 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -75,6 +75,7 @@ cd ~/any-project && claude
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
 | **1-service-watchdog-launchd** | 自動 | 為 Linux / WSL2 上的 HTTP 服務（FastAPI / Next. |
+| **2-dev-server-restart-verify** | 手動 | 重啟 rivendell monorepo 的 frontend + backend dev server，並驗證 port 真的在 listening。避免「啟動完成但其實 crash」的假陽性。 |
 | **agent-observability** | 自動 | 讓 script-based agent 在 rivendell 可見：exec-lib 執行歷史、progress logging、log discovery 三層整合指南 |
 | **autoresearch** | `/autoresearch` 或自動 | Autonomous goal-directed iteration loop for Claude Code agents. |
 | **candidate-analysis** | `/candidate-analysis` 或自動 | 面試候選人管理：PDF 履歷解析、GitHub repo 程式品質分析、候選人 profile markdown 產出 |
@@ -94,11 +95,13 @@ cd ~/any-project && claude
 | **material-health** | `/material-health` | Health check for the sales materials library — detects missing frontmatter |
 | **mockup** | `/mockup` 或自動 | 三階段 UI mockup（ASCII → 靜態 HTML → 互動 HTML），讀取 design system，支援 Figma 匯出 |
 | **mops-filer-list-reconcile** | 自動 | 把本地 `mops_master.filers` 名單與權威來源（TWSE 上市 / OTC 上櫃 / ROTC 興櫃 / 公發 四份 opendata |
+| **mops-notes-backfill-monitor** | 手動 | 監控與管理 mops_notes 大型批次附註抽取回填作業：啟動後台抽取 → 即時監督進度 → 週期檢查 → 失敗隔離 → 補跑驗證 |
 | **planning-with-files** | `/planning-with-files` | Manus 風格的檔案式規劃，用 task_plan.md 追蹤進度，支援 session 恢復 |
 | **requirement** | `/requirement` 或自動 | 定義需求：user story、acceptance criteria、scope boundary |
 | **sales-material** | `/sales-material` | Assemble client-specific sales presentations by matching customer intelligence |
 | **settings-audit** | 自動 | 審查清理 .claude/settings.local.json — 移除無效 permissions、修正 JSON 語法、偵測一次性指令誤存為永久權限 |
 | **subsidy-scraper** | `/subsidy-scraper` | Automated government subsidy scraper — fetches grant listings from Taiwan |
+| **5-taiwan-news-weekly-digest** | 使用者提及 | 彙整過去 5-7 天台灣產業新聞為「每日主題 + 高頻標題」的週度報告，快速掌握週間重點 |
 | **tender-scraper** | `/tender-scraper` 或自動 | 自動爬取政府標案（g0v API）、data-driven 關鍵字篩選（keywords.yml + 自動發現）、網路韌性（retry/backoff）、歸檔過期、生成索引、dashboard 可觀測性 |
 | **tw-company-website-finder** | 自動 | 給定台灣公司名稱與統一編號，用 WebSearch 找出最可能的官方網站 URL。 寧缺勿錯：找不到就回 null，絕不因「同名異公司」或「舊名」誤判統編不符。 |
 | **user-flow** | `/user-flow` 或自動 | 用 Mermaid 繪製使用者流程圖，含 happy path 與 error branch |
@@ -136,6 +139,7 @@ cd ~/any-project && claude
 
 | Skill | 觸發方式 | 說明 |
 |-------|---------|------|
+| **ai-data-layer** | 手動 | 重構 LLM-based 後端：分離 AI/Agent 邏輯與純資料層，解決 ai_provider.py / agent.py 耦合問題，改善可測試性與可維護性 |
 | **audio-transcription** | 自動 | 在 Web App 中加入音訊上傳 → 語音辨識 → 逐字稿顯示。支援 faster-whisper / OpenAI Whisper / OpenAI API 三種後端。 |
 | **audio-transcription-flow** | 自動 | Implement a complete audio upload → speech-to-text → transcript display |
 | **db-migration** | 自動 | 偵測 DB stack，設定 migration 工具（Alembic/Prisma/Drizzle），指導安全 schema 變更 |

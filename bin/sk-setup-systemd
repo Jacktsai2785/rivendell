@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# sk-setup-systemd — Generate & load systemd user units from agents.conf (Linux/WSL2).
+#
+# Usage:
+#   ./bin/sk-setup-systemd           # install + start everything
+#   ./bin/sk-setup-systemd --dry-run # print units without installing
+#   ./bin/sk-setup-systemd --stop    # stop + disable all managed units
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CONF="$REPO_DIR/agents/agents.conf"
+UNIT_DIR="$HOME/.config/systemd/user"
+PROJECTS_DIR="$(dirname "$REPO_DIR")"   # parent of rivendell → /home/jacktsai
+DRY_RUN=false
+STOP_ONLY=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=true ;;
+    --stop)    STOP_ONLY=true ;;
+  esac
+done
+
+# PATH that covers node (nvm), python3, local bins
+NODE_BIN="$(dirname "$(command -v node 2>/dev/null || echo /usr/bin/node)")"
+AGENT_PATH="$NODE_BIN:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Weekday number (0=Sun) → systemd name
+weekday_name() {
+  case "$1" in
+    0) echo "Sun" ;; 1) echo "Mon" ;; 2) echo "Tue" ;;
+    3) echo "Wed" ;; 4) echo "Thu" ;; 5) echo "Fri" ;; 6) echo "Sat" ;;
+  esac
+}
+
+# ── Collect managed unit names for --stop ──────────────────────────────────
+managed_units() {
+  grep -v '^\s*#' "$CONF" | grep -v '^\s*$' | while IFS='|' read -r label project_rel _rest; do
+    label="$(echo "$label" | xargs)"
+    project_rel="$(echo "$project_rel" | xargs)"
+    [ "$project_rel" != "rivendell" ] && continue   # only rivendell units
+    echo "${label}.service"
+    echo "${label}.timer"
+  done
+}
+
+if $STOP_ONLY; then
+  echo "Stopping & disabling all managed units..."
+  managed_units | sort -u | while read -r unit; do
+    systemctl --user stop    "$unit" 2>/dev/null && echo "  stopped: $unit" || true
+    systemctl --user disable "$unit" 2>/dev/null || true
+  done
+  exit 0
+fi
+
+mkdir -p "$UNIT_DIR"
+
+# Enable linger so user services survive logout (important for WSL2)
+loginctl enable-linger "$USER" 2>/dev/null || true
+
+# ── Process agents.conf ────────────────────────────────────────────────────
+enables=()   # collected as "sched_type:label" for post-write enable pass
+
+while IFS='|' read -r label project_rel script sched_type sched_val _ _; do
+  label="$(echo "$label" | xargs)"
+  project_rel="$(echo "$project_rel" | xargs)"
+  script="$(echo "$script" | xargs)"
+  sched_type="$(echo "$sched_type" | xargs)"
+  sched_val="$(echo "$sched_val" | xargs)"
+
+  # Only handle rivendell units; skip other projects (news_stock, sales, etc.)
+  [ "$project_rel" != "rivendell" ] && continue
+
+  # Skip launchd-specific tools that use launchctl/Library/LaunchAgents
+  case "$label" in
+    *doctor|*watchdog) echo "  [skip] $label (launchd-specific)"; continue ;;
+  esac
+
+  project_dir="$PROJECTS_DIR/$project_rel"
+  exec_cmd="/bin/bash $project_dir/$script"
+
+  svc_file="$UNIT_DIR/${label}.service"
+  timer_file="$UNIT_DIR/${label}.timer"
+
+  # ── [Service] section ────────────────────────────────────────────────────
+  svc_body="[Unit]
+Description=rivendell: $label
+
+[Service]
+Type=simple
+WorkingDirectory=$project_dir
+Environment=PATH=$AGENT_PATH
+Environment=REPO_DIR=$project_dir
+ExecStart=$exec_cmd
+StandardOutput=append:$project_dir/logs/${label##*.}.log
+StandardError=append:$project_dir/logs/${label##*.}-error.log"
+
+  case "$sched_type" in
+    keepalive)
+      svc_body="$svc_body
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target"
+      ;;
+    interval|calendar|calendar_multi)
+      svc_body="$svc_body
+Restart=no
+
+[Install]
+WantedBy=default.target"
+      ;;
+  esac
+
+  # ── [Timer] section ──────────────────────────────────────────────────────
+  timer_body=""
+  case "$sched_type" in
+    interval)
+      timer_body="[Unit]
+Description=Timer for $label
+Requires=${label}.service
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=${sched_val}
+Unit=${label}.service
+
+[Install]
+WantedBy=timers.target"
+      ;;
+    calendar)
+      # Format: H:MM or W:H:MM
+      IFS=':' read -ra parts <<< "$sched_val"
+      if [ ${#parts[@]} -eq 3 ]; then
+        wday="$(weekday_name "${parts[0]}")"
+        on_cal="$wday *-*-* ${parts[1]}:${parts[2]}:00"
+      else
+        on_cal="*-*-* ${parts[0]}:${parts[1]}:00"
+      fi
+      timer_body="[Unit]
+Description=Timer for $label
+Requires=${label}.service
+
+[Timer]
+OnCalendar=$on_cal
+Persistent=true
+Unit=${label}.service
+
+[Install]
+WantedBy=timers.target"
+      ;;
+    calendar_multi)
+      on_cal_lines=""
+      IFS=',' read -ra entries <<< "$sched_val"
+      for entry in "${entries[@]}"; do
+        entry="$(echo "$entry" | xargs)"
+        IFS=':' read -ra parts <<< "$entry"
+        wday="$(weekday_name "${parts[0]}")"
+        on_cal_lines="${on_cal_lines}OnCalendar=$wday *-*-* ${parts[1]}:${parts[2]}:00
+"
+      done
+      timer_body="[Unit]
+Description=Timer for $label
+Requires=${label}.service
+
+[Timer]
+${on_cal_lines}Persistent=true
+Unit=${label}.service
+
+[Install]
+WantedBy=timers.target"
+      ;;
+  esac
+
+  if $DRY_RUN; then
+    echo "=== $svc_file ==="
+    echo "$svc_body"
+    echo
+    [ -n "$timer_body" ] && { echo "=== $timer_file ==="; echo "$timer_body"; echo; }
+  else
+    mkdir -p "$project_dir/logs"
+    echo "$svc_body"  > "$svc_file"
+    [ -n "$timer_body" ] && echo "$timer_body" > "$timer_file"
+    enables+=("$sched_type:$label")
+  fi
+done < <(grep -v '^\s*#' "$CONF" | grep -v '^\s*$')
+
+if ! $DRY_RUN; then
+  systemctl --user daemon-reload
+
+  for entry in "${enables[@]}"; do
+    sched_type="${entry%%:*}"
+    label="${entry#*:}"
+    case "$sched_type" in
+      keepalive)
+        systemctl --user enable --now "${label}.service" 2>&1 | tail -1
+        echo "  [keepalive] $label → started"
+        ;;
+      interval|calendar|calendar_multi)
+        systemctl --user enable --now "${label}.timer"  2>&1 | tail -1
+        echo "  [timer]    $label → scheduled"
+        ;;
+    esac
+  done
+
+  echo ""
+  echo "Done. Status:"
+  systemctl --user list-units 'com.sk.*' --no-pager 2>/dev/null | grep -E "loaded|failed" | head -20 || true
+fi

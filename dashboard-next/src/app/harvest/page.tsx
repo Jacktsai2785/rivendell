@@ -75,9 +75,11 @@ function DecisionBadge({ decision }: { decision: string }) {
 function CandidateCard({
   candidate,
   onDecide,
+  isGenerating,
 }: {
   candidate: HarvestCandidate;
   onDecide: (key: string, decision: string) => void;
+  isGenerating?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = strengthConfig[candidate.strength];
@@ -95,6 +97,15 @@ function CandidateCard({
             <code className="text-sm font-bold">{candidate.name}</code>
             <StrengthBadge strength={candidate.strength} />
             <DecisionBadge decision={candidate.decision} />
+            {isGenerating && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                AI 生成中...
+              </span>
+            )}
             {candidate.category && (
               <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 dark:bg-zinc-800">
                 {candidate.category}
@@ -113,11 +124,11 @@ function CandidateCard({
 
         {/* Action buttons */}
         <div className="flex shrink-0 gap-1.5">
-          {candidate.decision !== "accepted" && (
+          {candidate.decision !== "accepted" && !isGenerating && (
             <button
               onClick={() => onDecide(candidate.key, "accepted")}
               className="rounded-md bg-green-600 p-1.5 text-white hover:bg-green-700"
-              title="Accept — create this skill"
+              title="Accept — AI 將生成完整 skill"
             >
               <Check size={14} />
             </button>
@@ -180,10 +191,21 @@ function CandidateCard({
 
 type FilterTab = "all" | "pending" | "accepted" | "dismissed";
 
+type RegenStatus = {
+  running: boolean;
+  started?: boolean;
+  total?: number;
+  done?: number;
+  failed?: number;
+  ai_generated?: number;
+};
+
 export default function HarvestPage() {
   const [data, setData] = useState<HarvestData | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<FilterTab>("pending");
+  const [generatingKeys, setGeneratingKeys] = useState<Set<string>>(new Set());
+  const [regen, setRegen] = useState<RegenStatus>({ running: false });
 
   const load = useCallback(() => {
     apiFetch<HarvestData>("/api/harvest")
@@ -193,18 +215,72 @@ export default function HarvestPage() {
 
   useEffect(load, [load]);
 
-  async function handleDecide(key: string, decision: string) {
-    const result = await apiPost<{
-      ok: boolean;
-      skill_created?: { created: boolean; already_exists?: boolean; skill_path?: string; slug?: string };
-    }>("/api/harvest/decide", { key, decision });
-    if (decision === "accepted" && result.skill_created?.created) {
-      const slug = result.skill_created.slug ?? key.split(":")[1];
-      toast(`✅ Skill 已建立：${slug}`);
-    } else if (decision === "accepted" && result.skill_created?.already_exists) {
-      toast(`ℹ️ Skill 已存在`);
+  // Poll regen status while running
+  useEffect(() => {
+    if (!regen.running) return;
+    const id = setInterval(async () => {
+      try {
+        const s = await apiFetch<RegenStatus>("/api/harvest/regenerate-missing/status");
+        setRegen(s);
+        if (!s.running) {
+          clearInterval(id);
+          load();
+          toast(`✅ 補齊完成：${s.ai_generated ?? 0} AI 生成、${s.failed ?? 0} 失敗（共 ${s.total ?? 0} 個）`);
+        }
+      } catch {
+        clearInterval(id);
+      }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [regen.running, load]);
+
+  async function startRegen() {
+    try {
+      const r = await apiPost<RegenStatus & { total?: number; message?: string }>(
+        "/api/harvest/regenerate-missing",
+        {}
+      );
+      if ((r as any).total === 0) {
+        toast("ℹ️ 所有已接受的 skill 都已存在，不需要補齊");
+        return;
+      }
+      setRegen({ running: true, total: r.total, done: 0, failed: 0, ai_generated: 0 });
+    } catch (e: any) {
+      toast(`❌ 啟動失敗：${e.message}`);
     }
-    load();
+  }
+
+  async function handleDecide(key: string, decision: string) {
+    if (decision === "accepted") {
+      setGeneratingKeys((prev) => new Set(prev).add(key));
+    }
+    try {
+      const result = await apiPost<{
+        ok: boolean;
+        skill_created?: {
+          created: boolean;
+          already_exists?: boolean;
+          skill_path?: string;
+          slug?: string;
+          ai_generated?: boolean;
+        };
+      }>("/api/harvest/decide", { key, decision });
+
+      if (decision === "accepted" && result.skill_created?.created) {
+        const slug = result.skill_created.slug ?? key.split(":")[1];
+        const aiTag = result.skill_created.ai_generated ? "AI 生成" : "草稿";
+        toast(`✅ Skill 已建立（${aiTag}）：${slug}`);
+      } else if (decision === "accepted" && result.skill_created?.already_exists) {
+        toast(`ℹ️ Skill 已存在`);
+      }
+    } finally {
+      setGeneratingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      load();
+    }
   }
 
   function toast(msg: string) {
@@ -213,7 +289,7 @@ export default function HarvestPage() {
       "fixed bottom-4 right-4 z-50 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900";
     el.textContent = msg;
     document.body.appendChild(el);
-    setTimeout(() => el.remove(), 3000);
+    setTimeout(() => el.remove(), 4000);
   }
 
   if (err) return <p className="text-red-500">Error: {err}</p>;
@@ -269,6 +345,47 @@ export default function HarvestPage() {
         ))}
       </div>
 
+      {/* Batch regen panel — shown in "accepted" tab */}
+      {tab === "accepted" && (
+        <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+          {regen.running ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">AI 批次生成中...</span>
+                <span className="text-zinc-500">
+                  {regen.done ?? 0} / {regen.total ?? "?"} 完成
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-500"
+                  style={{
+                    width: regen.total
+                      ? `${Math.round(((regen.done ?? 0) / regen.total) * 100)}%`
+                      : "0%",
+                  }}
+                />
+              </div>
+              <p className="text-xs text-zinc-500">
+                AI 生成：{regen.ai_generated ?? 0} 個｜失敗：{regen.failed ?? 0} 個
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                已接受但缺少 skill 檔案的候選，點此批次 AI 生成（約 50 秒/個）
+              </p>
+              <button
+                onClick={startRegen}
+                className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                補齊缺失 Skill
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <p className="mt-8 text-center text-sm text-zinc-400">
           {tab === "pending" ? "沒有待決定的候選" : "沒有符合的候選"}
@@ -283,7 +400,7 @@ export default function HarvestPage() {
               </h2>
               <div className="space-y-3">
                 {strong.map((c) => (
-                  <CandidateCard key={c.key} candidate={c} onDecide={handleDecide} />
+                  <CandidateCard key={c.key} candidate={c} onDecide={handleDecide} isGenerating={generatingKeys.has(c.key)} />
                 ))}
               </div>
             </section>
@@ -297,7 +414,7 @@ export default function HarvestPage() {
               </h2>
               <div className="space-y-3">
                 {moderate.map((c) => (
-                  <CandidateCard key={c.key} candidate={c} onDecide={handleDecide} />
+                  <CandidateCard key={c.key} candidate={c} onDecide={handleDecide} isGenerating={generatingKeys.has(c.key)} />
                 ))}
               </div>
             </section>
@@ -311,7 +428,7 @@ export default function HarvestPage() {
               </h2>
               <div className="space-y-3">
                 {weak.map((c) => (
-                  <CandidateCard key={c.key} candidate={c} onDecide={handleDecide} />
+                  <CandidateCard key={c.key} candidate={c} onDecide={handleDecide} isGenerating={generatingKeys.has(c.key)} />
                 ))}
               </div>
             </section>

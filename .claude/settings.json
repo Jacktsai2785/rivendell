@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/manibari/Documents/Projects/rivendell/skills/meta/sync-readme/scripts/sync-readme-hook.sh"
+            "command": "/home/jacktsai/rivendell/skills/meta/sync-readme/scripts/sync-readme-hook.sh"
           }
         ]
       }

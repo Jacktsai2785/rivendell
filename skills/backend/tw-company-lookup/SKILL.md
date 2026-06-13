@@ -1,262 +1,292 @@
 ---
 name: tw-company-lookup
 description: >
-  Query Taiwan's official business registry (findbiz.nat.gov.tw) using Playwright
-  to retrieve company registration data: basic info, directors, managers, factories,
-  and change history. Accepts company name or 統一編號 (tax ID). Returns structured
-  government-verified data.
-  TRIGGER when: user asks to look up a Taiwan company, check company registration,
-  verify 負責人/董監事, or says "查公司" / "公司登記" / "統編查詢".
-  DO NOT TRIGGER when: researching international companies, stock research
-  (use investment-research), or general web scraping (use web-scraper).
+  Full registry deep-dive for a single known Taiwan company: business activity
+  codes (所營事業), factory registrations (工廠登記), manager list (經理人),
+  and change history (歷史變更) — data that is only available via the findbiz
+  web UI, not any open API. Always calls tw-company-identify first to get the
+  structured API data (統編, 資本額, 上市狀態, 董監事), then supplements with
+  the findbiz-only fields.
+  TRIGGER when: user needs 所營事業代碼, 工廠登記, 經理人到職日期, or 歷史變更
+  for a specific Taiwan company, or says "查findbiz", "工廠資料", "歷史變更",
+  "所營事業", "完整登記資料".
+  DO NOT TRIGGER when: user only needs basic company data or listing status
+  (use tw-company-identify instead — it's faster and API-based).
 tags: [backend, taiwan]
-version: 2
+version: 3
 source: manual
 user_invocable: true
 ---
 
 # Taiwan Company Lookup
 
-Query Taiwan's official government business registry (經濟部商工登記公示資料查詢服務) via Playwright.
+Full registry deep-dive via 經濟部商工登記公示資料查詢服務 (findbiz.nat.gov.tw).
 
-## Data Source
+## Skill Split
 
-**findbiz.nat.gov.tw** — Ministry of Economic Affairs, Commerce Development Administration.
-All data from this source has `[confirmed]` reliability (official government records).
+| 資料類型 | 取得方式 | Skill |
+|---------|---------|-------|
+| 統編、資本額、代表人、地址、董監事、上市狀態、設立日期 | GCIS / g0v API (JSON) | **tw-company-identify** |
+| 所營事業代碼、工廠登記、經理人、歷史變更 | findbiz 網頁 (Playwright) | **tw-company-lookup** (本 skill) |
+
+本 skill 腳本先呼叫 `tw-company-identify` 取得 API 資料，再啟動 Playwright 補齊 findbiz 獨有欄位，最後合併輸出。
+
+## Setup
+
+```bash
+# Playwright (Chromium)
+pip install playwright
+playwright install chromium
+
+# tw-company-identify (API layer)
+pip install -r ~/.claude/skills/tw-company-identify/scripts/requirements.txt
+```
 
 ## Usage
 
-```
-/tw-company-lookup 奇美食品
-/tw-company-lookup 68339681
+```bash
+# by company name
+python ~/.claude/skills/tw-company-lookup/scripts/lookup.py --name "台積電股份有限公司"
+
+# by 統一編號 (fastest — skips name-search in identify)
+python ~/.claude/skills/tw-company-lookup/scripts/lookup.py --tax-id 22099131
+
+# skip Playwright, only get API data (same as tw-company-identify --name)
+python ~/.claude/skills/tw-company-lookup/scripts/lookup.py --name "台積電股份有限公司" --api-only
+
+# skip API layer, only run Playwright (faster if you already have API data)
+python ~/.claude/skills/tw-company-lookup/scripts/lookup.py --name "台積電股份有限公司" --findbiz-only
 ```
 
-Input can be:
-- Company name (Chinese): `智瀚印刷科技有限公司`
-- Short name: `奇美食品`
-- 統一編號 (tax ID): `68339681`
+## Output Schema
 
-## Query Script
+```json
+{
+  "api": {
+    "name": "台灣積體電路製造股份有限公司",
+    "tax_id": "22099131",
+    "listing_status": "上市",
+    "representative": "魏哲家",
+    "capital": 259325245210,
+    "authorized_capital": 280500000000,
+    "address": "新竹科學園區新竹市力行六路8號",
+    "setup_date": "20021008",
+    "last_change_date": "20250101",
+    "register_org": "經濟部",
+    "par_value": 10,
+    "total_shares": 25932524521,
+    "directors": [{"name": "...", "title": "...", "shares": 0, "ratio": 0.0}]
+  },
+  "findbiz": {
+    "business_codes": [{"code": "A101010", "name": "..."}],
+    "managers": [{"name": "...", "date": "..."}],
+    "factories": [{"registration_no": "...", "name": "...", "status": "..."}],
+    "history": [{"date": "...", "content": "..."}]
+  }
+}
+```
+
+## Script
 
 ```python
-from playwright.sync_api import sync_playwright
-import time
+#!/usr/bin/env python3
+"""
+tw-company-lookup: Full findbiz registry lookup with tw-company-identify API layer.
+"""
+from __future__ import annotations
+
+import argparse
+import json
 import re
+import subprocess
+import sys
+from pathlib import Path
 
-FINDBIZ_URL = 'https://findbiz.nat.gov.tw/fts/query/QueryBar/queryInit.do'
+FINDBIZ_URL = "https://findbiz.nat.gov.tw/fts/query/QueryBar/queryInit.do"
+IDENTIFY_SCRIPT = Path.home() / ".claude/skills/tw-company-identify/scripts/identify.py"
 BROWSER_UA = (
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/120.0.0.0 Safari/537.36'
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+TABS = ["董監事資料", "經理人資料", "工廠資料", "歷史資料"]
 
-TABS = ['董監事資料', '經理人資料', '工廠資料', '歷史資料']
+
+# ── API layer (tw-company-identify) ──────────────────────────────────────────
+
+def get_api_data(name: str = "", tax_id: str = "") -> dict:
+    if not IDENTIFY_SCRIPT.exists():
+        print(f"[warn] identify script not found: {IDENTIFY_SCRIPT}", file=sys.stderr)
+        return {}
+    flag = ["--tax-id", tax_id] if tax_id else ["--name", name]
+    result = subprocess.run(
+        [sys.executable, str(IDENTIFY_SCRIPT), *flag, "--json-only"],
+        capture_output=True, text=True, timeout=60,
+    )
+    if result.returncode != 0:
+        print(f"[warn] identify failed: {result.stderr[:200]}", file=sys.stderr)
+        return {}
+    try:
+        data = json.loads(result.stdout)
+        valid = data.get("valid", [])
+        return valid[0] if valid else {}
+    except Exception:
+        return {}
 
 
-def lookup_company(search_term: str) -> dict:
-    """
-    Query findbiz.nat.gov.tw for a Taiwan company.
+# ── Playwright layer (findbiz) ────────────────────────────────────────────────
 
-    Args:
-        search_term: Company name or 統一編號
+def lookup_findbiz(search_term: str) -> dict:
+    from playwright.sync_api import sync_playwright
 
-    Returns:
-        dict with keys: basic, directors, managers, factories, history
-    """
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         ctx = browser.new_context(
             user_agent=BROWSER_UA,
-            viewport={'width': 1280, 'height': 900},
-            locale='zh-TW',
+            viewport={"width": 1280, "height": 900},
+            locale="zh-TW",
         )
         page = ctx.new_page()
-
-        # 1. Load search page
-        page.goto(FINDBIZ_URL, wait_until='networkidle', timeout=20000)
+        page.goto(FINDBIZ_URL, wait_until="networkidle", timeout=30000)
         page.wait_for_selector('input[name="qryCond"]', timeout=10000)
-
-        # 2. Search
         page.fill('input[name="qryCond"]', search_term)
         page.click('input[type="submit"], button:has-text("查詢")')
-        # Wait for results to appear (look for result count or detail link)
-        page.wait_for_selector('text=/共.*筆/, text=詳細資料, text=查無資料', timeout=15000)
+        page.wait_for_selector("text=/共.*筆/, text=詳細資料, text=查無資料", timeout=15000)
 
-        # 3. Check results count
-        body = page.inner_text('body')
-        match = re.search(r'共\s*(\d+)\s*筆', body)
-        if not match or match.group(1) == '0':
+        body = page.inner_text("body")
+        if "查無資料" in body or not re.search(r"共\s*\d+\s*筆", body):
             browser.close()
-            return {'error': f'No results for: {search_term}'}
+            return {"error": f"No results for: {search_term}"}
 
-        result_count = int(match.group(1))
-
-        # 4. If multiple results, list them and let user choose
-        if result_count > 1:
-            # Extract company names from results
+        match = re.search(r"共\s*(\d+)\s*筆", body)
+        if match and int(match.group(1)) > 1:
             browser.close()
-            return {
-                'error': f'Multiple results ({result_count}). Refine search or use 統一編號.',
-                'results_preview': body[:2000]
-            }
+            return {"error": f"Multiple results ({match.group(1)}). Use 統一編號 for exact match."}
 
-        # 5. Click detail and wait for detail page to load
-        page.click('text=詳細資料')
-        page.wait_for_selector('text=統一編號', timeout=15000)
+        page.click("text=詳細資料")
+        page.wait_for_selector("text=統一編號", timeout=15000)
 
-        results = {}
-
-        # 6. Get basic info
-        results['basic'] = page.inner_text('body')
-
-        # 7. Click through tabs — wait for content to load after each click
+        raw: dict[str, str] = {"basic": page.inner_text("body")}
         for tab in TABS:
             try:
-                page.click(f'text={tab}')
-                # Wait for tab content: either a data table or "無資料" message
-                page.wait_for_selector(
-                    'table, text=/無.*資料/, text=/序號/',
-                    timeout=10000,
-                )
-                # Extra short wait for DOM to fully settle after tab switch
+                page.click(f"text={tab}")
+                page.wait_for_selector("table, text=/無.*資料/, text=/序號/", timeout=10000)
                 page.wait_for_timeout(500)
-                results[tab] = page.inner_text('body')
+                raw[tab] = page.inner_text("body")
             except Exception as e:
-                results[tab] = f'Error: {e}'
+                raw[tab] = f"Error: {e}"
 
         browser.close()
-        return results
 
-
-def parse_basic_info(text: str) -> dict:
-    """Parse basic company info from findbiz text output."""
-    info = {}
-    patterns = {
-        '統一編號': r'統一編號\s+(\d+)',
-        '公司名稱': r'公司名稱\s+(.+?)(?:\s+Google|$)',
-        '登記現況': r'登記現況\s+(\S+)',
-        '資本總額': r'資本總額\(元\)\s+([\d,]+)',
-        '實收資本額': r'實收資本額\(元\)\s+([\d,]+)',
-        '代表人': r'代表人姓名\s+(\S+)',
-        '公司所在地': r'公司所在地\s+(.+?)(?:\s+電子地圖|$)',
-        '設立日期': r'核准設立日期\s+(.+?)$',
-        '最後變更日期': r'最後核准變更日期\s+(.+?)$',
-        '英文名': r'出進口廠商英文名稱：(.+?)\)',
+    return {
+        "business_codes": _parse_business_codes(raw.get("basic", "")),
+        "managers": _parse_managers(raw.get("經理人資料", "")),
+        "factories": _parse_factories(raw.get("工廠資料", "")),
+        "history": _parse_history(raw.get("歷史資料", "")),
     }
 
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.MULTILINE)
-        if match:
-            info[key] = match.group(1).strip()
 
-    # Extract 所營事業
-    biz_matches = re.findall(r'([A-Z]\d{6})\s+(.+?)$', text, re.MULTILINE)
-    if biz_matches:
-        info['所營事業'] = [{'code': code, 'name': name.strip()} for code, name in biz_matches]
-
-    return info
+def _parse_business_codes(text: str) -> list[dict]:
+    matches = re.findall(r"([A-Z]\d{6})\s+(.+?)$", text, re.MULTILINE)
+    return [{"code": code, "name": name.strip()} for code, name in matches]
 
 
-def parse_directors(text: str) -> list[dict]:
-    """Parse board of directors from findbiz text output."""
-    directors = []
-    # Pattern: 序號 職稱 姓名 所代表法人 出資額
-    matches = re.findall(
-        r'(\d{4})\s+(董事長?|監察人|獨立董事)\s+(\S+)\s*(.*?)\s+([\d,]+)',
-        text
-    )
-    for seq, title, name, rep, shares in matches:
-        directors.append({
-            'seq': seq,
-            'title': title,
-            'name': name,
-            'representative': rep.strip() if rep.strip() else None,
-            'shares': shares,
-        })
-    return directors
+def _parse_managers(text: str) -> list[dict]:
+    matches = re.findall(r"\d{4}\s+(\S+)\s+(\d{4}/\d{2}/\d{2})", text)
+    return [{"name": name, "date": date} for name, date in matches]
 
 
-def parse_factories(text: str) -> list[dict]:
-    """Parse factory registrations from findbiz text output."""
+def _parse_factories(text: str) -> list[dict]:
     factories = []
-    # Pattern: 序號 登記編號 工廠名稱 登記現況 核准日期 變更日期
-    lines = text.split('\n')
-    for i, line in enumerate(lines):
-        if re.match(r'^\d+\s+\d{8}', line.strip()):
-            parts = line.strip().split('\t')
-            if len(parts) >= 4:
+    for line in text.split("\n"):
+        if re.match(r"^\d+\s+\d{8}", line.strip()):
+            parts = line.strip().split("\t")
+            if len(parts) >= 3:
                 factories.append({
-                    'registration_no': parts[1] if len(parts) > 1 else '',
-                    'name': parts[2] if len(parts) > 2 else '',
-                    'status': parts[3] if len(parts) > 3 else '',
+                    "registration_no": parts[1] if len(parts) > 1 else "",
+                    "name": parts[2] if len(parts) > 2 else "",
+                    "status": parts[3] if len(parts) > 3 else "",
                 })
     return factories
-```
 
-## Output Format
 
-Present results as a structured table:
+def _parse_history(text: str) -> list[dict]:
+    matches = re.findall(r"(\d{3}/\d{2}/\d{2}|\d{4}/\d{2}/\d{2})\s+(.+?)$", text, re.MULTILINE)
+    return [{"date": d, "content": c.strip()} for d, c in matches]
 
-```markdown
-## 公司登記資料 — [公司名稱]
-> 來源：經濟部商工登記公示資料查詢服務 (findbiz.nat.gov.tw)
-> 查詢日期：[YYYY-MM-DD]
-> 可靠度：[confirmed] (政府官方資料)
 
-### 基本資料
-| 項目 | 內容 |
-|------|------|
-| 統一編號 | |
-| 公司名稱 | |
-| 英文名 | |
-| 登記現況 | |
-| 資本總額 | |
-| 實收資本額 | |
-| 代表人 | |
-| 公司所在地 | |
-| 設立日期 | |
-| 最後變更日期 | |
-| 登記機關 | |
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
-### 所營事業
-| 代碼 | 名稱 |
-|------|------|
-| | |
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Full Taiwan company registry lookup.")
+    src = parser.add_mutually_exclusive_group(required=True)
+    src.add_argument("--name", help="Company name")
+    src.add_argument("--tax-id", help="統一編號 (8 digits)")
 
-### 董監事
-| 序號 | 職稱 | 姓名 | 所代表法人 | 出資額 |
-|------|------|------|-----------|--------|
-| | | | | |
+    parser.add_argument("--api-only", action="store_true",
+                        help="Only fetch API data (tw-company-identify), skip Playwright")
+    parser.add_argument("--findbiz-only", action="store_true",
+                        help="Only run Playwright on findbiz, skip API layer")
+    parser.add_argument("--json-only", action="store_true",
+                        help="Only print JSON to stdout")
+    args = parser.parse_args()
 
-### 經理人
-| 序號 | 姓名 | 到職日期 |
-|------|------|---------|
-| | | |
+    result: dict = {}
 
-### 工廠登記
-| 登記編號 | 工廠名稱 | 登記現況 | 核准日期 |
-|---------|---------|---------|---------|
-| | | | |
+    search_term = args.name or args.tax_id
 
-### 歷史變更紀錄
-| 核准日期 | 變更內容 |
-|---------|---------|
-| | |
+    if not args.findbiz_only:
+        print("[ API ] fetching structured data…", file=sys.stderr)
+        result["api"] = get_api_data(
+            name=args.name or "",
+            tax_id=args.tax_id or "",
+        )
+        # Use official name from API for Playwright search (more reliable)
+        if result["api"].get("name"):
+            search_term = result["api"]["name"]
+
+    if not args.api_only:
+        print(f"[ Playwright ] searching findbiz for: {search_term}", file=sys.stderr)
+        result["findbiz"] = lookup_findbiz(search_term)
+
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    if not args.json_only:
+        api = result.get("api", {})
+        fb = result.get("findbiz", {})
+        print(f"\n=== {api.get('name', search_term)} ===", file=sys.stderr)
+        if api:
+            print(f"  統編: {api.get('tax_id')}  上市: {api.get('listing_status')}  "
+                  f"資本: {api.get('capital', 0):,}", file=sys.stderr)
+        if fb and not fb.get("error"):
+            print(f"  所營事業: {len(fb.get('business_codes', []))} 項  "
+                  f"工廠: {len(fb.get('factories', []))} 筆  "
+                  f"歷史變更: {len(fb.get('history', []))} 筆", file=sys.stderr)
+        elif fb.get("error"):
+            print(f"  findbiz: {fb['error']}", file=sys.stderr)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 ```
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| findbiz timeout | Increase timeout to 30000ms, retry once |
-| Multiple search results | Use 統一編號 instead of company name |
-| Empty text after tab click | `wait_for_selector` handles this — waits for table/data before reading. If still empty, increase `wait_for_timeout()` to 1000ms |
-| Tab click fails | Tab may not exist for this company (e.g., no factories) — skip gracefully |
-| Playwright not installed | `pip install playwright && playwright install chromium` |
+| 問題 | 解法 |
+|------|------|
+| identify script not found | `pip install -r ~/.claude/skills/tw-company-identify/scripts/requirements.txt` |
+| findbiz 多筆命中 | 改用 `--tax-id` 取代名稱搜尋 |
+| Playwright 未安裝 | `pip install playwright && playwright install chromium` |
+| findbiz timeout | 網路問題；加 `--api-only` 先取 API 資料 |
+| 工廠/歷史欄位空白 | 該公司確實無此資料（findbiz 顯示「無資料」）|
 
-## ROC Calendar Conversion
+## ROC Calendar
 
-findbiz uses ROC calendar (民國). To convert:
-- ROC year + 1911 = Western year
-- Example: 093年12月31日 = 2004/12/31
-- Example: 114年07月18日 = 2025/07/18
+findbiz 顯示民國年（ROC）。轉換：ROC 年 + 1911 = 西元年。
+例：114/07/18 = 2025/07/18
+
+## Related Skills
+
+- **tw-company-identify** — 本 skill 的 API layer 來源；可單獨使用取得快速基本資料
+- **customer-intel** — B2B 銷售報告；lookup 跑完後接 customer-intel 寫完整客戶情蒐

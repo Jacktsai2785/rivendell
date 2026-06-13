@@ -1378,28 +1378,83 @@
       "skills": [
         "gdoc-report-builder"
       ]
+    },
+    {
+      "label": "Gstack Framework Skills",
+      "skills": [
+        "algorithmic-art",
+        "autoplan",
+        "benchmark",
+        "benchmark-models",
+        "brand-guidelines",
+        "browse",
+        "canary",
+        "canvas-design",
+        "careful",
+        "claude-api",
+        "codex",
+        "connect-chrome",
+        "context-restore",
+        "context-save",
+        "continuous-learning-v2",
+        "cso",
+        "design-consultation",
+        "design-html",
+        "design-review",
+        "design-shotgun",
+        "devex-review",
+        "document-release",
+        "docx",
+        "freeze",
+        "guard",
+        "health",
+        "investigate",
+        "land-and-deploy",
+        "landing-report",
+        "learn",
+        "make-pdf",
+        "office-hours",
+        "open-gstack-browser",
+        "pair-agent",
+        "pdf",
+        "plan-ceo-review",
+        "plan-design-review",
+        "plan-devex-review",
+        "plan-eng-review",
+        "plan-tune",
+        "pptx",
+        "qa",
+        "qa-only",
+        "retro",
+        "review",
+        "scrape",
+        "setup-browser-cookies",
+        "setup-deploy",
+        "setup-gbrain",
+        "ship",
+        "skillify",
+        "slack-gif-creator",
+        "theme-factory",
+        "tw-call-memo",
+        "tw-company-identify",
+        "unfreeze",
+        "web-artifacts-builder",
+        "webapp-testing",
+        "xlsx"
+      ]
+    },
+    {
+      "label": "Rivendell Local Skills",
+      "skills": [
+        "1-service-watchdog-launchd",
+        "cron-script-範式段落-加進-headless-agent-或-launchd-agent",
+        "doc-coauthoring",
+        "internal-comms",
+        "mops-filer-list-reconcile",
+        "tw-company-website-finder",
+        "workflow-retro"
+      ]
     }
   ],
-  "orphaned": [
-    {
-      "skill": "gstack.bak",
-      "severity": "red",
-      "reason": "備份檔案，非可調用 skill，應刪除或歸檔"
-    },
-    {
-      "skill": "gstack-open-gstack-browser",
-      "severity": "amber",
-      "reason": "內部實作細節，非用戶觸發點"
-    },
-    {
-      "skill": "gstack-devex-review",
-      "severity": "amber",
-      "reason": "未在 CLAUDE.md 中文件化，與 gstack-review 差異不明"
-    },
-    {
-      "skill": "gstack-plan-devex-review",
-      "severity": "amber",
-      "reason": "同上，DevEx 計畫審查未文件化"
-    }
-  ]
+  "orphaned": []
 }

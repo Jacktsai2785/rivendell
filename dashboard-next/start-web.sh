@@ -22,4 +22,4 @@ if [ ! -f "$SENTINEL" ] || [ -n "$(find src next.config.ts package.json -newer "
     touch "$SENTINEL"
 fi
 
-exec npx next start -p 3000
+exec npx next start -p 3001

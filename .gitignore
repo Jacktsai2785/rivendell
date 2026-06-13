@@ -27,3 +27,7 @@ node_modules/
 .env
 .env.shared
 .gstack/
+
+# Local runtime — 機器本地 log 與設定，不進備份
+*.log
+.claude/settings.local.json

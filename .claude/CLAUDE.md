@@ -24,3 +24,6 @@ Key routing rules:
 - Design system, brand → invoke gstack-design-consultation
 - Visual audit, design polish → invoke gstack-design-review
 - Architecture review → invoke gstack-plan-eng-review
+- DX audit, "test the onboarding", "try the getting started" → invoke devex-review
+- DX plan review, "API design review", "developer experience audit" → invoke plan-devex-review
+- Open browser, "launch chrome", "real browser", AI browser control → invoke open-gstack-browser

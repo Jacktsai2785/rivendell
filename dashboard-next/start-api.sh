@@ -14,6 +14,6 @@ fi
 "$VENV_DIR/bin/pip" install -q -r "$DIR/api/requirements.txt"
 
 exec "$VENV_DIR/bin/uvicorn" server:app \
-    --host 127.0.0.1 \
-    --port 8000 \
+    --host 0.0.0.0 \
+    --port 8001 \
     --app-dir "$DIR/api"

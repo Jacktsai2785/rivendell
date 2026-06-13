@@ -59,7 +59,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1340,8 +1340,8 @@ def _parse_harvest_reports() -> list[dict[str, Any]]:
             body = "\n".join(lines[1:])
 
             # Skip sections whose body explicitly says "no candidates found"
-            # e.g. "**(本次無 Strong 候選)**" under a Strong taxonomy heading
-            if re.search(r"本次無\s*\w*\s*候選", body):
+            # Matches: 本次無 / 本輪無 / 無 Strong 候選 etc.
+            if re.search(r"本[次輪]無\s*\S*\s*候選|無.*Strong.*候選|本次沒有.*候選", body):
                 continue
 
             # Check for table-format candidates (| 名稱 | 用途 | ... |)
@@ -1394,8 +1394,8 @@ def _parse_candidate_section(text: str, strength: str, report_date: str) -> dict
 
     # Extract name from heading — look for backtick-wrapped name or parenthesized name
     heading = lines[0].strip()
-    # Clean emoji/markers
-    heading = re.sub(r"^[✅🟡🔴⚪\s]+", "", heading).strip()
+    # Clean emoji/markers (include 🟢 for strong sections)
+    heading = re.sub(r"^[✅🟡🔴⚪🟢\s]+", "", heading).strip()
 
     # Skip meta-headings that aren't actual candidates
     skip_patterns = ["排除的候選", "不建立原因", "觀察到但不建議"]
@@ -1405,7 +1405,7 @@ def _parse_candidate_section(text: str, strength: str, report_date: str) -> dict
     body = "\n".join(lines[1:])
 
     # Check body for **名稱** table row (table-format candidates)
-    name_from_table = re.search(r"\*\*名稱\*\*[：:|\s]*`([^`]+)`", body)
+    name_from_table = re.search(r"\*\*名稱[：:]?\*\*\s*[：:]?\s*`([^`]+)`", body)
 
     # Extract name — prefer backtick in heading, then table, then heading text
     name_match = re.search(r"`([^`]+)`", heading)
@@ -1423,33 +1423,43 @@ def _parse_candidate_section(text: str, strength: str, report_date: str) -> dict
     # Extract fields — support both "**用途**: text" and "| **用途** | text |" formats
     def _extract(field_names: list[str]) -> str:
         for fn in field_names:
-            # Inline format: **field**: value
-            m = re.search(rf"\*\*{fn}\*\*[：:|\s]+(.+?)(?:\s*\|?\s*$)", body, re.MULTILINE)
+            # Inline format: **field**: value or **field：** value (colon inside bold)
+            m = re.search(rf"\*\*{fn}[：:]?\*\*\s*[：:]?\s*(.+?)(?:\s*\|?\s*$)", body, re.MULTILINE)
             if m:
                 val = m.group(1).strip().strip("|").strip()
                 if val:
                     return val
         return ""
 
-    purpose = _extract(["目的", "用途", "Purpose"])
-    trigger = _extract(["觸發條件", "觸發", "Trigger"])
-    category = _extract(["建議分類", "分類", "Category"]).strip("`")
+    purpose = _extract(["目的", "用途", "Purpose", "現狀"])
+    trigger = _extract(["觸發條件", "觸發詞", "觸發", "Trigger", "行動"])
+    category = _extract(["建議分類", "分類", "類別", "Category"]).strip("`")
 
-    # Extract reasoning — supports Chinese (理由) and English (Rationale/Reasoning)
+    # Extract reasoning — prefer concise fields first, fall back to evidence table
     reasoning = ""
-    reason_match = re.search(
-        r"\*\*(?:理由|Rationale|Reasoning)\*\*[：:]\s*\n?((?:[\s\S]*?)(?=\n\*\*|\n---|\n###|\Z))",
-        body,
-    )
-    if reason_match:
-        reasoning = reason_match.group(1).strip()
-        # Truncate to first 300 chars
-        if len(reasoning) > 300:
-            reasoning = reasoning[:300] + "..."
+    _REASON_PATTERNS = [
+        r"\*\*(?:理由分級|理由|依據|原因|問題|Rationale|Reasoning)[：:]?\*\*\s*[：:]?\s*\n?((?:[\s\S]*?)(?=\n\*\*|\n---|\n###|\Z))",
+        r"\*\*觀察根據[：:]?\*\*\s*[：:]?\s*\n?((?:[\s\S]*?)(?=\n\*\*|\n---|\n###|\Z))",
+    ]
+    for _pat in _REASON_PATTERNS:
+        reason_match = re.search(_pat, body)
+        if reason_match:
+            reasoning = reason_match.group(1).strip()
+            if len(reasoning) > 300:
+                reasoning = reasoning[:300] + "..."
+            break
+
+    # Fallback: when no structured fields found, extract plain body text as reasoning
+    if not reasoning and not purpose and not trigger:
+        raw = re.sub(r"\*\*[^*]+\*\*[：:：]?\s*", "", body)
+        raw = re.sub(r"^[-\*|]+\s*", "", raw, flags=re.MULTILINE)
+        raw = re.sub(r"\n{2,}", "\n", raw).strip()
+        if raw:
+            reasoning = raw[:300] + ("..." if len(raw) > 300 else "")
 
     # Extract conclusion — supports Chinese (結論) and English (Conclusion)
     conclusion = ""
-    concl_match = re.search(r"\*\*(?:結論|Conclusion)\*\*[：:]\s*(.+)", body)
+    concl_match = re.search(r"\*\*(?:結論|Conclusion)[：:]?\*\*\s*[：:]?\s*(.+)", body)
     if concl_match:
         conclusion = concl_match.group(1).strip()
 
@@ -1518,21 +1528,15 @@ def _slugify(name: str) -> str:
     return slug
 
 
-def _generate_skill_md(candidate: dict[str, Any]) -> str:
-    """Generate SKILL.md content from a harvest candidate."""
+def _skill_md_stub(candidate: dict[str, Any]) -> str:
+    """Fallback stub SKILL.md when AI generation is unavailable."""
     name = candidate.get("name", "unknown")
     purpose = candidate.get("purpose", "")
     trigger = candidate.get("trigger", "")
     category = candidate.get("category", "workflow")
     reasoning = candidate.get("reasoning", "")
-
-    # Build description — truncate if too long
     description = purpose[:200] if purpose else f"{name} skill"
-
-    # Build when_to_use from trigger
     when_to_use = trigger[:200] if trigger else f"when working with {name}"
-
-    # Build tags from category
     tags = [category] if category else ["workflow"]
 
     lines = [
@@ -1552,28 +1556,13 @@ def _generate_skill_md(candidate: dict[str, Any]) -> str:
         "",
         "## Overview",
         "",
-        purpose or f"Auto-generated skill from session harvest.",
+        purpose or "Auto-generated skill from session harvest.",
         "",
     ]
-
     if trigger:
-        lines += [
-            "## When to Use",
-            "",
-            trigger,
-            "",
-        ]
-
+        lines += ["## When to Use", "", trigger, ""]
     if reasoning:
-        lines += [
-            "## Background",
-            "",
-            "From session harvest analysis:",
-            "",
-            reasoning,
-            "",
-        ]
-
+        lines += ["## Background", "", "From session harvest analysis:", "", reasoning, ""]
     lines += [
         "## TODO",
         "",
@@ -1581,14 +1570,64 @@ def _generate_skill_md(candidate: dict[str, Any]) -> str:
         "Fill in the implementation details, patterns, and examples.",
         "",
     ]
-
     return "\n".join(lines)
 
 
-def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:
-    """Create skill directory + SKILL.md + deploy symlink. Returns result dict."""
-    import re
+async def _generate_skill_md_with_ai(candidate: dict[str, Any]) -> tuple[str, bool]:
+    """Call `claude -p` to generate a complete SKILL.md. Returns (content, ai_ok)."""
+    import asyncio
 
+    name = candidate.get("name", "unknown")
+    slug = _slugify(name)
+    purpose = candidate.get("purpose", "")
+    trigger = candidate.get("trigger", "")
+    category = candidate.get("category", "workflow")
+    reasoning = candidate.get("reasoning", "")
+
+    prompt = f"""你是 rivendell skills library 的 skill 作者，用台灣正體中文寫作。
+根據以下 harvest 候選資訊，生成一份完整可執行的 SKILL.md 檔案。
+
+候選資訊：
+- slug: {slug}
+- 名稱: {name}
+- 用途: {purpose}
+- 觸發時機: {trigger}
+- 分類: {category}
+- 背景分析: {reasoning}
+
+格式要求：
+1. YAML frontmatter（name 用 slug、description 含 TRIGGER when:、when_to_use、version: 1.0.0、tags、languages: all）
+2. 正文章節：Overview（說明用途與價值）、何時使用（具體觸發場景）、執行步驟或模式（具體可操作的步驟/指令/程式碼）、注意事項（已知限制或陷阱）
+3. 寫具體可操作的內容，不要空泛描述
+4. 不要包含「## TODO」或任何佔位符文字
+5. 不要輸出 markdown code fence，直接輸出 SKILL.md 原始內容"""
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "claude", "-p", prompt,
+            "--output-format", "text",
+            "--model", "claude-haiku-4-5-20251001",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
+        content = stdout.decode("utf-8", errors="replace").strip()
+
+        # Strip markdown code fences if present (```yaml\n---... or ```\n---...)
+        import re as _re
+        content = _re.sub(r"^```[a-z]*\n", "", content)
+        content = _re.sub(r"\n```$", "", content).strip()
+
+        # Validate: must contain YAML frontmatter marker
+        if content.startswith("---") and "name:" in content:
+            return content, True
+        return _skill_md_stub(candidate), False
+    except Exception:
+        return _skill_md_stub(candidate), False
+
+
+async def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Create skill directory + SKILL.md (AI-generated) + deploy symlink."""
     name = candidate.get("name", "")
     if not name:
         return {"created": False, "error": "no name"}
@@ -1601,7 +1640,6 @@ def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:
     skill_dir = repo_dir / "skills" / cat_dir / slug
     deploy_target = Path.home() / ".claude" / "skills" / slug
 
-    # Check if already exists
     if skill_dir.exists():
         return {
             "created": False,
@@ -1610,21 +1648,20 @@ def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:
             "deploy_path": str(deploy_target),
         }
 
-    # Create skill directory + SKILL.md
-    skill_dir.mkdir(parents=True, exist_ok=True)
-    skill_md = skill_dir / "SKILL.md"
-    skill_md.write_text(_generate_skill_md(candidate))
+    content, ai_ok = await _generate_skill_md_with_ai(candidate)
 
-    # Deploy symlink
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+
     deploy_target.parent.mkdir(parents=True, exist_ok=True)
+    deployed = False
     if not deploy_target.exists() and not deploy_target.is_symlink():
         deploy_target.symlink_to(skill_dir)
         deployed = True
-    else:
-        deployed = False
 
     return {
         "created": True,
+        "ai_generated": ai_ok,
         "skill_path": str(skill_dir),
         "deploy_path": str(deploy_target) if deployed else None,
         "deployed": deployed,
@@ -1633,9 +1670,83 @@ def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ── Harvest batch regeneration ────────────────────────────────────────
+
+_regen_state: dict[str, Any] = {}
+
+
+async def _run_batch_regen(candidates: list[dict[str, Any]]) -> None:
+    """Background task: regenerate missing skills one by one."""
+    for candidate in candidates:
+        try:
+            result = await _auto_create_skill(candidate)
+            _regen_state["done"] += 1
+            if result.get("ai_generated"):
+                _regen_state["ai_generated"] += 1
+            _regen_state["results"].append({
+                "slug": result.get("slug", _slugify(candidate["name"])),
+                "ok": result.get("created", False) or result.get("already_exists", False),
+                "ai_generated": result.get("ai_generated", False),
+            })
+        except Exception as e:
+            _regen_state["done"] += 1
+            _regen_state["failed"] += 1
+            _regen_state["results"].append({
+                "slug": _slugify(candidate["name"]),
+                "ok": False,
+                "error": str(e),
+            })
+    _regen_state["running"] = False
+
+
+@app.post("/api/harvest/regenerate-missing", tags=["Overview"])
+async def api_harvest_regenerate_missing() -> dict[str, Any]:
+    """Batch regenerate AI skills for all accepted candidates missing skill files."""
+    import asyncio
+
+    if _regen_state.get("running"):
+        return {"ok": False, "error": "already running", **_regen_state}
+
+    candidates = _parse_harvest_reports()
+    decisions = _load_harvest_decisions()
+    skills_dir = Path.home() / ".claude" / "skills"
+
+    to_regen = []
+    for c in candidates:
+        if decisions.get(c["key"]) != "accepted":
+            continue
+        slug = _slugify(c["name"])
+        if not (skills_dir / slug).exists():
+            to_regen.append(c)
+
+    if not to_regen:
+        return {"ok": True, "total": 0, "message": "沒有缺失的 skill"}
+
+    _regen_state.clear()
+    _regen_state.update({
+        "running": True,
+        "total": len(to_regen),
+        "done": 0,
+        "failed": 0,
+        "ai_generated": 0,
+        "results": [],
+    })
+
+    asyncio.create_task(_run_batch_regen(to_regen))
+    return {"ok": True, "started": True, "total": len(to_regen)}
+
+
+@app.get("/api/harvest/regenerate-missing/status", tags=["Overview"])
+def api_harvest_regenerate_status() -> dict[str, Any]:
+    """Check progress of background batch regeneration."""
+    if not _regen_state:
+        return {"running": False, "started": False}
+    return dict(_regen_state)
+
+
 @app.post("/api/harvest/decide", tags=["Overview"])
-def api_harvest_decide(body: HarvestDecision) -> dict[str, Any]:
-    """Record user decision on a skill candidate. Auto-creates skill when accepted."""
+async def api_harvest_decide(body: HarvestDecision) -> dict[str, Any]:
+    """Record user decision on a skill candidate. Accepted candidates are AI-generated."""
     if body.decision not in ("accepted", "dismissed", "pending"):
         raise HTTPException(400, "decision must be accepted, dismissed, or pending")
 
@@ -1648,12 +1759,11 @@ def api_harvest_decide(body: HarvestDecision) -> dict[str, Any]:
 
     result: dict[str, Any] = {"ok": True, "key": body.key, "decision": body.decision}
 
-    # Auto-create skill when accepted
     if body.decision == "accepted":
         candidates = _parse_harvest_reports()
         candidate = next((c for c in candidates if c["key"] == body.key), None)
         if candidate:
-            result["skill_created"] = _auto_create_skill(candidate)
+            result["skill_created"] = await _auto_create_skill(candidate)
 
     return result
 
