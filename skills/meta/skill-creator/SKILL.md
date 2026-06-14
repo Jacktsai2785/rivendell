@@ -71,6 +71,8 @@ Check available MCPs - if useful for research (searching docs, finding similar s
 
 ### Write the SKILL.md
 
+> 撰寫前先讀全域 SSOT `~/.claude/skill-authoring-principles.md`（artifact 型態決策、五區塊骨架、漸進揭露、Gotchas、密鑰處理）。本指引與它對齊；衝突時以該檔為準。
+
 Based on the user interview, fill in these components:
 
 - **name**: Skill identifier
