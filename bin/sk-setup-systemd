@@ -71,10 +71,8 @@ while IFS='|' read -r label project_rel script sched_type sched_val _ _; do
   # Only handle rivendell units; skip other projects (news_stock, sales, etc.)
   [ "$project_rel" != "rivendell" ] && continue
 
-  # Skip launchd-specific tools that use launchctl/Library/LaunchAgents
-  case "$label" in
-    *doctor|*watchdog) echo "  [skip] $label (launchd-specific)"; continue ;;
-  esac
+  # doctor & watchdog used to be skipped (they called launchctl); they now run
+  # on systemd, so they get real units like everything else.
 
   project_dir="$PROJECTS_DIR/$project_rel"
   exec_cmd="/bin/bash $project_dir/$script"

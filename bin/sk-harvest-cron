@@ -101,18 +101,28 @@ start_epoch=$(date +%s)
 # Use timestamped report name to avoid overwriting previous runs
 REPORT_FILE="$REPORT_DIR/harvest-${TODAY}.md"
 
+# Run as stream-json and pipe through the parser: it writes a human-readable
+# report to stdout AND a structured JSONL (with token/cost) we feed to the DB.
+# --output-format text recorded nothing, so cost/token were always NULL.
+STRUCTURED_FILE="$REPORT_DIR/harvest-${TODAY}.structured.jsonl"
+# Disable set -e around the pipeline: under `pipefail` a non-zero claude exit
+# would abort the script here, skipping run_exit capture + the DB record. We
+# WANT to record failed runs, so take the exit code by hand instead.
+set +e
 claude -p "$PROMPT" \
-    --output-format text \
+    --output-format stream-json --verbose \
     < /dev/null \
-    > "$REPORT_FILE" \
     2> "$REPORT_DIR/harvest-${TODAY}-error.log" \
-    && run_exit=0 || run_exit=$?
+    | python3 "$REPO_DIR/scripts/parse-agent-log.py" --output "$STRUCTURED_FILE" \
+    > "$REPORT_FILE"
+run_exit=${PIPESTATUS[0]}
+set -e
 
 end_epoch=$(date +%s)
 
-# --- Record run to dashboard DB ---
+# --- Record run to dashboard DB (structured log → cost/token populated) ---
 _sk_exec_record_run "$PROJECT_NAME" "harvest" "$start_epoch" "$end_epoch" \
-  "$run_exit" "" "" "" "" "" ""
+  "$run_exit" "$STRUCTURED_FILE" "" "" "" "" ""
 
 # --- Mark sessions as harvested (only on success) ---
 if [ "$run_exit" -eq 0 ]; then

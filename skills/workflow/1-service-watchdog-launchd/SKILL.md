@@ -1,5 +1,5 @@
 ---
-name: Service Watchdog (HTTP probe + auto-restart)
+name: 1-service-watchdog-launchd
 description: >
   為 Linux / WSL2 上的 HTTP 服務（FastAPI / Next.js / dashboard）建立「HTTP probe + 自動重啟」
   watchdog，當服務卡住（process 還在、port 還開，但 HTTP 不回應）時自動 restart。用 systemd

@@ -1,5 +1,5 @@
 ---
-name: cron-script 範式段落 (systemd 排程腳本骨架)
+name: cron-script-範式段落-加進-headless-agent-或-launchd-agent
 description: >
   rivendell 所有 cron-style 維護腳本（bin/sk-*-cron，由 systemd user timer 觸發）共用的「shape」。
   codify 成可貼上的骨架：從 script 位置（非 $PWD）解析 repo root、state 放 reports/.<name>-state、

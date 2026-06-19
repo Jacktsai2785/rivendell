@@ -7,7 +7,7 @@ Personal Claude Code skills library — manage, version control, and deploy cust
 ```
 skills/
 ├── meta/       # Claude Code 自身管理工具 (18)
-├── workflow/   # 工作流程與規劃 (28)
+├── workflow/   # 工作流程與規劃 (23)
 ├── quality/    # 程式品質、審查、除錯、測試 (7)
 ├── git/        # Git/GitHub 操作 (2)
 ├── frontend/   # 前端設計、iOS、測試 (4)
@@ -47,7 +47,7 @@ cd ~/any-project && claude
 | `./bin/sk readme` | Regenerate Skills Catalog in README.md from SKILL.md frontmatter |
 | `./bin/sk sync` | Show Google Drive import status for re-import |
 
-## Skills Catalog (144 skills)
+## Skills Catalog (139 skills)
 
 ### meta/ — Claude Code 管理
 
@@ -80,7 +80,6 @@ cd ~/any-project && claude
 | **1-service-watchdog-launchd** | 自動 | 為 Linux / WSL2 上的 HTTP 服務（FastAPI / Next. |
 | **1-taiwan-news-multiday-digest** | 自動 | 把過去 N 天（5–8 天）的單日新聞分類結果，彙整成「多日摘要 + 高頻標題」格式。每天一段，列出當日主題（5–8 |
 | **2-dev-server-restart-verify** | 手動 | 重啟 rivendell monorepo 的 frontend + backend dev server，並驗證 port 真的在 listening。避免「啟動完成但其實 crash」的假陽性。 |
-| **2-financial-indicators-from-statements** | 自動 | 從原始月/季財報資料（MOPS 三表）反推「6 大基本面指標」（營收成長性、營業利益率、稅後淨利 YoY、累積 EPS、存貨周轉率、FCF）的計算規則與 |
 | **2-headless-agent-knowledge-pipeline** | 自動 | 使用 systemd user timer 定期執行 Claude Code headless |
 | **2-jk-nb-consume** | 自動 | 執行 jk_nb vault 的 consume 動詞——掃 raw/ 依 frontmatter type 路由至 wiki/ 子目錄、補 entity |
 | **3-claude-sdk-oauth-telegram-bridge** | 自動 | 把「Claude Agent SDK（OAuth 模式）」+ 「Telegram bot」+ 「地端 web app」三者組合起來：使用者透過 |
@@ -91,17 +90,13 @@ cd ~/any-project && claude
 | **4-github-pages-corporate-site** | 自動 | 用 CNAME + DESIGN.md + STATE.md 模式建立企業官網（靜態 + 自訂域名 + GitHub Pages）。 |
 | **4-windows-clipper-to-wsl** | 自動 | 在 Windows 端建立瀏覽器書籤、PowerShell handler、URL |
 | **5-local-first-pdf-excel-company-extractor** | 自動 | | |
-| **5-taiwan-news-weekly-digest** | 使用者提及 | 彙整過去 5-7 天台灣產業新聞為「每日主題 + 高頻標題」的週度報告，快速掌握週間重點 |
 | **agent-observability** | 自動 | 讓 script-based agent 在 rivendell 可見：exec-lib 執行歷史、progress logging、log discovery 三層整合指南 |
-| **audio-transcription** | 自動 | 在 Web App 中加入音訊上傳 → 語音辨識 → 逐字稿顯示。支援 faster-whisper / OpenAI Whisper / OpenAI API 三種後端。 |
 | **autoresearch** | `/autoresearch` 或自動 | Autonomous goal-directed iteration loop for Claude Code agents. |
 | **candidate-analysis** | `/candidate-analysis` 或自動 | 面試候選人管理：PDF 履歷解析、GitHub repo 程式品質分析、候選人 profile markdown 產出 |
 | **claude-to-telegram** | `/claude-to-im setup` | 設定 Telegram 橋接器遠端控制 Claude Code，支援兩種實作方式 |
-| **company-deck-ingestion** | 自動 | TRIGGER when: user uploads company presentation files (PDF/PPT/images) and |
 | **context-recovery** | 自動 + hook | Session 壓縮後自動復原工作上下文，使用 Git 狀態與專案 metadata |
 | **crm-projection** | `/crm-projection` | Project nx_client + nx_deal data to local markdown files at materials/clients/. |
 | **cron-script-範式段落-加進-headless-agent-或-launchd-agent** | 自動 | rivendell 所有 cron-style 維護腳本（bin/sk-*-cron，由 systemd user timer 觸發）共用的「shape」。 |
-| **cross-device-deploy** | 自動 | 以 rivendell 為核心，設計其他裝置 pull 後一鍵部署多個 projects 的機制 |
 | **customer-intel** | `/customer-intel` 或自動 | B2B 客戶情蒐：公司名 → WebSearch + Playwright → 結構化報告（概覽、管理層、財務、競爭、痛點、策略建議） |
 | **dispatching-parallel-agents** | 自動 | 3+ 個獨立問題時，派 subagent 並行處理 |
 | **executing-plans** | 自動 | 分批執行計畫，每批有 review checkpoint |
@@ -241,8 +236,8 @@ rivendell runs three classes of long-lived processes on **Linux / WSL2**, all ma
 
 ```
 ┌─ Dashboard (always-on, keepalive) ──────────────┐
-│  com.sk.dashboard.api     FastAPI :8000         │
-│  com.sk.dashboard.web     Next.js :3000         │
+│  com.sk.dashboard.api     FastAPI :8001         │
+│  com.sk.dashboard.web     Next.js :3001         │
 │  com.sk.dashboard.watchdog  HTTP health probe   │  ← restarts hung API/web
 └─────────────────────────────────────────────────┘
 ┌─ Scheduled agents (timers) ─────────────────────┐
@@ -290,7 +285,7 @@ tail -f reports/api-stderr.log    # also captured here
 tail -f reports/watchdog.log       # only written when health checks fail
 ```
 
-The dashboard URLs are http://localhost:8000 (API) and http://localhost:3000 (web).
+The dashboard URLs are http://localhost:8001 (API) and http://localhost:3001 (web).
 `start-api.sh` / `start-web.sh` handle venv + deps; you do not invoke them directly.
 
 ### How the watchdog works

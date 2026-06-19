@@ -387,22 +387,10 @@ def api_agent_live(agent_label: str, offset: int = 0) -> dict[str, Any]:
     if not agent:
         raise HTTPException(404, "Agent not found")
 
-    # Check if running via launchctl
-    running = False
-    pid = None
-    try:
-        result = subprocess.run(
-            ["launchctl", "list", agent_label],
-            capture_output=True, text=True, timeout=5,
-        )
-        for line in result.stdout.splitlines():
-            if '"PID"' in line:
-                m = _re.search(r"(\d+)", line)
-                if m:
-                    pid = int(m.group(1))
-                    running = True
-    except Exception:
-        pass
+    # Running state from systemd: list_agents() sets pid to the .service MainPID
+    # while it is active (None otherwise).
+    pid = agent.pid
+    running = pid is not None
 
     # Find and tail stdout log
     wd = agent.working_directory
@@ -418,6 +406,7 @@ def api_agent_live(agent_label: str, offset: int = 0) -> dict[str, Any]:
         # Search multiple candidate log paths
         wd_path = Path(wd)
         candidates = [
+            wd_path / "logs" / f"{agent.name}.log",          # systemd StandardOutput
             wd_path / "reports" / f"{agent.name}-stdout.log",
         ]
         # Also check plist StandardOutPath (handles agents with non-standard log dirs)
@@ -862,11 +851,18 @@ def api_agent_file(agent_label: str, path: str = "") -> dict[str, Any]:
     file_path = Path(path)
     wd_path = Path(wd)
 
-    # Security: allow reading from the agent's working directory tree
+    # Security: confine to the agent's working directory tree (blocks ../ escape)…
     try:
-        file_path.resolve().relative_to(wd_path.resolve())
+        resolved = file_path.resolve()
+        resolved.relative_to(wd_path.resolve())
     except ValueError:
         raise HTTPException(403, "Access denied")
+
+    # …and deny secret-like files even when they live inside the tree.
+    import re as _re_sec
+    if _re_sec.match(r"^(\.env($|\.)|.*\.(key|pem)$|id_(rsa|ed25519|ecdsa))", resolved.name) \
+            or ".git" in resolved.parts:
+        raise HTTPException(403, "Access denied: secret-like path")
 
     if not file_path.is_file():
         raise HTTPException(404, "File not found")
@@ -2022,7 +2018,13 @@ def _load_workflow() -> dict[str, Any]:
 def _save_workflow(data: dict[str, Any]) -> None:
     import json as _json
 
+    if not isinstance(data, dict):
+        raise HTTPException(400, "workflow body must be a JSON object")
     _WORKFLOW_JSON.parent.mkdir(parents=True, exist_ok=True)
+    # Keep one backup before overwriting — a bad PUT shouldn't be unrecoverable.
+    if _WORKFLOW_JSON.exists():
+        _WORKFLOW_JSON.with_suffix(".json.bak").write_text(
+            _WORKFLOW_JSON.read_text(encoding="utf-8"), encoding="utf-8")
     _WORKFLOW_JSON.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 

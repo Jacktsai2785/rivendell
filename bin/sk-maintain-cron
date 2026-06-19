@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wrapper for launchd — runs sk maintain with dated log files
+# Wrapper for systemd user timer — runs sk maintain with dated log files
 # Records execution to dashboard DB via sk-exec-lib
 set -euo pipefail
 

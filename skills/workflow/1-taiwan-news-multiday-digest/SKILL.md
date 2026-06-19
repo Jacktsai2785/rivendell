@@ -1,5 +1,5 @@
 ---
-name: 1. **taiwan-news-multiday-digest**
+name: 1-taiwan-news-multiday-digest
 description: >
   把過去 N 天（5–8 天）的單日新聞分類結果，彙整成「多日摘要 + 高頻標題」格式。每天一段，列出當日主題（5–8 個關鍵詞），最後附跨日高頻標題排行。輸出格式固定：`【每日摘要與主題】` + `YYYY-MM-DD | 主題：A、B、C | 一句話總結`，後接 `【高頻標題】` 區塊。可選輸入：N 天的單日分類結果（即 `taiwan-news-classifier` 的輸出累積）。
   TRIGGER when: 使用者說「過去 N 天台灣產業新聞摘要」「週度新聞摘要」「多日 digest」「高頻標題」「news-{industry}.md 累積」「digest 5 days」「跨日彙整」。

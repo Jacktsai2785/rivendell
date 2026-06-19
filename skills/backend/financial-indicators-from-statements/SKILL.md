@@ -1,5 +1,5 @@
 ---
-name: 2-financial-indicators-from-statements
+name: financial-indicators-from-statements
 description: |
   計算上市公司「6 大基本面指標」（營收成長、營業利益率、稅後淨利 YoY、累積 EPS、存貨周轉率、FCF）的公式與 SQL/Python 實作。
   

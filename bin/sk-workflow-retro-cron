@@ -35,7 +35,7 @@ fi
 PROMPT="Run the workflow-retro skill at $REPO_DIR/skills/meta/workflow-retro/SKILL.md.
 
 Follow its instructions exactly: pull data from the dashboard API
-(http://localhost:8000/api/skills/usage, /api/agents, /api/tokens), read recent
+(http://localhost:8001/api/skills/usage, /api/agents, /api/tokens), read recent
 reports under $REPO_DIR/reports/ (skill-audit-*, test-*, harvest-*, watchdog.log),
 read $REPO_DIR/.learnings/LEARNINGS.md, and produce one ISO-week report at
 $REPORT_FILE.

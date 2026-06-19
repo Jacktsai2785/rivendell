@@ -1,5 +1,5 @@
 ---
-name: De-Slopify
+name: de-slopify
 description: Remove telltale signs of AI-generated "slop" writing from documentation and prose. Make text sound authentically human-written.
 when_to_use: before publishing READMEs, documentation, blog posts, or any public-facing text; after AI-assisted writing sessions; during documentation reviews
 version: 2.0.0

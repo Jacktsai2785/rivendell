@@ -1,5 +1,5 @@
 ---
-name: 1. repo-cold-start
+name: 1-repo-cold-start
 description: >
   拿到一個沒看過的 GitHub repo，要在本地把它跑起來「看到畫面」。流程：clone → 偵測 stack（package.json / pyproject.toml / Dockerfile）→ 安裝依賴 → 補 `.env.local`/`.env` → 啟動前後端 → 驗證 port 是否 listening → 開瀏覽器確認，並針對常見「failed to fetch」（CORS /
   TRIGGER when: 使用者說「幫我跑這個 repo」「clone 這個然後讓我看畫面」「啟動讓我看畫面」「failed to fetch」「這個 repo 怎麼跑起來」、貼上 GitHub URL 後接「跑跑看」。

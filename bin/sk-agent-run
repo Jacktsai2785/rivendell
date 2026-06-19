@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launcher for launchd agents — cd into project dir, then exec the script.
+# Launcher for systemd user units — cd into project dir, then exec the script.
 # Usage: sk-agent-run <project_dir> <script> [args...]
 set -euo pipefail
 

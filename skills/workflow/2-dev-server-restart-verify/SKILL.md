@@ -1,5 +1,5 @@
 ---
-name: 2. dev-server-restart-verify
+name: 2-dev-server-restart-verify
 description: >
   重啟 monorepo 的 frontend + backend dev server，並在回報前 **先驗證 port 真的在 listening**（避免「啟動完成但其實 crash」的假陽性）。流程：讀 AGENTS.md 找啟動指令 → 殺 stale process（lsof + kill）→ 在背景啟動 → `lsof -i :PORT` 或 `curl /health` 驗證 → 才
   TRIGGER when: 使用者說「重啟 dev server」「frontend backend 都重開」「servers are down」「restart and verify」。

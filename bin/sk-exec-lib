@@ -383,7 +383,9 @@ sk_exec_pre_commit_check() {
 sk_exec_path_filter() {
   local project_dir="$1"
   local allowed="${SK_EXEC_ALLOWED_PATHS:-}"
-  local forbidden="${SK_EXEC_FORBIDDEN_PATHS:-.env*:*.db:.claude/**}"
+  # Recursive globs: fnmatch('subdir/.env','.env*') is False, so a bare '.env*'
+  # lets nested secrets through. Match secret-like files at any depth.
+  local forbidden="${SK_EXEC_FORBIDDEN_PATHS:-**/.env*:.env*:**/*.db:*.db:**/*.key:**/*.pem:**/id_rsa*:**/.git-credentials:.claude/**}"
   local max_files="${SK_EXEC_MAX_FILES:-0}"
 
   cd "$project_dir"
@@ -562,7 +564,14 @@ EOF
   # Push
   if [ "$auto_push" = "1" ]; then
     echo -e "\033[0;36m[post-git]\033[0m Pushing..."
-    if git push 2>&1; then
+    # Explicit push to origin. Refuse if the branch tracks a non-origin remote
+    # (this repo has upstream=manibari/rivendell — never auto-push there).
+    local _track_remote
+    _track_remote="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null | cut -d/ -f1)"
+    if [ -n "$_track_remote" ] && [ "$_track_remote" != "origin" ]; then
+      echo -e "\033[0;31m[post-git]\033[0m Refusing: branch tracks '$_track_remote', not origin." >&2
+      _sk_exec_log_event "$structured_log" "auto_push" "refused_non_origin"
+    elif git push origin HEAD 2>&1; then
       echo -e "\033[0;32m[post-git]\033[0m Pushed successfully."
       _sk_exec_log_event "$structured_log" "auto_push" "ok"
     else

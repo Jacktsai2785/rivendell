@@ -1,5 +1,5 @@
 ---
-name: SQLite to PostgreSQL Migration
+name: sqlite-to-postgres
 description: >
   Guide for migrating a project from SQLite to PostgreSQL (or Supabase).
   Covers syntax differences, schema conversion, data migration scripts,
