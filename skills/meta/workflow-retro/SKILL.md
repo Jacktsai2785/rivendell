@@ -1,5 +1,5 @@
 ---
-name: Workflow Retro
+name: workflow-retro
 description: >
   Weekly observability retrospective for the rivendell skills + agents system.
   Reads existing telemetry (skill firing rates, agent exit codes, .learnings themes,
@@ -50,7 +50,7 @@ nothing, the retro itself can be retired — it's not load-bearing yet.
 ### 1. 使用度 (Usage)
 Who is actually getting used, who is dead weight.
 
-- **Skill firing frequency** this week → `GET http://localhost:8000/api/skills/usage`
+- **Skill firing frequency** this week → `GET http://localhost:8001/api/skills/usage`
   Group by skill, count entries with `date` in the last 7 days.
 - **Skill never fired in 30 days** → same endpoint, no entries with date >= today-30d.
   These are candidates for retirement, not because they're bad but because either
@@ -81,7 +81,7 @@ For each repeated theme, identify whether it's:
 ### 3. 集中度 (Concentration)
 Where time, tokens, or failures are concentrating.
 
-- **Token / cost by project** → `GET http://localhost:8000/api/tokens` plus
+- **Token / cost by project** → `GET http://localhost:8001/api/tokens` plus
   `/api/tokens/filtered` for last-7-day breakdown. Highlight any project taking
   >40% of weekly cost — concentration that high deserves a "is this the right tool
   for the job" question.

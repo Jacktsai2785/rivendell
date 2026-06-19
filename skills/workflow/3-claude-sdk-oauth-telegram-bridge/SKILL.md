@@ -1,5 +1,5 @@
 ---
-name: 3. claude-sdk-oauth-telegram-bridge
+name: 3-claude-sdk-oauth-telegram-bridge
 description: >
   把「Claude Agent SDK（OAuth 模式）」+ 「Telegram bot」+ 「地端 web app」三者組合起來：使用者透過 Telegram 上傳檔案 → 後端用 Claude OAuth token 呼叫模型做辨識 → 結果回 Telegram 並寫入地端 DB。涵蓋 OAuth scope、token 儲存（Fernet）、Telegram file_id → bytes、
   TRIGGER when: 使用者說「Claude SDK + Telegram」「OAuth 串接 Telegram 辨識」「Telegram 上傳辨識公司名稱」「local 不上網但要用 Claude」。

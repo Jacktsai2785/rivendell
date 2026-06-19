@@ -7,6 +7,7 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 PROJECT_NAME="$(basename "$REPO_DIR")"
 REPORT_DIR="$REPO_DIR/reports"
+source "$REPO_DIR/bin/sk-service-lib"
 TODAY="$(date '+%Y-%m-%d')"
 REPORT="$REPORT_DIR/test-${TODAY}.md"
 SKILLS_DIR="$REPO_DIR/skills"
@@ -155,31 +156,18 @@ agent_errors=""
 agent_pass=0
 agent_fail=0
 
-# Check all project agents via launchctl
+# Check all project agents via systemd
 for agent_name in maintain harvest tester doctor; do
   label="com.sk.agent.${PROJECT_NAME}.${agent_name}"
-  plist_path="$HOME/Library/LaunchAgents/${label}.plist"
 
-  if ! launchctl list "$label" &>/dev/null; then
-    agent_errors+="| \`$agent_name\` | Not loaded in launchd | FAIL |\n"
+  if ! svc_is_loaded "$label"; then
+    agent_errors+="| \`$agent_name\` | Not loaded (no active systemd unit) | FAIL |\n"
     agent_fail=$((agent_fail + 1))
     continue
   fi
 
-  # Check exit code — launchctl list <label> returns LastExitStatus as raw POSIX
-  # wait() value (exit_code << 8), so decode it before comparing
-  exit_status=$(launchctl list "$label" 2>/dev/null | awk '/\"LastExitStatus\"/ {print $3}' | tr -d ';' || true)
-  if [ -z "$exit_status" ]; then
-    # Try alternate format: launchctl list output for the label
-    exit_status=$(launchctl list | grep "$label" | awk '{print $2}' || true)
-  fi
-
-  # Decode raw POSIX wait() value: actual_exit = raw >> 8
-  if [[ "$exit_status" =~ ^[0-9]+$ ]] && [ "$exit_status" -gt 255 ]; then
-    decoded_exit=$(( exit_status >> 8 ))
-  else
-    decoded_exit="$exit_status"
-  fi
+  # systemd's ExecMainStatus is already the decoded exit code (not POSIX wait()).
+  decoded_exit="$(svc_exit_code "$label")"
 
   if [ "$decoded_exit" = "126" ]; then
     agent_errors+="| \`$agent_name\` | Exit 126 (permission/PATH issue) | FAIL |\n"

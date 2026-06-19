@@ -1,5 +1,5 @@
 ---
-name: Self-Improving Agent
+name: self-improving-agent
 description: Captures learnings, errors, and corrections to enable continuous improvement. Logs to .learnings/ in project root, promotes valuable insights to CLAUDE.md/AGENTS.md, and extracts reusable skills.
 when_to_use: when a command fails, user corrects you, you discover outdated knowledge, a better approach is found, user requests missing capability, or before starting major tasks (review past learnings)
 version: 1.0.0

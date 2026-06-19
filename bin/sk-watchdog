@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # sk-watchdog — Health-check rivendell dashboard services and restart on failure.
 #
-# launchd's KeepAlive only catches process death. This watchdog catches the
+# systemd's Restart=always only catches process death. This watchdog catches the
 # other failure mode: process alive, port listening, but the service is hung
 # (deadlocked event loop, frozen worker, etc.) so requests time out.
 #
 # Two-tier recovery:
-#  1. Standard restart: launchctl kickstart -k after THRESHOLD consecutive
+#  1. Standard restart: systemctl --user restart after THRESHOLD consecutive
 #     failures (~3 minutes of red).
 #  2. Deep recovery: when the same service has been restarted ESCALATE_THRESHOLD
-#     times in the same calendar day without staying healthy, the kickstart is
+#     times in the same calendar day without staying healthy, the restart is
 #     not fixing the underlying problem. Trigger a service-specific deep fix
 #     (rebuild .next for web; reinstall venv for api) before kickstarting.
 #     Catches the 04-27 failure mode: 27 futile restarts over 80 minutes against
@@ -150,13 +150,14 @@ check_and_restart() {
     fi
 
     log "RESTART $label (threshold $THRESHOLD reached)"
-    if launchctl kickstart -k "gui/$UID_NUM/$label" 2>>"$LOG_FILE"; then
+    if systemctl --user restart "$label" 2>>"$LOG_FILE"; then
         set_state "$key" 0 "$NOW" "$((restarts_today + 1))" "$today_date"
     else
-        log "  kickstart failed for $label"
+        log "  systemctl restart failed for $label"
         set_state "$key" "$failures" "$last_restart" "$restarts_today" "$today_date"
     fi
 }
 
-check_and_restart "api" "http://localhost:8000/api/agents" "com.sk.dashboard.api"
-check_and_restart "web" "http://localhost:3000" "com.sk.dashboard.web"
+# Ports per PORTS.md SSOT: api :8001, web :3001
+check_and_restart "api" "http://localhost:8001/api/agents" "com.sk.dashboard.api"
+check_and_restart "web" "http://localhost:3001" "com.sk.dashboard.web"

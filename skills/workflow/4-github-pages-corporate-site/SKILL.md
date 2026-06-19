@@ -1,5 +1,5 @@
 ---
-name: 4. github-pages-corporate-site
+name: 4-github-pages-corporate-site
 description: >
   用 CNAME + DESIGN.md + STATE.md 模式建立企業官網（靜態 + 自訂域名 + GitHub Pages）。
   TRIGGER when: 「做官網」「靜態企業網站」「GitHub Pages 自訂域名」。

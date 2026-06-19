@@ -1,5 +1,5 @@
 ---
-name: Dispatching Parallel Agents
+name: dispatching-parallel-agents
 description: >
   Use multiple Claude agents to investigate and fix independent problems concurrently,
   each isolated in its own git worktree. Includes deterministic runner loops and

@@ -1,5 +1,5 @@
 ---
-name: Executing Plans
+name: executing-plans
 description: >
   Execute detailed plans in batches with review checkpoints.
   TRIGGER when: a complete implementation plan exists and needs to be executed

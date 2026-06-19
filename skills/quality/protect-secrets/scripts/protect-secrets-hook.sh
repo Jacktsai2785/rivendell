@@ -19,6 +19,15 @@ if command -v jq &>/dev/null; then
   if [ "$TOOL_NAME" = "Bash" ]; then
     FILE_PATH="$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | head -c 500)" || true
   fi
+elif command -v python3 &>/dev/null; then
+  # Fallback when jq is absent (e.g. WSL2) — without this the hook would
+  # silently allow everything, defeating the whole point.
+  TOOL_NAME="$(printf '%s' "$INPUT" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("tool_name",""))' 2>/dev/null)" || true
+  if [ "$TOOL_NAME" = "Bash" ]; then
+    FILE_PATH="$(printf '%s' "$INPUT" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("tool_input",{}).get("command",""))' 2>/dev/null | head -c 500)" || true
+  else
+    FILE_PATH="$(printf '%s' "$INPUT" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("tool_input",{}).get("file_path",""))' 2>/dev/null)" || true
+  fi
 fi
 
 [ -z "$FILE_PATH" ] && exit 0

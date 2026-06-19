@@ -1,22 +1,30 @@
-"""Read and manage launchd agent state for rivendell."""
+"""Read and manage systemd user agent state for rivendell.
+
+Source of truth is agents/agents.conf (pipe-delimited fleet definition); live
+state comes from `systemctl --user`. This replaces the old launchd/plist model
+(macOS) — on Linux/WSL2 there is no ~/Library/LaunchAgents, so the plist-based
+reader returned an empty list and the dashboard showed no agents at all.
+"""
 
 from __future__ import annotations
 
 import json
-import plistlib
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-AGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
-PROJECT_DIR = Path(__file__).parent.parent.parent  # repo root
+PROJECT_DIR = Path(__file__).parent.parent.parent          # repo root (rivendell)
+PROJECTS_DIR = PROJECT_DIR.parent                          # parent of repo = /home/jacktsai
+AGENTS_CONF = PROJECT_DIR / "agents" / "agents.conf"
+UNIT_DIR = Path.home() / ".config" / "systemd" / "user"
 AGENT_PREFIX = "com.sk.agent."
 MAINTAIN_PREFIX = "com.skills."
 
 # Role inference from agent name/type
 ROLE_MAP: dict[str, tuple[str, str]] = {
     "maintainer": ("🔧", "maintainer"),
+    "maintain": ("🔧", "maintainer"),
     "tester": ("🧪", "tester"),
     "developer": ("🚀", "developer"),
     "researcher": ("📊", "researcher"),
@@ -42,10 +50,10 @@ class AgentInfo:
     label: str
     name: str
     project: str
-    plist_path: Path
+    plist_path: Path          # systemd: path to the .service unit (kept for API compat)
     schedule: dict[str, Any]
-    loaded: bool
-    installed: bool = True  # plist is in ~/Library/LaunchAgents/
+    loaded: bool              # scheduled: timer active / keepalive: service active
+    installed: bool = True    # unit file present in ~/.config/systemd/user/
     pid: int | None = None
     exit_code: int | None = None
     working_directory: str = ""
@@ -53,7 +61,6 @@ class AgentInfo:
 
     @property
     def role_badge(self) -> str:
-        """Return role emoji + label based on agent name."""
         name_lower = self.name.lower()
         for key, (emoji, label) in ROLE_MAP.items():
             if key in name_lower:
@@ -62,7 +69,6 @@ class AgentInfo:
 
     @property
     def merge_strategy_display(self) -> str:
-        """Human-readable merge strategy."""
         cfg = self.agents_json_config
         if not cfg:
             return "—"
@@ -72,7 +78,6 @@ class AgentInfo:
 
     @property
     def qa_display(self) -> str:
-        """Human-readable QA status."""
         cfg = self.agents_json_config
         if not cfg:
             return "off"
@@ -85,27 +90,27 @@ class AgentInfo:
 
     @property
     def schedule_list(self) -> list[dict[str, Any]]:
-        """Return schedule as a list of calendar dicts (normalized)."""
         s = self.schedule
         if s.get("type") == "calendar":
             intervals = s.get("intervals")
             if intervals:
                 return intervals
-            # Single entry — extract calendar fields
             entry = {k: v for k, v in s.items() if k != "type"}
             return [entry] if entry else []
         return []
 
     @property
     def schedule_display(self) -> str:
-        """Human-readable schedule string."""
         s = self.schedule
-        if s.get("type") == "calendar":
+        stype = s.get("type")
+        if stype == "keepalive":
+            return "常駐（keepalive）"
+        if stype == "calendar":
             entries = self.schedule_list
             if not entries:
                 return "手動"
             return " / ".join(_format_one_schedule(e) for e in entries)
-        if s.get("type") == "interval":
+        if stype == "interval":
             secs = s.get("seconds", 0)
             if secs >= 3600:
                 return f"每 {secs // 3600} 小時"
@@ -117,7 +122,6 @@ WEEKDAY_NAMES = ["日", "一", "二", "三", "四", "五", "六"]
 
 
 def _format_one_schedule(entry: dict) -> str:
-    """Format a single StartCalendarInterval entry."""
     parts = []
     if "Weekday" in entry:
         wd = entry["Weekday"]
@@ -128,29 +132,143 @@ def _format_one_schedule(entry: dict) -> str:
     return " ".join(parts)
 
 
-def _parse_schedule(plist_data: dict[str, Any]) -> dict[str, Any]:
-    """Extract schedule info from plist (StartCalendarInterval or StartInterval)."""
-    if "StartCalendarInterval" in plist_data:
-        cal = plist_data["StartCalendarInterval"]
-        # Can be a dict or list of dicts
-        if isinstance(cal, list):
-            return {"type": "calendar", "intervals": [dict(c) for c in cal]}
-        return {"type": "calendar", **dict(cal)}
-    if "StartInterval" in plist_data:
-        return {"type": "interval", "seconds": plist_data["StartInterval"]}
+# ── agents.conf parsing ──────────────────────────────────────────────
+
+def _parse_conf_schedule(sched_type: str, sched_value: str) -> dict[str, Any]:
+    """Map an agents.conf schedule (type, value) to the AgentInfo schedule dict."""
+    sched_type = sched_type.strip()
+    sched_value = sched_value.strip()
+
+    if sched_type == "keepalive":
+        return {"type": "keepalive"}
+
+    if sched_type == "interval":
+        try:
+            return {"type": "interval", "seconds": int(sched_value)}
+        except ValueError:
+            return {"type": "unknown"}
+
+    def _one(token: str) -> dict[str, int]:
+        # "H:MM" or "W:H:MM"
+        bits = token.split(":")
+        if len(bits) == 3:
+            w, h, m = bits
+            return {"Weekday": int(w), "Hour": int(h), "Minute": int(m)}
+        if len(bits) == 2:
+            h, m = bits
+            return {"Hour": int(h), "Minute": int(m)}
+        return {}
+
+    if sched_type == "calendar":
+        e = _one(sched_value)
+        return {"type": "calendar", **e} if e else {"type": "unknown"}
+
+    if sched_type == "calendar_multi":
+        entries = [_one(tok) for tok in sched_value.split(",") if tok.strip()]
+        entries = [e for e in entries if e]
+        return {"type": "calendar", "intervals": entries} if entries else {"type": "unknown"}
+
     return {"type": "unknown"}
 
 
-def read_agents_json(project_dir: str | Path) -> dict[str, AgentsJsonConfig]:
-    """Read .claude/agents.json and return per-agent config.
+def _read_conf_rows() -> list[dict[str, str]]:
+    """Parse agents.conf into row dicts. Skips comments and blank lines."""
+    rows: list[dict[str, str]] = []
+    if not AGENTS_CONF.exists():
+        return rows
+    for line in AGENTS_CONF.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 6:
+            continue
+        rows.append({
+            "label": parts[0],
+            "project_rel": parts[1],
+            "script": parts[2],
+            "sched_type": parts[3],
+            "sched_value": parts[4],
+            "log_dir_rel": parts[5],
+            "extra_args": parts[6] if len(parts) > 6 else "",
+        })
+    return rows
 
-    The file maps agent names to their git/qa settings.
-    Returns empty dict if file doesn't exist.
+
+def _extract_name_and_project(label: str, project_rel: str) -> tuple[str, str]:
+    """Derive (name, project) from the unit label and the conf project path."""
+    project = project_rel or "unknown"
+    if label.startswith(AGENT_PREFIX):
+        # com.sk.agent.<project>.<name>
+        parts = label.removeprefix(AGENT_PREFIX).split(".", 1)
+        name = parts[1] if len(parts) > 1 else parts[0]
+    elif label.startswith("com.sk.dashboard."):
+        name = label.removeprefix("com.sk.")          # e.g. dashboard.api
+    elif label.startswith(MAINTAIN_PREFIX):
+        name = label.removeprefix(MAINTAIN_PREFIX)
+    else:
+        name = label
+    return name, project
+
+
+# ── systemd state ────────────────────────────────────────────────────
+
+def _systemctl_show(unit: str, props: list[str]) -> dict[str, str]:
+    try:
+        r = subprocess.run(
+            ["systemctl", "--user", "show", unit, "-p", ",".join(props)],
+            capture_output=True, text=True, timeout=5,
+        )
+        out: dict[str, str] = {}
+        for line in r.stdout.splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                out[k] = v
+        return out
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return {}
+
+
+def _unit_state(label: str, is_keepalive: bool) -> tuple[bool, int | None, int | None, bool]:
+    """Return (loaded, pid, exit_code, installed) from systemd.
+
+    loaded  = scheduled? timer active : service active   (i.e. "supposed to run")
+    pid     = MainPID of the .service if currently running, else None
+    exit_code = ExecMainStatus of the last .service run
+    installed = the .service unit file exists on disk
     """
+    service = f"{label}.service"
+    svc = _systemctl_show(service, ["ActiveState", "MainPID", "ExecMainStatus"])
+    installed = (UNIT_DIR / service).exists()
+
+    main_pid = 0
+    try:
+        main_pid = int(svc.get("MainPID", "0"))
+    except ValueError:
+        main_pid = 0
+    pid = main_pid if main_pid > 0 else None
+
+    exit_code: int | None = None
+    if svc.get("ExecMainStatus", "") not in ("", None):
+        try:
+            exit_code = int(svc["ExecMainStatus"])
+        except ValueError:
+            exit_code = None
+
+    if is_keepalive:
+        loaded = svc.get("ActiveState") in ("active", "activating")
+    else:
+        tmr = _systemctl_show(f"{label}.timer", ["ActiveState"])
+        loaded = tmr.get("ActiveState") == "active"
+
+    return loaded, pid, exit_code, installed
+
+
+def read_agents_json(project_dir: str | Path) -> dict[str, AgentsJsonConfig]:
+    """Read .claude/agents.json and return per-agent config (empty if absent)."""
     agents_json = Path(project_dir) / ".claude" / "agents.json"
     if not agents_json.exists():
         return {}
-
     try:
         data = json.loads(agents_json.read_text())
     except (json.JSONDecodeError, OSError):
@@ -158,8 +276,6 @@ def read_agents_json(project_dir: str | Path) -> dict[str, AgentsJsonConfig]:
 
     configs: dict[str, AgentsJsonConfig] = {}
     agents_section = data if isinstance(data, dict) else {}
-
-    # Support both flat {agent_name: {...}} and nested {"agents": {agent_name: {...}}}
     if "agents" in agents_section and isinstance(agents_section["agents"], dict):
         agents_section = agents_section["agents"]
 
@@ -177,21 +293,16 @@ def read_agents_json(project_dir: str | Path) -> dict[str, AgentsJsonConfig]:
             qa_pre_commit=qa.get("pre_commit", "off"),
             raw=agent_data,
         )
-
     return configs
 
 
 def get_recent_commit(project_dir: str, agent_name: str) -> tuple[str, str] | None:
-    """Get the most recent auto-commit SHA + message for an agent.
-
-    Returns (short_sha, message) or None.
-    """
+    """Most recent auto-commit (short_sha, message) for an agent, or None."""
     try:
         result = subprocess.run(
             ["git", "log", "--oneline", "--grep", f"agent.*{agent_name}",
              "-n", "1", "--format=%h|%s"],
-            capture_output=True, text=True, timeout=5,
-            cwd=project_dir,
+            capture_output=True, text=True, timeout=5, cwd=project_dir,
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split("|", 1)
@@ -202,99 +313,45 @@ def get_recent_commit(project_dir: str, agent_name: str) -> tuple[str, str] | No
     return None
 
 
-def _extract_name_and_project(label: str, plist_data: dict[str, Any]) -> tuple[str, str]:
-    """Derive agent name and project from label and ProgramArguments."""
-    if label.startswith(AGENT_PREFIX):
-        # Label format: com.sk.agent.<project>.<name>
-        parts = label.removeprefix(AGENT_PREFIX).split(".", 1)
-        project = parts[0] if parts else "unknown"
-        name = parts[1] if len(parts) > 1 else parts[0]
-    elif label.startswith(MAINTAIN_PREFIX):
-        # Label format: com.skills.<name>
-        name = label.removeprefix(MAINTAIN_PREFIX)
-        project = PROJECT_DIR.name
-    else:
-        name = label
-        project = "unknown"
-
-    # Try to get project from WorkingDirectory
-    wd = plist_data.get("WorkingDirectory", "")
-    if wd:
-        project = Path(wd).name
-
-    return name, project
-
-
-def _check_loaded(label: str) -> tuple[bool, int | None, int | None]:
-    """Check if agent is loaded via launchctl list <label>.
-
-    Returns (loaded, pid, exit_code).
-    """
-    try:
-        result = subprocess.run(
-            ["launchctl", "list", label],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
-            return False, None, None
-
-        # Parse output for PID and LastExitStatus
-        pid: int | None = None
-        exit_code: int | None = None
-        for line in result.stdout.splitlines():
-            stripped = line.strip()
-            if '"PID"' in stripped or "PID" in stripped:
-                # Format: "PID" = 12345;
-                val = stripped.split("=")[-1].strip().rstrip(";").strip()
-                if val.isdigit():
-                    pid = int(val)
-            if "LastExitStatus" in stripped:
-                val = stripped.split("=")[-1].strip().rstrip(";").strip()
-                try:
-                    raw = int(val)
-                    # LastExitStatus is POSIX wait() status: exit_code << 8
-                    exit_code = raw >> 8
-                except ValueError:
-                    pass
-        return True, pid, exit_code
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False, None, None
-
-
 def list_agents() -> list[AgentInfo]:
-    """List all sk agents from ~/Library/LaunchAgents/ + project plist files."""
+    """List all sk agents from agents.conf, enriched with live systemd state."""
     agents: list[AgentInfo] = []
-    seen_labels: set[str] = set()
+    for row in _read_conf_rows():
+        label = row["label"]
+        is_keepalive = row["sched_type"].strip() == "keepalive"
+        name, project = _extract_name_and_project(label, row["project_rel"])
+        schedule = _parse_conf_schedule(row["sched_type"], row["sched_value"])
+        loaded, pid, exit_code, installed = _unit_state(label, is_keepalive)
+        working_directory = str((PROJECTS_DIR / row["project_rel"]).resolve())
 
-    # 1. Installed agents in ~/Library/LaunchAgents/
-    for plist_path in sorted(
-        list(AGENTS_DIR.glob(f"{AGENT_PREFIX}*.plist"))
-        + list(AGENTS_DIR.glob(f"{MAINTAIN_PREFIX}*.plist"))
-    ):
-        agent = _load_agent_info(plist_path, installed=True)
-        if agent:
-            agents.append(agent)
-            seen_labels.add(agent.label)
+        agents.append(AgentInfo(
+            label=label,
+            name=name,
+            project=project,
+            plist_path=UNIT_DIR / f"{label}.service",
+            schedule=schedule,
+            loaded=loaded,
+            installed=installed,
+            pid=pid,
+            exit_code=exit_code,
+            working_directory=working_directory,
+        ))
 
-    # 2. Project-level plist files (not yet installed)
-    for plist_path in sorted(PROJECT_DIR.glob("com.*.plist")):
-        agent = _load_agent_info(plist_path, installed=False)
-        if agent and agent.label not in seen_labels:
-            agents.append(agent)
-            seen_labels.add(agent.label)
+    # Enrich from projects.json (authoritative project + working_directory)
+    try:
+        from lib.projects import load_projects
+        projects = load_projects()
+        for agent in agents:
+            for proj_name, proj in projects.items():
+                if agent.name in getattr(proj, "agents", []):
+                    agent.project = proj_name
+                    if proj.repo:
+                        agent.working_directory = proj.repo
+                    break
+    except Exception:
+        pass
 
-    # 3. Enrich from projects.json (authoritative source for project + working_directory)
-    from lib.projects import load_projects
-    projects = load_projects()
-    for agent in agents:
-        for proj_name, proj in projects.items():
-            if agent.name in proj.agents:
-                agent.project = proj_name
-                if not agent.working_directory and proj.repo:
-                    agent.working_directory = proj.repo
-                break
-
-    # 4. Enrich agents with agents.json config
+    # Enrich with .claude/agents.json config
     configs_cache: dict[str, dict[str, AgentsJsonConfig]] = {}
     for agent in agents:
         wd = agent.working_directory
@@ -303,7 +360,6 @@ def list_agents() -> list[AgentInfo]:
         if wd not in configs_cache:
             configs_cache[wd] = read_agents_json(wd)
         configs = configs_cache[wd]
-        # Match by agent name (try exact, then partial)
         if agent.name in configs:
             agent.agents_json_config = configs[agent.name]
         else:
@@ -315,183 +371,53 @@ def list_agents() -> list[AgentInfo]:
     return agents
 
 
-def _load_agent_info(plist_path: Path, installed: bool) -> AgentInfo | None:
-    """Load agent info from a plist file."""
+# ── lifecycle (systemctl --user) ─────────────────────────────────────
+
+def _primary_unit(label: str) -> str:
+    """Pick the unit to act on: timer if it exists (scheduled), else service."""
+    if (UNIT_DIR / f"{label}.timer").exists():
+        return f"{label}.timer"
+    return f"{label}.service"
+
+
+def _systemctl(*args: str) -> bool:
     try:
-        with open(plist_path, "rb") as f:
-            data = plistlib.load(f)
-    except Exception:
-        return None
-
-    label = data.get("Label", plist_path.stem)
-    name, project = _extract_name_and_project(label, data)
-    schedule = _parse_schedule(data)
-
-    if installed:
-        loaded, pid, exit_code = _check_loaded(label)
-    else:
-        loaded, pid, exit_code = False, None, None
-
-    return AgentInfo(
-        label=label,
-        name=name,
-        project=project,
-        plist_path=plist_path,
-        schedule=schedule,
-        loaded=loaded,
-        installed=installed,
-        pid=pid,
-        exit_code=exit_code,
-        working_directory=data.get("WorkingDirectory", ""),
-    )
-
-
-def install_agent(plist_path: Path, progress_callback=None) -> tuple[bool, list[str]]:
-    """Copy plist to ~/Library/LaunchAgents/ and load it.
-
-    Returns (success, log_messages).
-    progress_callback(step, total, message) is called for each step.
-    """
-    import shutil
-    logs: list[str] = []
-    dest = AGENTS_DIR / plist_path.name
-
-    def _step(step: int, total: int, msg: str) -> None:
-        logs.append(msg)
-        if progress_callback:
-            progress_callback(step, total, msg)
-
-    try:
-        _step(1, 4, f"讀取 plist: {plist_path.name}")
-
-        # Validate plist
-        with open(plist_path, "rb") as f:
-            data = plistlib.load(f)
-        label = data.get("Label", "")
-        if not label:
-            _step(2, 4, "❌ plist 缺少 Label 欄位")
-            return False, logs
-        _step(2, 4, f"驗證通過: label={label}")
-
-        # Copy to LaunchAgents
-        shutil.copy2(plist_path, dest)
-        _step(3, 4, f"複製到 {dest}")
-
-        # Unload first in case already loaded
-        subprocess.run(
-            ["launchctl", "unload", str(dest)],
-            capture_output=True, text=True, timeout=10,
+        r = subprocess.run(
+            ["systemctl", "--user", *args],
+            capture_output=True, text=True, timeout=15,
         )
-
-        # Load
-        result = subprocess.run(
-            ["launchctl", "load", str(dest)],
-            capture_output=True, text=True, timeout=10,
-        )
-
-        # Verify loaded
-        check = subprocess.run(
-            ["launchctl", "list", label],
-            capture_output=True, text=True, timeout=5,
-        )
-        if check.returncode == 0:
-            _step(4, 4, "✅ launchctl load 成功")
-            return True, logs
-        elif result.returncode == 0:
-            # load said OK but list says not found — still treat as success
-            _step(4, 4, "✅ launchctl load 成功（等待排程）")
-            return True, logs
-        else:
-            err = result.stderr.strip() or "unknown error"
-            _step(4, 4, f"❌ launchctl load 失敗: {err}")
-            return False, logs
-    except Exception as e:
-        logs.append(f"❌ 例外: {e}")
-        return False, logs
+        return r.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
 
 
 def load_agent(label: str) -> bool:
-    """Load (bootstrap) an agent via launchctl."""
-    plist_path = AGENTS_DIR / f"{label}.plist"
-    if not plist_path.exists():
-        return False
-    result = subprocess.run(
-        ["launchctl", "load", str(plist_path)],
-        capture_output=True, text=True, timeout=10,
-    )
-    return result.returncode == 0
+    """Enable + start the agent's unit (timer for scheduled, service for keepalive)."""
+    return _systemctl("enable", "--now", _primary_unit(label))
 
 
 def unload_agent(label: str) -> bool:
-    """Unload (bootout) an agent via launchctl."""
-    plist_path = AGENTS_DIR / f"{label}.plist"
-    if not plist_path.exists():
-        return False
-    result = subprocess.run(
-        ["launchctl", "unload", str(plist_path)],
-        capture_output=True, text=True, timeout=10,
-    )
-    return result.returncode == 0
+    """Disable + stop the agent's unit."""
+    return _systemctl("disable", "--now", _primary_unit(label))
 
 
 def start_agent(label: str) -> bool:
-    """Manually start (kick) an agent via launchctl."""
-    result = subprocess.run(
-        ["launchctl", "start", label],
-        capture_output=True, text=True, timeout=10,
-    )
-    return result.returncode == 0
+    """Kick a one-off run now (always the .service, even for scheduled agents)."""
+    return _systemctl("start", f"{label}.service")
+
+
+def install_agent(plist_path: Path, progress_callback=None) -> tuple[bool, list[str]]:
+    """Installing new agents is done by regenerating units from agents.conf."""
+    msg = ("systemd 模式：新增 agent 請編輯 agents/agents.conf 後執行 "
+           "`./bin/sk-setup-systemd`（不再使用 plist 安裝）。")
+    if progress_callback:
+        progress_callback(1, 1, msg)
+    return False, [msg]
 
 
 def update_schedule(agent: AgentInfo,
                     entries: list[dict[str, int]]) -> tuple[bool, str]:
-    """Update an agent's schedule in its plist, then reload.
-
-    Args:
-        agent: The agent to update.
-        entries: List of schedule dicts, each with Hour, Minute, and optionally Weekday.
-                 Example: [{"Hour": 7, "Minute": 30}, {"Hour": 22, "Minute": 0}]
-
-    Returns (success, message).
-    """
-    if not entries:
-        return False, "至少需要一個排程"
-
-    plist_path = agent.plist_path
-    try:
-        with open(plist_path, "rb") as f:
-            data = plistlib.load(f)
-
-        # Single entry → dict, multiple → list of dicts
-        if len(entries) == 1:
-            data["StartCalendarInterval"] = entries[0]
-        else:
-            data["StartCalendarInterval"] = entries
-
-        data.pop("StartInterval", None)
-
-        with open(plist_path, "wb") as f:
-            plistlib.dump(data, f)
-
-        # If installed, also update the copy in LaunchAgents and reload
-        if agent.installed:
-            import shutil
-            dest = AGENTS_DIR / plist_path.name
-            if dest != plist_path:
-                shutil.copy2(plist_path, dest)
-
-            subprocess.run(
-                ["launchctl", "unload", str(dest)],
-                capture_output=True, text=True, timeout=10,
-            )
-            result = subprocess.run(
-                ["launchctl", "load", str(dest)],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode != 0:
-                return False, f"plist 已更新但 reload 失敗: {result.stderr.strip()}"
-
-        display = " / ".join(_format_one_schedule(e) for e in entries)
-        return True, f"排程已更新為：{display}"
-    except Exception as e:
-        return False, f"更新失敗: {e}"
+    """Schedule lives in agents.conf; editing it + regenerating is the path."""
+    return (False,
+            "systemd 模式：請於 agents/agents.conf 修改排程後執行 "
+            "`./bin/sk-setup-systemd` 重新生成 timer。")

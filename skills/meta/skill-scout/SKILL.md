@@ -1,5 +1,5 @@
 ---
-name: Skill Scout
+name: skill-scout
 description: >
   Discover, evaluate, and port Claude Code skills from external repositories and community sources.
   TRIGGER when: user says "/skill-scout", "find skills for X", "search for skills", "port skills from",

@@ -3,7 +3,11 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "rivendell.db"
+# Single source of truth: sk-exec-lib writes agent runs here (bin/sk-exec-lib).
+# The dashboard used to read rivendell.db (always empty) — that brain-split is
+# why "執行歷史 / 今日成本" showed nothing. init_db() backfills the missing
+# token_usage/settings tables here via CREATE TABLE IF NOT EXISTS.
+DB_PATH = Path(__file__).parent.parent / "data" / "sk-dashboard.db"
 
 
 def get_conn() -> sqlite3.Connection:

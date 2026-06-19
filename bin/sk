@@ -14,6 +14,7 @@ NC='\033[0m'
 
 # Source the unified execution engine
 source "$(dirname "$0")/sk-exec-lib"
+source "$(dirname "$0")/sk-service-lib"
 
 usage() {
   cat <<EOF
@@ -82,21 +83,8 @@ cmd_deploy() {
   done < <(all_skill_dirs)
   echo -e "\n${GREEN}Deployed $count skill(s).${NC}"
 
-  # Install plist templates (replace REPO_PATH with actual path)
-  local la_dir="$HOME/Library/LaunchAgents"
-  local plist_count=0
-  for tpl in "$REPO_DIR"/com.*.plist; do
-    [ -f "$tpl" ] || continue
-    local plist_name
-    plist_name="$(basename "$tpl")"
-    local dest="$la_dir/$plist_name"
-    sed "s|REPO_PATH|$REPO_DIR|g" "$tpl" > "$dest"
-    echo -e "${GREEN}plist${NC} $plist_name → $la_dir/"
-    ((plist_count++))
-  done
-  if [ "$plist_count" -gt 0 ]; then
-    echo -e "${GREEN}Installed $plist_count plist(s).${NC}"
-  fi
+  # Scheduling is handled by systemd user units — run `sk-setup-systemd`.
+  # (Removed legacy macOS launchd plist install; this host is Linux/WSL2.)
 }
 
 cmd_undeploy() {
@@ -548,7 +536,7 @@ cmd_list() {
   fi
 }
 
-PROJECTS_DIR="$HOME/Documents/Projects"
+PROJECTS_DIR="$(cd "$REPO_DIR/.." && pwd)"   # parent of rivendell → /home/jacktsai
 
 # --- Permissions ---
 
@@ -869,7 +857,8 @@ EOJSON
 # Agent Management
 # =============================================================================
 
-LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+# systemd user unit dir (was ~/Library/LaunchAgents on macOS).
+LAUNCH_AGENTS_DIR="$HOME/.config/systemd/user"
 
 # Scan all projects for .claude/agents.json, output: project_dir|project_name|agent_name
 agent_scan_all() {
@@ -936,10 +925,9 @@ agent_plist_label() {
   echo "com.sk.agent.${project}.${name}"
 }
 
-# Check if agent is loaded in launchd
+# Check if agent is loaded (active systemd unit)
 agent_is_loaded() {
-  local label="$1"
-  launchctl list "$label" &>/dev/null
+  svc_is_loaded "$1"
 }
 
 # Get agent config field via python
@@ -1253,18 +1241,19 @@ SWIFT
 
   local label
   label="$(agent_plist_label "$proj_name" "$agent_name")"
-  local plist_path="$LAUNCH_AGENTS_DIR/${label}.plist"
 
-  # Generate plist
-  generate_agent_plist "$proj_dir" "$proj_name" "$agent_name" > "$plist_path"
-  echo -e "${GREEN}Generated:${NC} $plist_path"
-
-  # Load
-  launchctl load "$plist_path" 2>/dev/null
-  if agent_is_loaded "$label"; then
-    echo -e "${GREEN}Loaded:${NC} $label"
+  # systemd model: units are generated from agents.conf by sk-setup-systemd.
+  if [ -f "$LAUNCH_AGENTS_DIR/${label}.service" ]; then
+    svc_enable_now "$label" 2>/dev/null
+    if agent_is_loaded "$label"; then
+      echo -e "${GREEN}Started:${NC} $label"
+    else
+      echo -e "${RED}Failed to start:${NC} $label"
+      return 1
+    fi
   else
-    echo -e "${RED}Failed to load:${NC} $label"
+    echo -e "${YELLOW}No systemd unit for $label.${NC}"
+    echo -e "Add a row to agents/agents.conf, then run: ${CYAN}./bin/sk-setup-systemd${NC}"
     return 1
   fi
 }
@@ -1292,21 +1281,12 @@ cmd_agent_stop() {
 
   local label
   label="$(agent_plist_label "$proj_name" "$agent_name")"
-  local plist_path="$LAUNCH_AGENTS_DIR/${label}.plist"
 
-  if [ -f "$plist_path" ]; then
-    launchctl unload "$plist_path" 2>/dev/null
-    rm "$plist_path"
-    echo -e "${GREEN}Stopped and removed:${NC} $label"
+  if agent_is_loaded "$label" || [ -f "$LAUNCH_AGENTS_DIR/${label}.service" ]; then
+    svc_disable_now "$label" 2>/dev/null
+    echo -e "${GREEN}Stopped and disabled:${NC} $label"
   else
-    echo -e "${YELLOW}Plist not found:${NC} $plist_path"
-    echo -e "Agent may not be started via sk. Checking launchd..."
-    if agent_is_loaded "$label"; then
-      launchctl remove "$label" 2>/dev/null
-      echo -e "${GREEN}Removed from launchd:${NC} $label"
-    else
-      echo -e "${YELLOW}Not loaded in launchd either.${NC}"
-    fi
+    echo -e "${YELLOW}No active systemd unit:${NC} $label"
   fi
 }
 
@@ -1361,18 +1341,14 @@ cmd_agent_status() {
   echo -e "  ${CYAN}Disabled:${NC}    ${disabled:-false}"
   echo ""
 
-  # Launchd status
+  # systemd status
   if agent_is_loaded "$label"; then
-    echo -e "  ${CYAN}launchd:${NC}     ${GREEN}● loaded${NC}"
+    echo -e "  ${CYAN}systemd:${NC}     ${GREEN}● loaded${NC}"
     local exit_status
-    exit_status="$(launchctl list "$label" 2>/dev/null | grep '"LastExitStatus"' | grep -oE '[0-9]+' || echo "?")"
-    # Try parsing from launchctl list output
-    if [ "$exit_status" = "?" ]; then
-      exit_status="$(launchctl list 2>/dev/null | awk -v lbl="$label" '$3 == lbl {print $2}')"
-    fi
-    echo -e "  ${CYAN}Last Exit:${NC}   $exit_status"
+    exit_status="$(svc_exit_code "$label")"
+    echo -e "  ${CYAN}Last Exit:${NC}   ${exit_status:-?}"
   else
-    echo -e "  ${CYAN}launchd:${NC}     ${RED}○ not loaded${NC}"
+    echo -e "  ${CYAN}systemd:${NC}     ${RED}○ not loaded${NC}"
   fi
   echo ""
 
@@ -1875,7 +1851,7 @@ agent_health_report() {
       status_str="disabled"
     elif agent_is_loaded "$label"; then
       status_str="● loaded"
-      last_exit="$(launchctl list 2>/dev/null | awk -v lbl="$label" '$3 == lbl {print $2}')"
+      last_exit="$(svc_exit_code "$label")"
       [ -z "$last_exit" ] && last_exit="?"
     else
       status_str="○ unloaded"
@@ -3214,19 +3190,16 @@ cmd_status() {
 
   echo ""
 
-  # Launchd agents (macOS only)
-  if [ "$(uname)" = "Darwin" ]; then
-    echo -e "${YELLOW}Launchd agents:${NC}"
-    launchctl list 2>/dev/null | grep "com.sk" | while read -r pid status label; do
-      if [ "$pid" != "-" ] && [ "$pid" != "0" ]; then
-        echo -e "  ${GREEN}running${NC}  $label (pid=$pid)"
-      elif [ "$status" = "0" ]; then
-        echo -e "  ${YELLOW}idle${NC}     $label"
-      else
-        echo -e "  ${RED}error${NC}    $label (exit=$status)"
-      fi
-    done
-  fi
+  # systemd user units
+  echo -e "${YELLOW}systemd agents:${NC}"
+  svc_list | awk '{print $1, $4}' | while read -r unit active; do
+    case "$active" in
+      running)  echo -e "  ${GREEN}running${NC}  $unit" ;;
+      exited|dead|waiting) echo -e "  ${YELLOW}idle${NC}     $unit" ;;
+      failed)   echo -e "  ${RED}failed${NC}   $unit" ;;
+      *)        echo -e "  ${CYAN}$active${NC} $unit" ;;
+    esac
+  done
 
   echo ""
 

@@ -131,7 +131,15 @@ def parse_stream(inf, outf):
             usage = event.get("usage", {})
             input_tokens = usage.get("input_tokens", 0)
             output_tokens = usage.get("output_tokens", 0)
-            cost = input_tokens * COST_INPUT + output_tokens * COST_OUTPUT
+            # Include cache tokens in the total so the count isn't understated.
+            cache_read = usage.get("cache_read_input_tokens", 0)
+            cache_creation = usage.get("cache_creation_input_tokens", 0)
+            input_tokens += cache_read + cache_creation
+            # Prefer Claude's own cost (correct per-model + cache pricing); the
+            # flat Opus estimate is only a fallback when the event omits it.
+            cost = event.get("total_cost_usd")
+            if cost is None:
+                cost = usage.get("input_tokens", 0) * COST_INPUT + output_tokens * COST_OUTPUT
             model = event.get("model", "unknown")
             write_event(outf, {
                 "type": "result",

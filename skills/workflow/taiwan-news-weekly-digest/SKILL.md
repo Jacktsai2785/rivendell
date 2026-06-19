@@ -1,5 +1,5 @@
 ---
-name: 5-taiwan-news-weekly-digest
+name: taiwan-news-weekly-digest
 description: |
   TRIGGER when: 使用者提及「本週產業新聞摘要」、「過去 7 天高頻標題」、「每日主題」、「週度產業 digest」、「上週新聞彙整」
   PURPOSE: 將過去 5-7 天的台灣產業新聞彙整為「每日主題 + 高頻標題」的週度報告，快速掌握週間重點

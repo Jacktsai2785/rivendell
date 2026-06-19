@@ -1,5 +1,5 @@
 ---
-name: Knowledge Graph
+name: knowledge-graph
 description: Three-Layer Memory System for structured entity tracking. Extracts durable facts about people, companies, and projects into atomic JSONL entries with living summaries.
 when_to_use: when encountering durable facts about people, companies, or projects during conversation, or when user asks to remember/recall/look up entity information
 version: 1.0.0

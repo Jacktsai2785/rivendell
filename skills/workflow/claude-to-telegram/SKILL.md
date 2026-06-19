@@ -1,5 +1,5 @@
 ---
-name: Claude to Telegram
+name: claude-to-telegram
 description: Guide for setting up a Telegram bridge to remotely control Claude Code sessions from Telegram. Covers two approaches with setup, security, and troubleshooting.
 when_to_use: when user wants to interact with Claude Code remotely via Telegram, set up a Telegram bot bridge, or manage Claude Code sessions from mobile
 version: 1.0.0

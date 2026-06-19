@@ -1,5 +1,5 @@
 ---
-name: Session Harvest
+name: session-harvest
 description: >
   Review the current Claude Code session's work and extract reusable skill candidates.
   Analyzes tool usage patterns, multi-step workflows, domain knowledge applied, and

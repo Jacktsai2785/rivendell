@@ -1,5 +1,5 @@
 ---
-name: 3. tender-lead-router
+name: 3-tender-lead-router
 description: >
   政府標案 → 銷售線索的轉換工作流：搜尋符合特定客戶能力的標案 → 取得原始公告網址 → 在 `nx_deal` / 客戶資料夾新增 deal/saleing 條目。
   TRIGGER when: 使用者說「幫我查 X 部會的標案」「在 Y 公司加一個 deal」「這案的網址給我」「標案配對客戶」。

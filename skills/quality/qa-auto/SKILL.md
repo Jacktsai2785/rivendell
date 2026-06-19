@@ -1,5 +1,5 @@
 ---
-name: QA Auto
+name: qa-auto
 description: >
   Auto-generate test code from QA plan or code diff, execute tests, and report coverage gaps.
   TRIGGER when: user says /qa-auto, "auto generate tests", "自動產生測試", QA plan exists and needs execution,

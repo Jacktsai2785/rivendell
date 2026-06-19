@@ -1,115 +1,98 @@
 ---
-date: 2026-06-10
+date: 2026-06-14
 iso_week: 2026-W24
-period: 2026-06-03 to 2026-06-10 (last 7 days)
+period: 2026-06-08 to 2026-06-14 (last 7 days)
 source: workflow-retro
-api_status: OFFLINE — com.sk.dashboard.api.service 顯示 active running，但 :8000 / :8001 均無 HTTP 回應。全報告改用純檔案 fallback（harvest-*.md, test-*.md, systemctl）。API 離線本身列為集中度 findings。
+api_status: ONLINE @ :8001 — 直連可用（首探 000 為 cold-start 暫態，重試即 200）。注意 retro skill 的 SKILL.md 第 53/84 行仍寫死 :8000，假 outage 的引信還埋著，沒拆。
 ---
 
 # Workflow Retro — 2026-W24
 
 ## TL;DR
 
-W23 三個行動**全未完成**（0/3）。`tw-company-pe-memo` stub 進入**第 5 週 carry-over**，這週的 harvest 仍每天撞到它：06-04 batch 60% silent-fail、dedup guard 完全沒攔住（和展綠能 ×10、時刻科技 ×9）。好消息：harvest 本週**跨出 PE DD 領域**，冒出 4 個正交強候選（`stock-data-gap-diagnose`、`mops-cluster-master-alignment-audit`、`post-backfill-indicator-recompute`、`mops-notes-structured-extractor`），skill 總數從 173 升到 **180**。但好消息被三個 agent 全 FAILED、dashboard API 死鎖、06-10 harvest 觸碰 usage cap 三件事蓋掉。最需要面對的事只有一件：`tw-company-pe-memo` 再不補就是主動選擇繼續燒錢。
-
----
+**本週工作重心整個換軌，而上週點名的系統爛瘡一個都沒修。** W23 還是 PE DD 主場（`tw-company-pe-memo` 第二高頻、token 集中 taiwan-company 48%），本週 PE 幾乎清零——核心 stub `tw-company-pe-memo` **不是被實作，是被整個刪掉**（最後使用停在 06-03），工作流轉向 MOPS 叢集（filer 對帳、universe remediation、ingest、notes backfill）＋ jk-nb vault ＋ `code-review`(8 次，commit 把關常態化)。成本同步腰斬：上週 $3,598 → 本週 **$1,645**。好消息是 **retry storm 退燒**——`workflow-retro` 從 W23 的 164 次降到 12 次、無單日破百尖峰。壞消息是 **W23 三條 action 完成度僅 0.5/3**：retro 自己的 `:8000` 埠號仍寫死、`tw-company-pe-memo` 沒補反刪（周邊還增生 3 支新 stub，正是上週警告的「過度 skill 化」成真）、三個失敗 agent（`janitor`/`maintain`/`tester`）連同 `/api/agents` 回空、watchdog 未部署——全部原地踏步。**本週最重要的發現是元層級的：retro 連續兩週指出同一批爛瘡，沒人修，報告本身的信噪比正在被自己拖低。**
 
 ## 使用度
 
-> **資料來源**：`systemctl --user list-units 'com.sk.*'`、`reports/harvest-2026-06-03~10.md`、`reports/test-2026-06-10.md`。API 離線，無數值計數。
+資料來源：`GET :8001/api/skills/usage`（7 天窗 = 06-08~06-14）、`systemctl --user list-units 'com.sk.*'` + 每 unit `show -p Result`。
 
-| Status | Skills（觀察到的觸發） | Agents（systemd） |
+| Status | Skills | Agents (systemd) |
 |--------|--------|------------------|
-| 高頻 (5+ this week) | `tw-company-pe-memo`（每日 harvest 均覆蓋，trigger 失效但 prompt 直接走）、`taiwan-news-classifier`（06-06, 07, 08）、`jk-nb` 三件套（06-04, 05, 07）、`code-review`（06-07, 08） | `harvest`（running）、`workflow-retro`（running） |
-| 低頻 / 新增 (1-4 this week) | `mops-cluster-master-alignment-audit`（本週新建 + 確認觸發）、`company-deck-ingestion`（06-05 多場）、`tw-company-website-finder`（06-05）、`taiwan-industry-classifier`（06-05）、`2-jk-nb-consume`（06-04, 05） | `dashboard.api`（running）、`dashboard.web`（running） |
-| 失敗 | — | `janitor`、`maintain`、`tester`（全 FAILED） |
-| 沉寂 (30+ days) | API 離線，無法查——本週略過 | — |
+| 高頻 (5+ this week) | `workflow-retro` (12 ↓), `code-review` (8), `2-jk-nb-consume` (5) | `dashboard.api`、`dashboard.web`、`workflow-retro`（running）|
+| 低頻 (1-4 this week) | 22 支長尾：`jk-nb-digest`(4)、`mops-filer-list-reconcile`(3)、`skill-creator`(2)、`mops-universe-remediation`(2)、`deploy`(2)、`tw-company-pe-memo-refine`(1)、`task-brief`(1)、`requirement`(1)… | `harvest`（inactive，exit 0 正常收工）、`symlink-fix`（inactive）|
+| 沉寂 (30+ days) | 無（端點追蹤的 109 支 skill，30 天內全部觸發過）| — |
+| 失敗 (exit-1) | — | `janitor`、`maintain`、`tester`（全 exit-code 1，連 2+ 週）|
 
-**Skill 總數**：180（+7 vs W23 的 173）。
-
-**解讀**：
-- 高頻中真正「走 skill」的比例仍低：`tw-company-pe-memo` 在 harvest 中每天出現，但 trigger 匹配失效——大量 PE DD session 是裸 prompt 直接跑而非走 skill。
-- 本週出現**非 PE DD 領域**的 Strong harvest 候選，是近幾週最健康的多樣化訊號。
-- `workflow-retro` 本週排程觸發後 W24 檔案 0 bytes（usage cap 或 port 問題）——retro 自身健康問題持續（W23 Action 1 未完成的直接後果）。
-
----
+**解讀：**
+- `workflow-retro` 仍是本週最高頻（12），但這次是**真實使用**不是 retry storm——扣掉 06-13 的 7 次，其餘日都 1–2 次，無 153/159 那種轟炸。W23 Action 1 的 retry guard 看來生效了（埠號卻沒一起修，見下）。
+- `code-review` 8 次躍上高頻，反映 commit-before-push 把關已成常態，是健康訊號。
+- **PE DD 從主場變冷板凳**：整個 `tw-company-pe-memo*` / `pe-memo-*` 家族本週合計只觸發 1 次（`-refine` 06-13）。核心 skill `tw-company-pe-memo` 目錄已不存在（git 最後身影在 `d4ca980 snapshot`）。需求沒消失（06-13 harvest 記到「同一 PE DD 任務跑 3 趟全斷尾」），但承接它的核心節點被刪了。
+- 長尾健康、無沉寂可退役。
+- **Agent 面零進展**：`tester` 產出的 `test-2026-06-14.md` 是 144/144 結構 pass + BUILD SUCCESS（work 成功），unit 卻仍 exit-1；`janitor`/`maintain` 真失敗。三者讓 `/api/agents` 持續回 `total:0`，dashboard 的 agent 健康面板等於全盲——與 W23 完全相同。
 
 ## 重複痛點
 
-### 1. PE DD silent-fail + dedup guard 形同虛設
-
-- **頻率**：本週 4 次（06-03, 06-04, 06-05, 06-09 均有記錄）
+### 1. PE DD 過度 skill 化——核心被刪、周邊增生 stub
+- **頻率**：harvest 06-11 / 06-12 / 06-13 連三天 + W23 carryover；本週 PE 家族現存 5 支衛星（`-refine`、`-deep-research`、`-silent-fail-rate-alert`、`-trigger-fix`、`-already-generated-guard`），其中 **3 支仍是 auto-generated stub**（`-deep-research`、`-refine`、`-trigger-fix`），另含一個空殼 `pe-dd-structured-source-first`（31 行、`TRIGGER when: when working with...`）。
 - **類別**：Architectural
-- **代表性事件**：
-  - 06-03 batch2：30 session 中 7 個 1-msg 0-tool silent-fail（23%），共宅一生 ×6 重複 retry
-  - 06-04：28 個 DD session 中約 17 個 silent-fail（~60%），和展綠能 ×10、時刻科技 ×9，「dedup guard 顯然沒在入口生效」
-  - 06-05：報告渲染層出現空白佔位段落（有標題無內容）
-  - 06-09：session 1 前端「資料不足」未觸發 `stock-data-gap-diagnose` stub
-- **建議**：這條痛點的根因在 `tw-company-pe-memo` 沒有實作——trigger 失效導致裸跑、裸跑沒有 guard、guard 沒有 skip-already-generated 邏輯。不是三個平行問題，是一個根節點。補 `tw-company-pe-memo` 主體（source-first + trigger + dedup 入口呼叫）= 一次打掉整條鏈。
+- **代表性事件**：06-12 harvest 還在喊「緊急：修復 `tw-company-pe-memo` 觸發規則 + 填充 stub」；06-13 harvest 直指空殼 `pe-dd-structured-source-first`「名字像主流程卻沒內容，**遮蔽路由**，建議重寫或刪除」。結果到 06-14，核心節點被**刪掉**、周邊 stub 仍在——正好是 W23 警告「別在周邊長新 skill」的反向實現。
+- **建議**：PE pipeline 不缺 skill、缺一個有內容的入口。下週要嘛重建**一支**真實 `tw-company-pe-memo`（source-first + silent-fail guard，已有 `-silent-fail-rate-alert`/`-already-generated-guard` 兩支真 skill 可掛），要嘛把 3 支 stub + 空殼 `pe-dd-structured-source-first` 直接退役，別讓它們繼續遮蔽路由。
 
-### 2. tw-company-pe-memo stub 第 5 週 carry-over
+### 2. harvest 連週結論「別建、維護既有」，但維護從沒發生
+- **頻率**：6 份本週 harvest（06-08「併入既有 audit，不獨立」、06-09「補現有 stub 而非新建」、06-11「擴充現有技能而非新建」×3、06-12「不建立新 skill，先修 stub」、06-13「非新增，重寫或刪空殼」、06-14「本批不建議新增任何 skill，價值全在維護既有三支」）。
+- **類別**：Editorial
+- **代表性事件**：06-14 harvest 標題即「這是一次幾乎全重複的收割」——主導形態已被 `1-taiwan-news-multiday-digest` 完整覆蓋，真正價值是把現有 skill 的 description/trigger 從「5–8 天」拓寬到「數日至 5 週」、把 orchestrator 的固定 4 產業改成可帶參數。
+- **建議**：harvest 已把「拓寬 vs 新建」判斷得很準，瓶頸在**沒有把這些 editorial 微調落地**。這類「改 description / 加 trigger / 加參數」是 5–15 分鐘的機械活，適合排一個小批次一次清掉（`1-taiwan-news-multiday-digest` 拓寬天數、`multi-industry-news-pipeline-orchestrator` 產業參數化），而不是每週 harvest 再記一次。
 
-- **頻率**：W21 / W22 / W23 / W24 retro 均列為 Action 1 或痛點，未完成
-- **類別**：Editorial（需要寫實作）+ Architectural（缺口造成下游失敗連鎖）
-- **代表性事件**：06-04 harvest「近 6 成沒走 skill 也沒跑工具，先確認 tw-company-pe-memo trigger 是否真的匹配」
-- **建議**：Action 1 就是它。如果下週 retro 它還是 stub，這條痛點本身要停止記錄——記錄無效才是真正的問題。
-
-> **本週觀察但未達門檻**：TWstock-invest「資料不足診斷」跨 06-06/08/09 三份 harvest 出現，對應 `stock-data-gap-diagnose` stub 存在但未觸發。若下週再現，升格為痛點。
-
----
+### 3.（元）W23 的爛瘡清單原封不動搬到 W24
+- **頻率**：3 條 W23 action 對應的病徵本週全數複現——retro 自身 `:8000`（SKILL.md 53/84 行未改）、`tw-company-pe-memo` 未補（反刪）、三失敗 agent + `/api/agents:0` + watchdog 缺席。
+- **類別**：Architectural（兼 process）
+- **代表性事件**：`test-2026-06-14.md` 的 Agent Health Check 仍寫「Not loaded in **launchd**」——這台是 **systemd**，tester 還在查一個不存在的 init 系統，所以 4 個 agent 全被誤判「未載入」。這是 retro 指出過、但連檢測器本身都還沒移植的證據。
+- **建議**：見「下週 Actions」——這三條不能再 carry 第三週，否則 retro 的可信度本身就是下一個要退役的東西。
 
 ## 集中度
 
-- **Token 集中**：API 離線，無成本數據。**本週集中度盲區**本身是問題——整週燒了多少錢完全看不見。06-10 harvest 的「You've hit your session limit」是唯一間接訊號（週三下午即觸頂，暗示前半週已大量使用）。上週（W23）記錄 taiwan-company 佔 30 天成本 48%，無法本週更新。
+- **Token 集中**：`/api/tokens/filtered` **不提供 project 維度**（`by_project` 缺、daily 無 project 欄位），無法照 skill 模板做「>40% 專案」判斷——這是 API 的能力缺口，記為發現。退而求其次看 model：32 天窗 $9,851 中 `claude-opus-4-8` **$5,738（58%）**為絕對主力，`sonnet-4-6` $1,975、`opus-4-7` $1,824。本週（06-08~14）實際成本 **$1,645，較上週 $3,598 砍半**，與 PE DD 退場、改跑成本較低的 MOPS/vault 任務一致。另：base 端點 `/api/tokens`（非 filtered）回傳**全 0**，已壞，dashboard 若有頁面讀它會顯示空白。
+- **失敗集中**：`janitor` / `maintain` / `tester` 三 unit 全 exit-1（exit 時間皆為 06-14 當天排程），`/api/agents` 因此回 `total:0`，agent 健康無法經 dashboard 觀測——與 W23 同一組、無變化。
+- **Dashboard 健康**：`reports/watchdog.log` **仍不存在**，`.watchdog-state` 也沒有——HTTP-probe watchdog 連續多週未部署（呼應既有 memory 的「watchdog 部署缺口」）。本週 API 首探 000、重試才 200，正是 watchdog 該補的盲區，但它還沒上線。
 
-- **失敗集中**：`janitor`、`maintain`、`tester` 三個 systemd unit 全部 FAILED。`test-2026-06-10.md` 顯示 Agent Health Check 0/4，原因「Not loaded in launchd」——但 systemctl 明確顯示 harvest 是 running。這是**假陽性**：tester 腳本仍使用 `launchctl` 語法在 Linux/systemd 環境下做健康檢查，macOS→Linux 遷移後的殘留。真失敗（janitor/maintain）被假失敗（harvest 其實活著）混淆，admin 無從分辨。
+## 下週 Actions (max 3, prioritized)
 
-- **Dashboard 健康**：`reports/watchdog.log` **不存在**（HTTP-probe watchdog 仍未部署，見 MEMORY 中「watchdog 部署缺口」）。`com.sk.dashboard.api.service` 顯示 active running，但 curl :8000 / :8001 均無 HTTP 回應——服務活著、HTTP 死鎖，watchdog 正是為此而設計但沒跑。Dashboard Build 本週 FAILED（`.next/lock` 被另一 next build process 占住）。
+1. **拆掉 retro 自己的引信：SKILL.md `:8000` → `:8001`（或改讀 PORTS.md）**
+   *為什麼是現在*：這是全清單最低成本、最高槓桿的一條。只要兩行（第 53、84 行）還寫 `:8000`，每一次手動或排程跑 retro 都會先撞 000、然後可能誤判 outage——W19–21 連報三週假 outage 的引信至今沒拆，本週我也是靠記憶手動轉 8001 才拿到資料。
+   *Effort*：~5 分鐘（改 2 處字串；理想是改成讀 `~/PORTS.md` 的 `8001 rivendell dashboard-next API` 列）。
+   *驗證*：grep SKILL.md 無 `:8000`；下週 retro 直連即拿到資料、API 區塊無「重試才通」字樣。
 
----
+2. **一次修好 agent 可觀測性：tester 的 launchd→systemd 移植 + janitor/maintain 真失敗根因**
+   *為什麼是現在*：W23 Action 3 完全沒動、第 3 週。`tester` 的健康檢查還在查 launchd（這台是 systemd），把 4 個 agent 全誤判「未載入」；同時 `janitor`/`maintain` 是真 exit-1。兩者疊加讓 `/api/agents` 回 `total:0`，整個 agent 面板瞎掉。先把檢測器換成 `systemctl --user is-active/show -p Result`，再分流兩個真失敗，才能還原可觀測性。
+   *Effort*：~30 分鐘（檢測器改 systemctl + 看兩個 wrapper script 結尾為何回非零，多半是 git/symlink 步驟被當失敗）。
+   *驗證*：`test-*.md` 的 Agent Health Check 用 systemd 語彙、回報實際載入數；`/api/agents` 不再 `total:0`。
 
-## 下週 Actions（max 3，排序）
+3. **了結 PE constellation：重建一支真 `tw-company-pe-memo` 或退役 3 支 stub + 空殼**
+   *為什麼是現在*：核心節點已刪、整個家族本週只用 1 次，卻留著 3 支 auto-generated stub（`-deep-research`/`-refine`/`-trigger-fix`）＋空殼 `pe-dd-structured-source-first` 在遮蔽路由。harvest 連三天點名。要嘛補一個真入口（掛現成的 `-silent-fail-rate-alert`/`-already-generated-guard`），要嘛刪乾淨——不要維持「半個 pipeline」這種最差狀態。
+   *Effort*：~30–45 分鐘（二選一：寫一支真 SKILL.md，或 `git rm` 4 個空殼並同步 README）。
+   *驗證*：`grep -rl 'when working with' skills/workflow/*pe*` 歸零；下週 harvest 不再出現「空殼遮蔽路由」觀察。
 
-1. **真正實作 `tw-company-pe-memo` SKILL.md（第 5 週，不可再 carry）**
-   - *為什麼是現在*：已是第五週。每多一週，PE DD pipeline 繼續以 23–60% silent-fail 率跑，dedup guard 繼續空轉，成本繼續往 taiwan-company 集中。這是整條鏈的根節點。
-   - *具體做什麼*：真實 TRIGGER（「幫我做這家公司的 PE memo」「DD memo」「初步盡調」）+ 4 步主體（source-first: tw-company-identify → lookup → news-evidence-search → memo 輸出）+ silent-fail guard + 呼叫 batch-dd-dedup-guard 入口。
-   - *Effort*：~30–45 分鐘。
-   - *驗證*：SKILL.md 不含 `auto-generated` / `## TODO`；下週 harvest silent-fail < 20%；同一公司不再重複 retry 5+ 次。
+## 對照上週
 
-2. **修 dashboard API HTTP 死鎖（讓成本觀測回來）**
-   - *為什麼是現在*：API 死鎖 = 整週成本盲區。06-10 usage cap 是危險訊號，但沒有 API 數據無從判斷集中在哪。
-   - *具體做什麼*：`systemctl --user status com.sk.dashboard.api.service` 看 stderr；試 `curl -v http://localhost:8001/health`；若需要，restart + 確認 port binding（RUN.md 記載 :8001 但可能又漂移）。順便解 `.next/lock`（`rm dashboard-next/.next/lock`）。
-   - *Effort*：~20 分鐘診斷 + 修復。
-   - *驗證*：`curl http://localhost:8001/api/skills/usage` 回 JSON；test build 通過。
-
-3. **修 tester 的 launchd → systemd 適配（還原 agent 健康可觀測性）**
-   - *為什麼是現在*：假陽性 FAIL 把真失敗（janitor/maintain）跟假失敗（harvest 其實活著）混在一起，admin 無法分辨。W23 Action 3 只做了一半。
-   - *具體做什麼*：找 tester 腳本的 agent health check 邏輯，把 `launchctl list` 改為 `systemctl --user is-active com.sk.agent.rivendell.<name>.service`，讓 harvest / workflow-retro 回 PASS，janitor / maintain 回 FAIL（真失敗才排除）。
-   - *Effort*：~15 分鐘定位 + 改腳本。
-   - *驗證*：test report 顯示 harvest=PASS、workflow-retro=PASS、janitor=FAIL（真）、maintain=FAIL（真）；不再出現 launchd 字眼。
-
----
-
-## 對照上週（W23）
+W23 三條 action 完成度 **0.5 / 3**（可行動項，watchdog 為 carry 備忘未計入分母）：
 
 | W23 Action | 完成狀態 | 說明 |
 |-----------|---------|------|
-| 1. 修 retro 自身：port 8000→8001 + retry/idempotency guard | ❌ 未完成 | W24 scheduled retro 產出 0 bytes；dashboard API 本週雙埠均無回應，問題比埠號更深。 |
-| 2. 實作 `tw-company-pe-memo` SKILL.md | ❌ 未完成（第 5 週） | 本週 harvest 每天仍撞到 trigger 失效與 silent-fail；stub 狀態未變。 |
-| 3. 分流 3 個失敗 unit（tester 假 exit-1 → 還原可觀測性） | ⚠️ 部分完成 | Skill 驗證從 173 升到 180，但 agent health check 仍全 FAIL（launchd 殘留）；janitor/maintain 真失敗根因未分類。 |
-
-**完成率：0/3**（W21: 0.5/2；W22: 損毀；W23: 0/3）——連續三週 retro actions 完成率為零。**這是本週最重要的 meta 發現**：retro 每週產出行動項，但沒有任何機制確保有人去執行，包括 retro 排程自己。
+| 1. 修 retro 自身：`:8000`→`:8001` + retry guard | ⚠️ 半完成（0.5） | **retry guard ✅**：`workflow-retro` 164→12、無單日破百尖峰。**埠號 ❌**：SKILL.md 53/84 行仍寫死 `:8000`，引信沒拆 |
+| 2. 實作 `tw-company-pe-memo` SKILL.md | ❌ 比沒做更糟（0） | 核心非但沒補，**整個目錄被刪**（最後使用 06-03）；周邊反增生 3 支新 stub——W23 警告的「過度 skill 化」成真 |
+| 3. 分流 3 失敗 unit（tester 假 exit-1 先修）| ❌ 未動（0） | `tester`/`janitor`/`maintain` 仍 exit-1，`/api/agents` 仍 `total:0`，tester 健康檢查仍查 launchd（這台是 systemd）|
 
 **W23 → W24 關鍵指標：**
 
 | 指標 | W23 | W24 | 趨勢 |
 |------|-----|-----|------|
-| Dashboard API | ONLINE @ :8001 | ❌ 無回應（8000/8001 均死） | ↓ 退步 |
-| Skill 結構驗證 | 173/173 PASS | **180/180 PASS** | ↑ +7 技能 |
-| Dashboard Build | BUILD SUCCESS | BUILD FAILED（.next lock） | ↓ 退步 |
-| Agent 健康（真實） | janitor/maintain/tester FAIL | 同上 + tester 假陽性混淆 | → 持續 |
-| PE DD silent-fail | ~33%（06-01 基準） | 06-04 批次 ~60% | ↓ 惡化 |
-| `tw-company-pe-memo` 實作 | stub 第 4 週 | stub 第 5 週 | ↓ 持續 |
-| Harvest 多樣性 | 集中 PE DD | 出現 TWstock + mops-notes 新領域 | ↑ 改善 |
-| Token 集中 | taiwan-company 48% / 30d | 不知道（API 死） | — 盲區 |
-| Retro 自身（scheduled） | retry storm → 壞檔 W22 | W24 scheduled 0 bytes | ⚠️ 持續 |
+| Dashboard API | ONLINE @ :8001（修埠後恢復）| ONLINE @ :8001（skill 仍寫死 :8000）| → 服務穩、文件未修 |
+| `workflow-retro` 觸發 | 164（retry storm）| 12（真實使用）| ✅ 退燒 |
+| 本週成本 | ~$3,598 | ~$1,645 | ↓ 腰斬（PE 退場）|
+| 高頻工作領域 | PE DD（taiwan-company 48%）| MOPS 叢集 + jk-nb vault + code-review | → 換軌 |
+| `tw-company-pe-memo` | 34/7d 第二高頻、stub | **目錄已刪**、家族 1/7d | ↓↓ 從主力到清零 |
+| Skill 結構驗證 | 173/173 pass | 144/144 pass（16 通用 skill 已移出）| → 數量變、健康度同 |
+| 失敗 agent | janitor+maintain+tester | janitor+maintain+tester | → 第 2+ 週原地 |
+| `/api/agents` | total:0（瞎）| total:0（瞎）| → 無改善 |
+| watchdog | 未部署 | 未部署 | → 無改善 |

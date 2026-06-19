@@ -1,5 +1,5 @@
 ---
-name: 1. **llm-wiki-knowledge-base**
+name: 1-llm-wiki-knowledge-base
 description: >
   依 Karpathy 的 LLM Wiki / Append-and-Review 模式，從零建立個人知識庫。包含資料夾結構（`raw/` 投擲區、`wiki/` 編譯區、`inbox.md` 即時 append）、四個 agent 動詞（`consume` / `link` / `lint` / `digest`）、VSCode + Foam 配置、以及把 Claude Code 設定為自動載入
   TRIGGER when: 使用者說「建知識庫」「LLM Wiki」「Karpathy 筆記法」「Append and Review」「個人 wiki」「Obsidian + Claude Code」「raw to wiki pipeline」「knowledge vault」。

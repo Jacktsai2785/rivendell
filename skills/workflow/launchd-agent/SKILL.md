@@ -1,5 +1,5 @@
 ---
-name: Scheduled Agent (systemd)
+name: launchd-agent
 description: >
   Create, configure, debug, and manage scheduled / always-on agents on Linux & WSL2
   using systemd user units (.service + .timer). Covers OnCalendar/OnUnitActiveSec

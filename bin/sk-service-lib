@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# sk-service-lib — systemd --user service helpers for rivendell (Linux/WSL2).
+#
+# Single place that knows how to talk to the service manager, so the rest of
+# the fleet (sk, sk-agent-doctor, sk-tester-cron, sk-watchdog) doesn't hardcode
+# launchctl. This replaces the old macOS launchd model: there is no
+# ~/Library/LaunchAgents on Linux, so every launchctl call silently no-op'd.
+#
+# An agent's units follow sk-setup-systemd's naming:
+#   <label>.service   — the run
+#   <label>.timer     — present only for scheduled agents
+# Logs:  <project_dir>/logs/<name>.log  +  <name>-error.log   (name = label after last dot)
+
+SK_UNIT_DIR="${SK_UNIT_DIR:-$HOME/.config/systemd/user}"
+
+# Raw single-property read (empty string if unit/prop missing).
+svc_prop() { systemctl --user show "$1" -p "$2" --value 2>/dev/null || true; }
+
+# The unit to act on: timer if the agent is scheduled, else the service.
+svc_primary_unit() {
+  if [ -f "$SK_UNIT_DIR/${1}.timer" ]; then echo "${1}.timer"; else echo "${1}.service"; fi
+}
+
+# Last run's exit status (ExecMainStatus). Prints "" if never run / unknown.
+svc_exit_code() { svc_prop "${1}.service" ExecMainStatus; }
+
+# "loaded" = supposed to run: scheduled → timer active; otherwise → service loaded.
+svc_is_loaded() {
+  local label="$1"
+  if [ -f "$SK_UNIT_DIR/${label}.timer" ]; then
+    [ "$(svc_prop "${label}.timer" ActiveState)" = "active" ]
+  else
+    [ "$(svc_prop "${label}.service" LoadState)" = "loaded" ]
+  fi
+}
+
+# Currently executing right now (service ActiveState=active).
+svc_is_running() { [ "$(svc_prop "${1}.service" ActiveState)" = "active" ]; }
+
+# MainPID (>0) or empty.
+svc_pid() { local p; p="$(svc_prop "${1}.service" MainPID)"; [ "${p:-0}" != "0" ] && echo "$p" || true; }
+
+# Lifecycle.
+svc_restart()       { systemctl --user restart "${1}.service"; }
+svc_reload_primary(){ systemctl --user restart "$(svc_primary_unit "$1")"; }
+svc_enable_now()    { systemctl --user enable --now "$(svc_primary_unit "$1")"; }
+svc_disable_now()   { systemctl --user disable --now "$(svc_primary_unit "$1")"; }
+svc_start_once()    { systemctl --user start "${1}.service"; }
+
+# List installed com.sk units, one per line.
+svc_list() {
+  systemctl --user list-units 'com.sk.*' --all --no-legend --no-pager 2>/dev/null
+}
+
+# Error-log path for an agent given its project dir (sk-setup-systemd convention).
+svc_error_log() { echo "$1/logs/${2##*.}-error.log"; }
+svc_stdout_log() { echo "$1/logs/${2##*.}.log"; }

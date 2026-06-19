@@ -1,5 +1,5 @@
 ---
-name: 4. **windows-clipper-to-wsl**
+name: 4-windows-clipper-to-wsl
 description: >
   在 Windows 端建立瀏覽器書籤、PowerShell handler、URL scheme（`nbsend://`），把網頁文章/YouTube/截圖透過 bookmarklet → PowerShell → WSL `raw/` 落地。包含 web-clipper template（general / youtube）、PowerShell registration、`register-n
   TRIGGER when: 使用者說「Windows 抓網頁」「bookmarklet 存筆記」「web clipper WSL」「browser to vault」「URL scheme handler」。
