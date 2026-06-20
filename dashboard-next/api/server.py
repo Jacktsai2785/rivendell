@@ -405,21 +405,15 @@ def api_agent_live(agent_label: str, offset: int = 0) -> dict[str, Any]:
     if wd:
         # Search multiple candidate log paths
         wd_path = Path(wd)
+        # systemd StandardOutput is logs/<label-after-last-dot>.log (see svc_stdout_log
+        # in bin/sk-service-lib). agent.name may differ (e.g. "dashboard.api"), so derive
+        # the filename from the label suffix to match what systemd actually writes.
+        log_name = agent.label.rsplit(".", 1)[-1]
         candidates = [
-            wd_path / "logs" / f"{agent.name}.log",          # systemd StandardOutput
+            wd_path / "logs" / f"{log_name}.log",            # systemd StandardOutput (SSOT)
+            wd_path / "logs" / f"{agent.name}.log",          # legacy / alt naming
             wd_path / "reports" / f"{agent.name}-stdout.log",
         ]
-        # Also check plist StandardOutPath (handles agents with non-standard log dirs)
-        if agent.plist_path:
-            try:
-                import plistlib
-                with open(agent.plist_path, "rb") as pf:
-                    pdata = plistlib.load(pf)
-                sop = pdata.get("StandardOutPath")
-                if sop:
-                    candidates.insert(0, Path(sop))
-            except Exception:
-                pass
 
         stdout_log = None
         for c in candidates:
@@ -501,21 +495,12 @@ def api_agent_files(agent_label: str) -> list[dict[str, Any]]:
     if not wd:
         return []
 
-    # Determine log directory: prefer plist StandardOutPath dir, fallback to reports/
+    # Determine log directory: prefer the systemd logs/ dir, fallback to reports/
     reports_dir = Path(wd) / "reports"
     log_dirs = [reports_dir]
-    if agent.plist_path:
-        try:
-            import plistlib
-            with open(agent.plist_path, "rb") as pf:
-                pdata = plistlib.load(pf)
-            sop = pdata.get("StandardOutPath")
-            if sop:
-                plist_log_dir = Path(sop).parent
-                if plist_log_dir != reports_dir and plist_log_dir.is_dir():
-                    log_dirs.insert(0, plist_log_dir)
-        except Exception:
-            pass
+    logs_dir = Path(wd) / "logs"   # systemd StandardOutput dir
+    if logs_dir.is_dir():
+        log_dirs.insert(0, logs_dir)
 
     # Match files by agent name prefix or known output patterns
     name = agent.name
@@ -555,18 +540,10 @@ def _plain_log_timeline(agent, wd: str, started_at: str | None) -> list[dict[str
     import re as _re
     from datetime import datetime
 
-    # Find the log file — check plist StandardOutPath dir for dated logs
-    log_dir = Path(wd) / "reports"
-    if agent.plist_path:
-        try:
-            import plistlib
-            with open(agent.plist_path, "rb") as pf:
-                pdata = plistlib.load(pf)
-            sop = pdata.get("StandardOutPath")
-            if sop:
-                log_dir = Path(sop).parent
-        except Exception:
-            pass
+    # Find the log file — prefer the systemd logs/ dir, fallback to reports/
+    log_dir = Path(wd) / "logs"
+    if not log_dir.is_dir():
+        log_dir = Path(wd) / "reports"
 
     if not log_dir.is_dir():
         return []

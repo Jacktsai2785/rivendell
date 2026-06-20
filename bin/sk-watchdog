@@ -32,7 +32,6 @@ ESCALATE_THRESHOLD=5
 mkdir -p "$STATE_DIR"
 touch "$STATE_FILE"
 
-UID_NUM="$(id -u)"
 NOW=$(date +%s)
 TODAY=$(date '+%Y-%m-%d')
 

@@ -30,12 +30,19 @@ elif command -v python3 &>/dev/null; then
   fi
 fi
 
-[ -z "$FILE_PATH" ] && exit 0
-
 block() {
   printf '{"decision":"block","reason":"%s"}\n' "$1" >&2
   exit 2
 }
+
+# Fail closed: if neither jq nor python3 is available we cannot parse the input
+# at all, so we never get a FILE_PATH and would silently allow everything —
+# defeating the hook. Block by default and tell the user how to fix it.
+if ! command -v jq &>/dev/null && ! command -v python3 &>/dev/null; then
+  block "protect-secrets: neither jq nor python3 available to scan the call — blocking by default. Install jq or python3 to proceed."
+fi
+
+[ -z "$FILE_PATH" ] && exit 0
 
 # ── .env files (not .env.example) ────────────────────────────────────
 

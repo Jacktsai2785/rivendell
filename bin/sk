@@ -956,118 +956,6 @@ else:
 " 2>/dev/null
 }
 
-# Generate plist XML from agent config
-generate_agent_plist() {
-  local proj_dir="$1"
-  local proj_name="$2"
-  local agent_name="$3"
-  local agents_file="$proj_dir/.claude/agents.json"
-
-  local label
-  label="$(agent_plist_label "$proj_name" "$agent_name")"
-
-  local script
-  script="$(agent_get_config "$agents_file" "$agent_name" "script")"
-  local args_raw
-  args_raw="$(agent_get_config "$agents_file" "$agent_name" "args")"
-  local sched_type
-  sched_type="$(agent_get_config "$agents_file" "$agent_name" "schedule.type")"
-  local sched_hour
-  sched_hour="$(agent_get_config "$agents_file" "$agent_name" "schedule.hour")"
-  local sched_minute
-  sched_minute="$(agent_get_config "$agents_file" "$agent_name" "schedule.minute")"
-  local sched_weekday
-  sched_weekday="$(agent_get_config "$agents_file" "$agent_name" "schedule.weekday")"
-  local sched_interval
-  sched_interval="$(agent_get_config "$agents_file" "$agent_name" "schedule.interval")"
-  local logs_dir
-  logs_dir="$(agent_get_config "$agents_file" "$agent_name" "logs")"
-  [ -z "$logs_dir" ] && logs_dir="reports/"
-
-  local full_script="$proj_dir/$script"
-  local full_logs="$proj_dir/$logs_dir"
-  mkdir -p "$full_logs"
-
-  # Build ProgramArguments — use wrapper to avoid macOS TCC restrictions
-  local wrapper="$HOME/.local/bin/sk-agent-run"
-  local prog_args=""
-  prog_args+="        <string>$wrapper</string>
-        <string>$proj_dir</string>
-        <string>$script</string>"
-  if [ -n "$args_raw" ]; then
-    for arg in $args_raw; do
-      prog_args+="
-        <string>$arg</string>"
-    done
-  fi
-
-  # Build schedule section
-  local schedule_xml=""
-  case "$sched_type" in
-    daily)
-      schedule_xml="    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key><integer>$sched_hour</integer>
-        <key>Minute</key><integer>$sched_minute</integer>
-    </dict>"
-      ;;
-    weekdays)
-      schedule_xml="    <key>StartCalendarInterval</key>
-    <array>"
-      for wd in 1 2 3 4 5; do
-        schedule_xml+="
-        <dict>
-            <key>Weekday</key><integer>$wd</integer>
-            <key>Hour</key><integer>$sched_hour</integer>
-            <key>Minute</key><integer>$sched_minute</integer>
-        </dict>"
-      done
-      schedule_xml+="
-    </array>"
-      ;;
-    weekly)
-      schedule_xml="    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Weekday</key><integer>$sched_weekday</integer>
-        <key>Hour</key><integer>$sched_hour</integer>
-        <key>Minute</key><integer>$sched_minute</integer>
-    </dict>"
-      ;;
-    interval)
-      schedule_xml="    <key>StartInterval</key>
-    <integer>$sched_interval</integer>"
-      ;;
-  esac
-
-  cat <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>$label</string>
-
-    <key>ProgramArguments</key>
-    <array>
-$prog_args
-    </array>
-
-$schedule_xml
-
-    <key>StandardOutPath</key>
-    <string>${full_logs}${agent_name}-stdout.log</string>
-    <key>StandardErrorPath</key>
-    <string>${full_logs}${agent_name}-stderr.log</string>
-
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.npm-global/bin:$HOME/.local/bin</string>
-    </dict>
-</dict>
-</plist>
-PLIST
-}
 
 # --- Agent subcommands ---
 
@@ -3427,9 +3315,19 @@ cmd_bootstrap() {
       echo "  (dry-run: would deploy skills + setup agents)"
     fi
   else
-    echo -e "${YELLOW}[5/6] Skills (Linux — no launchd)${NC}"
+    echo -e "${YELLOW}[5/6] Skills & agents (Linux — systemd)${NC}"
     if ! $dry_run; then
       cmd_deploy
+      # Run agent setup if profile has agents (systemd user units, not launchd)
+      local has_agents=false
+      parse_profile "$profile_name" | grep -q '^agents|' && has_agents=true
+      if $has_agents && [ -x "$REPO_DIR/bin/sk-setup-systemd" ]; then
+        echo ""
+        echo -e "  Setting up systemd user agents..."
+        "$REPO_DIR/bin/sk-setup-systemd" 2>&1 | sed 's/^/  /'
+      fi
+    else
+      echo "  (dry-run: would deploy skills + setup systemd agents)"
     fi
   fi
   echo ""
