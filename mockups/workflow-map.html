@@ -67,7 +67,7 @@
     html.light .tooltip-wrap .tooltip-box { background:#fff; color:#18181b; border-color:#d4d4d8; box-shadow:0 2px 6px rgba(0,0,0,.1); }
     .tooltip-wrap:hover .tooltip-box { display:block; }
     /* 寬版多行 tooltip（五欄位說明用） */
-    .tooltip-wrap .tooltip-fields { white-space:normal; width:22rem; left:0; transform:none; bottom:auto; top:calc(100% + 6px); padding:12px; text-align:left; line-height:1.5; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+    .tooltip-wrap .tooltip-fields { white-space:nowrap; width:max-content; min-width:13rem; left:0; transform:none; bottom:auto; top:calc(100% + 6px); padding:12px; text-align:left; line-height:1.5; box-shadow:0 8px 24px rgba(0,0,0,.4); }
   </style>
 </head>
 
@@ -321,10 +321,10 @@ const DEFAULT_DATA = {
     title: '任務階段判斷',
     subtitle: '由 task-brief 主導的前置 gate：先判斷任務落在哪一階段，前三階段各有自己的模式且不出成品；只有「執行」才往下進入核心開發流程。',
     branches: [
-      { stage:'思考', mode:'反問模式',   desc:'問題本身還沒想清 → 丟 5–8 個鋒利問題逼出具體，不出成品', skills:['gstack-office-hours'], enters:false },
-      { stage:'探索', mode:'選項模式',   desc:'問題清楚要看選項 → 列 2–4 方向 + trade-off，不下推薦', skills:['task-brief'], enters:false },
-      { stage:'決定', mode:'評估模式',   desc:'選項已知要選一個 → 拿你的判準評分、給傾向，不重新發散', skills:['task-brief'], enters:false },
-      { stage:'執行', mode:'五欄位 brief', desc:'方向已定要產出 → 用五欄位定義任務，再進入下方 track', skills:['task-brief'], enters:true },
+      { stage:'思考', mode:'反問模式',   desc:'連『要解決什麼』都還模糊時用 → 丟 5–8 個鋒利問題把問題逼具體；只釐清問題，不給答案、不出成品', skills:['gstack-office-hours'], enters:false },
+      { stage:'探索', mode:'選項模式',   desc:'問題已清楚、但還不知道有哪些做法時用 → 攤開 2–4 條路線各自的 trade-off；只鋪選項，不替你拍板', skills:['task-brief'], enters:false },
+      { stage:'決定', mode:'評估模式',   desc:'選項都擺上桌、要挑一個時用 → 依你的判準逐項評分並給傾向；只幫你選，不再丟新點子發散', skills:['task-brief'], enters:false },
+      { stage:'執行', mode:'五欄位 brief', desc:'方向已拍板、要真的做出東西時用 → 用五欄位（目標/背景/素材/邊界/完成定義）把任務框死，再進入下方開發 track', skills:['task-brief'], enters:true },
     ],
   },
 

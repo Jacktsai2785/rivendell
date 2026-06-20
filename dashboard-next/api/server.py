@@ -2005,16 +2005,56 @@ def _save_workflow(data: dict[str, Any]) -> None:
     _WORKFLOW_JSON.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _skill_source(skills_dir: Path, name: str) -> str:
+    """Derive a skill's origin repo from how it is installed under ~/.claude/skills.
+
+    rivendell / skill-lab  → symlinks into the respective sibling repo.
+    gstack                 → the bundled gstack/ dir, surfaced as wrapper dirs whose
+                             SKILL.md symlinks into ~/.claude/skills/gstack/<name>/.
+    local                  → a plain dir living only here, not backed by any repo
+                             (Anthropic-bundled skills, hand-dropped skills) — no version control.
+    """
+    p = skills_dir / name
+    try:
+        if p.is_symlink():
+            real = os.path.realpath(p)
+        else:
+            sk = p / "SKILL.md"
+            real = os.path.realpath(sk) if sk.exists() else os.path.realpath(p)
+    except OSError:
+        return "local"
+    if "/rivendell/" in real:
+        return "rivendell"
+    if "/skill-lab/" in real:
+        return "skill-lab"
+    if "/.claude/skills/gstack/" in real or real.endswith("/.claude/skills/gstack"):
+        return "gstack"
+    return "local"
+
+
 @app.get("/api/workflow", tags=["Workflow"])
 def api_workflow() -> dict[str, Any]:
-    """Return workflow config merged with live skill install status."""
+    """Return workflow config merged with live skill install status + derived source."""
     wf = _load_workflow()
     skills_dir = Path.home() / ".claude" / "skills"
     installed = {p.name for p in skills_dir.iterdir() if p.is_dir()} if skills_dir.exists() else set()
 
-    # Annotate skillMeta with installed status
-    for name, meta in wf.get("skillMeta", {}).items():
+    # Auto-derive each installed skill's origin repo from its symlink/realpath.
+    # This is the source of truth — it overrides any hand-written source in the map,
+    # so rivendell / skill-lab / gstack / local stay accurate with zero manual upkeep.
+    sources = {name: _skill_source(skills_dir, name) for name in installed}
+
+    # Annotate skillMeta with install status + derived source.
+    sm = wf.setdefault("skillMeta", {})
+    for name, meta in sm.items():
         meta["installed"] = name in installed
+        if name in sources:
+            meta["source"] = sources[name]
+    # Backfill a minimal entry for every installed skill not yet in the map, so
+    # any chip (incl. freshly-catalogued ones) renders with the correct source color.
+    for name in installed:
+        if name not in sm:
+            sm[name] = {"source": sources[name], "desc": "", "installed": True}
 
     # Find orphaned: installed but not referenced in any flow/trigger
     referenced: set[str] = set()
@@ -2034,14 +2074,27 @@ def api_workflow() -> dict[str, Any]:
     for orph in wf.get("orphaned", []):
         referenced.add(orph.get("skill", ""))
 
-    auto_orphaned = sorted(installed - referenced - {"gstack"})
-    wf["autoOrphaned"] = auto_orphaned
+    orphan_names = sorted(installed - referenced - {"gstack"})
+    # Keep orphans as a curated todo list, tagged by source so each repo's
+    # uncatalogued skills are easy to spot.
+    wf["autoOrphaned"] = [
+        {"name": n, "source": sources.get(n, "local")} for n in orphan_names
+    ]
+
+    def _by_source(names: set[str] | list[str]) -> dict[str, int]:
+        out: dict[str, int] = {"rivendell": 0, "skill-lab": 0, "gstack": 0, "local": 0}
+        for n in names:
+            out[sources.get(n, "local")] = out.get(sources.get(n, "local"), 0) + 1
+        return out
+
     wf["stats"] = {
         "totalSkills": len(installed),
         "mapped": len(referenced & installed),
-        "unmapped": len(auto_orphaned),
+        "unmapped": len(orphan_names),
         "domainFlows": len(wf.get("domainFlows", [])),
         "situational": len(wf.get("situational", [])),
+        "bySource": _by_source(installed),
+        "unmappedBySource": _by_source(orphan_names),
     }
     return wf
 

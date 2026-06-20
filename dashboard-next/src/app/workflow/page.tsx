@@ -86,15 +86,56 @@ interface WorkflowData {
   domainFlows: DomainFlow[];
   situational: Situational[];
   orphaned: Orphan[];
-  autoOrphaned: string[];
+  autoOrphaned: AutoOrphan[];
   stats: {
     totalSkills: number;
     mapped: number;
     unmapped: number;
     domainFlows: number;
     situational: number;
+    bySource: Record<string, number>;
+    unmappedBySource: Record<string, number>;
   };
 }
+
+interface AutoOrphan {
+  name: string;
+  source: string;
+}
+
+// ── Source styling (origin repo, auto-derived server-side) ───────────────────
+
+const SOURCE_ORDER = ["rivendell", "skill-lab", "gstack", "local"] as const;
+
+const SOURCE_LABEL: Record<string, string> = {
+  rivendell: "rivendell",
+  "skill-lab": "skill-lab",
+  gstack: "gstack",
+  local: "local（無 repo）",
+};
+
+const SOURCE_CHIP: Record<string, Record<string, string>> = {
+  rivendell: {
+    mandatory: "bg-violet-500/15 text-violet-400 border border-violet-500/50",
+    optional: "bg-violet-500/7 text-violet-400 border border-violet-500/30 border-dashed",
+    default: "bg-violet-500/10 text-violet-400 border border-violet-500/40",
+  },
+  "skill-lab": {
+    mandatory: "bg-sky-500/15 text-sky-400 border border-sky-500/50",
+    optional: "bg-sky-500/7 text-sky-400 border border-sky-500/30 border-dashed",
+    default: "bg-sky-500/10 text-sky-400 border border-sky-500/40",
+  },
+  gstack: {
+    mandatory: "bg-teal-500/15 text-teal-400 border border-teal-500/50",
+    optional: "bg-teal-500/7 text-teal-400 border border-teal-500/30 border-dashed",
+    default: "bg-teal-500/10 text-teal-400 border border-teal-500/40",
+  },
+  local: {
+    mandatory: "bg-amber-500/15 text-amber-400 border border-amber-500/50",
+    optional: "bg-amber-500/7 text-amber-400 border border-amber-500/30 border-dashed",
+    default: "bg-amber-500/10 text-amber-400 border border-amber-500/40",
+  },
+};
 
 // ── Chip Component ───────────────────────────────────────────────────────────
 
@@ -115,23 +156,9 @@ function SkillChip({
   const baseClasses =
     "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-mono transition-all";
 
-  const colorMap: Record<string, string> = {
-    "local-mandatory":
-      "bg-violet-500/15 text-violet-400 border border-violet-500/50",
-    "local-optional":
-      "bg-violet-500/7 text-violet-400 border border-violet-500/30 border-dashed",
-    "local-default":
-      "bg-violet-500/10 text-violet-400 border border-violet-500/40",
-    "gstack-mandatory":
-      "bg-teal-500/15 text-teal-400 border border-teal-500/50",
-    "gstack-optional":
-      "bg-teal-500/7 text-teal-400 border border-teal-500/30 border-dashed",
-    "gstack-default":
-      "bg-teal-500/10 text-teal-400 border border-teal-500/40",
-  };
-
-  const key = `${source}-${variant}`;
-  const colorClass = colorMap[key] ?? colorMap["local-default"];
+  // Color by origin repo (auto-derived server-side):
+  // rivendell = violet · skill-lab = sky · gstack = teal · local(無 repo) = amber
+  const colorClass = SOURCE_CHIP[source]?.[variant] ?? SOURCE_CHIP.rivendell.default;
   const dimClass = !installed ? "opacity-40" : "";
   const highlightClass = highlight
     ? "ring-2 ring-yellow-400 ring-offset-1 ring-offset-zinc-900"
@@ -216,7 +243,7 @@ function StageRouterSection({
                       {b.fields && b.fields.length > 0 ? (
                         <span className="group relative cursor-help whitespace-nowrap border-b border-dotted border-violet-400/60 text-xs font-medium text-zinc-300">
                           {b.mode}
-                          <span className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-[22rem] rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-left normal-case shadow-xl group-hover:block">
+                          <span className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-max min-w-[13rem] whitespace-nowrap rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-left normal-case shadow-xl group-hover:block">
                             <span className="mb-2 block text-[11px] font-semibold text-violet-300">
                               五欄位 brief — 逐欄要問什麼
                             </span>
@@ -482,6 +509,27 @@ export default function WorkflowPage() {
         ]}
       />
 
+      {/* Source distribution (auto-derived from how each skill is installed) */}
+      {data.stats.bySource && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+          <span className="text-zinc-400">來源分佈：</span>
+          {SOURCE_ORDER.map((src) => (
+            <span
+              key={src}
+              className={`inline-flex items-center gap-1 rounded px-2 py-1 ${SOURCE_CHIP[src].default}`}
+            >
+              {SOURCE_LABEL[src]}
+              <span className="font-semibold">{data.stats.bySource[src] ?? 0}</span>
+              {(data.stats.unmappedBySource?.[src] ?? 0) > 0 && (
+                <span className="text-zinc-500">
+                  · 未對應 {data.stats.unmappedBySource[src]}
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Core Flows */}
       <section>
         <h2 className="mb-3 text-lg font-semibold text-zinc-300">
@@ -626,16 +674,34 @@ export default function WorkflowPage() {
                 <span className="text-xs text-zinc-500">{o.reason}</span>
               </div>
             ))}
-            {data.autoOrphaned.map((name) => (
-              <div key={name} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="inline-flex rounded bg-zinc-700/50 px-1.5 py-0.5 text-[11px] font-mono text-zinc-400 border border-zinc-600">
-                  {name}
-                </span>
-                <span className="text-xs text-zinc-500">
-                  已安裝但未出現在任何 flow 或 trigger 中
-                </span>
-              </div>
-            ))}
+            {SOURCE_ORDER.map((src) => {
+              const items = data.autoOrphaned.filter((o) => o.source === src);
+              if (items.length === 0) return null;
+              return (
+                <div key={src} className="px-4 py-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] ${SOURCE_CHIP[src].default}`}
+                    >
+                      {SOURCE_LABEL[src]}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {items.length} 個已安裝但尚未歸入任何 flow / trigger
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {items.map((o) => (
+                      <span
+                        key={o.name}
+                        className={`inline-flex rounded px-1.5 py-0.5 text-[11px] font-mono ${SOURCE_CHIP[src].optional}`}
+                      >
+                        {o.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

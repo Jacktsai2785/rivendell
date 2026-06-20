@@ -300,23 +300,23 @@
       "source": "gstack",
       "desc": "快速無頭瀏覽器 QA 測試工具"
     },
-    "gstack-autoplan": {
+    "autoplan": {
       "source": "gstack",
       "desc": "自動審查：CEO、設計師、工程師三視角一次執行"
     },
-    "gstack-benchmark": {
+    "benchmark": {
       "source": "gstack",
       "desc": "使用瀏覽器偵測效能退化"
     },
-    "gstack-browse": {
+    "browse": {
       "source": "gstack",
       "desc": "快速無頭瀏覽器 QA 測試"
     },
-    "gstack-canary": {
+    "canary": {
       "source": "gstack",
       "desc": "部署後金絲雀監控，觀察生產環境"
     },
-    "gstack-careful": {
+    "careful": {
       "source": "gstack",
       "desc": "破壞性指令前的安全護欄"
     },
@@ -324,119 +324,119 @@
       "source": "gstack",
       "desc": "長時間 session 中建立 checkpoint"
     },
-    "gstack-codex": {
+    "codex": {
       "source": "gstack",
       "desc": "OpenAI Codex CLI wrapper，獨立第二意見"
     },
-    "gstack-connect-chrome": {
+    "connect-chrome": {
       "source": "gstack",
       "desc": "啟動真實 Chrome 並由 gstack 控制"
     },
-    "gstack-cso": {
+    "cso": {
       "source": "gstack",
       "desc": "首席安全官模式，基礎設施安全審計"
     },
-    "gstack-design-consultation": {
+    "design-consultation": {
       "source": "gstack",
       "desc": "設計系統/品牌方向諮詢"
     },
-    "gstack-design-html": {
+    "design-html": {
       "source": "gstack",
       "desc": "設計終稿：生成生產品質靜態 HTML"
     },
-    "gstack-design-review": {
+    "design-review": {
       "source": "gstack",
       "desc": "設計師視角 QA：視覺一致性檢查"
     },
-    "gstack-design-shotgun": {
+    "design-shotgun": {
       "source": "gstack",
       "desc": "設計散彈槍：生成多個 AI 設計變體"
     },
-    "gstack-devex-review": {
+    "devex-review": {
       "source": "gstack",
       "desc": "開發者體驗審查"
     },
-    "gstack-document-release": {
+    "document-release": {
       "source": "gstack",
       "desc": "上線後文件更新，讀取所有專案文件"
     },
-    "gstack-freeze": {
+    "freeze": {
       "source": "gstack",
       "desc": "限制檔案編輯到特定目錄（重構保護）"
     },
-    "gstack-guard": {
+    "guard": {
       "source": "gstack",
       "desc": "完整安全模式：破壞性指令警告"
     },
-    "gstack-health": {
+    "health": {
       "source": "gstack",
       "desc": "gstack 本身的健康檢查"
     },
-    "gstack-investigate": {
+    "investigate": {
       "source": "gstack",
       "desc": "系統性除錯，找出根本原因"
     },
-    "gstack-land-and-deploy": {
+    "land-and-deploy": {
       "source": "gstack",
       "desc": "合併 PR → 等待 CI → 部署（CI/CD 環境）"
     },
-    "gstack-learn": {
+    "learn": {
       "source": "gstack",
       "desc": "管理專案 learnings，回顧、搜尋、精簡"
     },
-    "gstack-office-hours": {
+    "office-hours": {
       "source": "gstack",
       "desc": "YC Office Hours：驗證想法、找出盲點"
     },
-    "gstack-open-gstack-browser": {
+    "open-gstack-browser": {
       "source": "gstack",
       "desc": "（內部）開啟 gstack 瀏覽器視窗"
     },
-    "gstack-plan-ceo-review": {
+    "plan-ceo-review": {
       "source": "gstack",
       "desc": "CEO/創辦人模式計畫審查：範圍與商業價值"
     },
-    "gstack-plan-design-review": {
+    "plan-design-review": {
       "source": "gstack",
       "desc": "設計師視角計畫審查：UX 缺口"
     },
-    "gstack-plan-devex-review": {
+    "plan-devex-review": {
       "source": "gstack",
       "desc": "開發者體驗計畫審查"
     },
-    "gstack-plan-eng-review": {
+    "plan-eng-review": {
       "source": "gstack",
       "desc": "工程師模式計畫審查：架構與邊界情況"
     },
-    "gstack-qa": {
+    "qa": {
       "source": "gstack",
       "desc": "系統性 QA 測試 web 應用並修復問題"
     },
-    "gstack-qa-only": {
+    "qa-only": {
       "source": "gstack",
       "desc": "僅報告 QA 測試（不修復，定期健檢）"
     },
-    "gstack-retro": {
+    "retro": {
       "source": "gstack",
       "desc": "每週工程回顧，分析提交歷史"
     },
-    "gstack-review": {
+    "review": {
       "source": "gstack",
       "desc": "Landing 前 PR 審查，分析 diff"
     },
-    "gstack-setup-browser-cookies": {
+    "setup-browser-cookies": {
       "source": "gstack",
       "desc": "從真實 Chromium 瀏覽器匯入 cookies"
     },
-    "gstack-setup-deploy": {
+    "setup-deploy": {
       "source": "gstack",
       "desc": "設定 land-and-deploy 的部署配置"
     },
-    "gstack-ship": {
+    "ship": {
       "source": "gstack",
       "desc": "Ship 工作流：偵測 + merge + 部署 + 驗證"
     },
-    "gstack-unfreeze": {
+    "unfreeze": {
       "source": "gstack",
       "desc": "清除 freeze 設定的邊界"
     },
@@ -480,9 +480,425 @@
       "source": "local",
       "desc": "7 道關卡的簡報製作流程（目的→風格→大綱→素材→生成→審閱→輸出）"
     },
-    "gstack-pair-agent": {
+    "pair-agent": {
       "source": "gstack",
       "desc": "配對遠端 AI agent 與瀏覽器"
+    },
+    "2-jk-nb-consume": {
+      "source": "local",
+      "desc": "執行 jk_nb vault 的 consume 動詞"
+    },
+    "stock-fundamentals-grading": {
+      "source": "local",
+      "desc": "將 MOPS 月營收、季財報原始資料計算成六大指標（營收成長性、營業利益率、稅後淨利年增率、累積 EPS、存貨周轉率、FCF），並依 rubric 給出 A/B"
+    },
+    "pdf-ocr-routing": {
+      "source": "local",
+      "desc": "自動偵測 PDF 類型（text-based 或 scanned），決定文字抽取路線以避免 silent failure。"
+    },
+    "3-raw-watcher-file-ingestion": {
+      "source": "local",
+      "desc": "建立 systemd path unit + service 監控 raw/ 投擲區，自動觸發 Claude 檔案攝取流程。包含 inotify watcher"
+    },
+    "1-llm-wiki-knowledge-base": {
+      "source": "local",
+      "desc": "依 Karpathy 的 LLM Wiki / Append-and-Review 模式，從零建立個人知識庫。包含資料夾結構（`raw/` 投擲區、`wiki/"
+    },
+    "mops-cluster-master-alignment-audit": {
+      "source": "local",
+      "desc": "稽核 mops 叢集下游 DB（mops_rev/pl/bs/cf/notes/price）與上游 mops_master 的公司名單對齊狀態及排程拓樸。"
+    },
+    "personal-knowledge-wiki": {
+      "source": "local",
+      "desc": "個人知識庫工作流：raw（原始）→ inbox（清單）→ wiki（互聯）三層架構，包含 consume/link/lint/digest 四大操作模板。"
+    },
+    "pe-dd-structured-source-first": {
+      "source": "local",
+      "desc": "pe-dd-structured-source-first skill"
+    },
+    "2-dev-server-restart-verify": {
+      "source": "local",
+      "desc": "重啟 monorepo 的 frontend + backend dev server，並在回報前 **先驗證 port 真的在 listening**（避免「"
+    },
+    "ic-report-multimodal-ingest": {
+      "source": "local",
+      "desc": ""
+    },
+    "tw-company-batch-dd-orchestrator": {
+      "source": "local",
+      "desc": ""
+    },
+    "financial-indicators-from-statements": {
+      "source": "local",
+      "desc": "計算上市公司「6 大基本面指標」（營收成長、營業利益率、稅後淨利 YoY、累積 EPS、存貨周轉率、FCF）的公式與 SQL/Python 實作。"
+    },
+    "mops-individual-financial-report": {
+      "source": "local",
+      "desc": "為現有 MOPS 財務爬蟲增加個體財報（非合併）抓取支援"
+    },
+    "4-windows-clipper-to-wsl": {
+      "source": "local",
+      "desc": "在 Windows 端建立瀏覽器書籤、PowerShell handler、URL scheme（`nbsend://`），把網頁文章/YouTube/截圖透過"
+    },
+    "mops-investee-holdings-debug": {
+      "source": "local",
+      "desc": ""
+    },
+    "company-deck-ingestion": {
+      "source": "local",
+      "desc": ""
+    },
+    "mops-notes-backfill-monitor": {
+      "source": "local",
+      "desc": "監控與管理 mops_notes 大型批次附註抽取回填作業"
+    },
+    "tw-company-news-evidence-search": {
+      "source": "local",
+      "desc": "給定公司名稱，搜尋並彙整媒體曝光（報導、入選、獲獎、創辦人專訪），輸出結構化證據清單。|"
+    },
+    "tw-company-pe-memo-refine": {
+      "source": "local",
+      "desc": "對 `tw-company-pe-memo` 產出的初版備忘錄，執行第二輪「補充搜尋 → 證據抓取 → 修訂」迴圈，加入媒體報導、獲獎入選、創辦人背景、競品分析"
+    },
+    "scraping-frontdoor-vs-backdoor": {
+      "source": "local",
+      "desc": "決策樹式爬蟲戰略：何時用公開 API / JSON / 靜態檔案 / OData / RSS，何時降速度、加 user-agent、session cookie"
+    },
+    "stock-data-gap-diagnose": {
+      "source": "local",
+      "desc": "Diagnose and resolve 'data insufficient' messages for individual stocks on the s"
+    },
+    "tej-sub-code-classifier": {
+      "source": "local",
+      "desc": "給定台灣上市櫃公司代號、公司名稱與業務描述，從 TEJ 子產業代碼清單中選出最合適的代碼。"
+    },
+    "1-taiwan-news-multiday-digest": {
+      "source": "local",
+      "desc": "把過去 N 天（5–8 天）的單日新聞分類結果，彙整成「多日摘要 + 高頻標題」格式。每天一段，列出當日主題（5–8 個關鍵詞），最後附跨日高頻標題排行。輸出格"
+    },
+    "gantt-slide": {
+      "source": "local",
+      "desc": "根據里程碑清單或專案時間表，在簡報中產出 Gantt 圖 slide（HTML canvas 或 SVG，可嵌入 PPTX）"
+    },
+    "post-backfill-indicator-recompute": {
+      "source": "local",
+      "desc": "在 mops_db 補完 XBRL 財報資料後，對選股指標快照做資料完整度校正式的增量重算。觸發：補完資料後重新檢查指標、mops_db 補了 XBRL 要更新"
+    },
+    "plan-with-external-benchmarks": {
+      "source": "local",
+      "desc": "Plan mode 固定流程：並行 Explore agent（看 codebase 現況）+ WebSearch/WebFetch（看業界標竿） → 整合進 "
+    },
+    "github-repo-onboard": {
+      "source": "local",
+      "desc": "需要參考他人開源專案的架構，快速生成當前專案的重構計畫或遷移清單"
+    },
+    "3-claude-sdk-oauth-telegram-bridge": {
+      "source": "local",
+      "desc": "把「Claude Agent SDK（OAuth 模式）」+ 「Telegram bot」+ 「地端 web app」三者組合起來：使用者透過 Telegram"
+    },
+    "tw-company-batch-dd-pipeline": {
+      "source": "local",
+      "desc": "投資前批次調查、portfolio 公司清單建檔、市場掃描後的快速 DD、競爭對手清單分析"
+    },
+    "dev-port-conflict-fix": {
+      "source": "local",
+      "desc": "當多個本地 web 服務 Port 衝突時，快速定位衝突根因、調整服務 Port、更新前端 API client 設定。"
+    },
+    "proposal-opportunity-scan": {
+      "source": "local",
+      "desc": "快速研究目标公司背景，评估 ML/AI/自动化切入点，产出简要机会评估报告。"
+    },
+    "github-skill-installer": {
+      "source": "local",
+      "desc": ""
+    },
+    "project-redteam-review": {
+      "source": "local",
+      "desc": "對「整個專案」做深度盤點 + 紅隊審查 + 彙整最佳設計。先全面盤點 code 與文檔、做 code↔文檔一致性與事實查證建立事實基準、捕捉專案初衷，再並行派出"
+    },
+    "taiwan-financial-category-display": {
+      "source": "local",
+      "desc": "將 MOPS/XBRL 財務資產類別代碼正規化為台灣 GAAP/IFRS 標準名稱，並處理持股比例 → 數量的 fallback 邏輯。"
+    },
+    "3-tender-lead-router": {
+      "source": "local",
+      "desc": "政府標案 → 銷售線索的轉換工作流：搜尋符合特定客戶能力的標案 → 取得原始公告網址 → 在 `nx_deal` / 客戶資料夾新增 deal/saleing "
+    },
+    "multi-industry-news-pipeline-orchestrator": {
+      "source": "local",
+      "desc": "把「4 個固定產業（AI / 前瞻科技 / 綠色永續 / 消費生活）× 兩種輸出（單日分類 / 多日 digest）」串成一次性編排，避免使用者手動逐產業觸發 "
+    },
+    "pe-memo-already-generated-guard": {
+      "source": "local",
+      "desc": "在啟動 PE memo workflow 前檢查目標公司是否已有完整的 memo 文件，防止無謂覆蓋。"
+    },
+    "product-index": {
+      "source": "local",
+      "desc": "為多產品線/solution 組織建立 markdown 索引結構，含 frontmatter 分類、定期更新機制、AI 生成內容審核閘門。"
+    },
+    "phased-spec-builder": {
+      "source": "local",
+      "desc": ""
+    },
+    "pe-memo-deep-research": {
+      "source": "local",
+      "desc": "在初步 PE 備忘錄產出後，針對特定疑點或待驗證聲明進行深度網路研究（WebSearch + WebFetch），補充產品線、客戶名單、競爭者、媒體報導等資訊並"
+    },
+    "personal-workspace": {
+      "source": "local",
+      "desc": "以 Obsidian 風格自動建立個人筆記庫結構、決策記錄、面試紀錄等，含 README 索引與 archive 機制。"
+    },
+    "cross-device-deploy": {
+      "source": "local",
+      "desc": "跨裝置多 project 協調部署：以 rivendell 為核心，讀取 AGENTS.md 定義的部署清單，在不同環境一鍵部署多個相關 projects，支援"
+    },
+    "react-fab-search-pattern": {
+      "source": "local",
+      "desc": "一鍵生成 typed search endpoint + debounced FAB + keyboard nav（↑↓ Enter ESC）+ route 跳"
+    },
+    "tw-company-dd-orchestrator-guard": {
+      "source": "local",
+      "desc": ""
+    },
+    "excel-ssot-display-order-sync": {
+      "source": "local",
+      "desc": "Excel 當 SSOT 同步 display_order 到 DB，並 audit 三層一致性（DB → API → frontend）。"
+    },
+    "ai-data-layer": {
+      "source": "local",
+      "desc": "重構後端，將「純資料管理」與「AI / Agentic」邏輯明確分層"
+    },
+    "anthropic-skills-bulk-port": {
+      "source": "local",
+      "desc": ""
+    },
+    "2-headless-agent-knowledge-pipeline": {
+      "source": "local",
+      "desc": "使用 systemd user timer 定期執行 Claude Code headless 任務，搭配知識庫消化動詞（digest/lint/consume"
+    },
+    "3-jk-nb-lint": {
+      "source": "local",
+      "desc": "執行 jk-nb wiki 的 lint 動詞，掃描整個 wiki/ 目錄，找出內容品質問題（重複定義、孤立頁面、broken links、title 不一致、"
+    },
+    "hierarchy-breadcrumb-from-flat-category": {
+      "source": "local",
+      "desc": "WHEN: 需要從平坦 key（如 `\"生技-西藥\"`）反推層級、渲染麵包屑、同步 URL `?group=` state"
+    },
+    "tw-company-name-extractor": {
+      "source": "local",
+      "desc": ""
+    },
+    "taiwan-news-weekly-digest": {
+      "source": "local",
+      "desc": "需要快速掌握過去一週台灣產業動態、管理層需要週度簡報、投資決策前快速了解市場背景"
+    },
+    "tw-company-pe-memo-trigger-fix": {
+      "source": "local",
+      "desc": "tw-company-pe-memo-trigger-fix skill"
+    },
+    "pe-memo-silent-fail-rate-alert": {
+      "source": "local",
+      "desc": "監測每日 PE memo 派送的 silent-fail 比例，超過 20% 閾值時發送 Telegram 告警。"
+    },
+    "tech-evaluation-doc": {
+      "source": "local",
+      "desc": "客戶提出模糊需求時（例如「補習班進出紀錄」），產出三件套決策文件：`tech-stack.md`（2-3 個技術路徑比較）、`cost-estimate.md`"
+    },
+    "jk-nb-inbox-digest": {
+      "source": "local",
+      "desc": ""
+    },
+    "vscode-wsl-port-forwarding-debug": {
+      "source": "local",
+      "desc": "診斷 VS Code Remote WSL 環境中 PORTS 面板為何只顯示部分 forwarded ports，其他正在 listening 的服務卻未出現"
+    },
+    "jk-nb-digest": {
+      "source": "local",
+      "desc": ""
+    },
+    "1-repo-cold-start": {
+      "source": "local",
+      "desc": "拿到一個沒看過的 GitHub repo，要在本地把它跑起來「看到畫面」。流程：clone → 偵測 stack（package.json / pyprojec"
+    },
+    "multi-project-port-replan": {
+      "source": "local",
+      "desc": "對機器上所有本地專案進行一次性 port 盤點、衝突診斷、重新規劃，輸出並同步 SSOT（~/PORTS.md）至各專案配置。 觸發 when: 使用者說「梳理"
+    },
+    "4-github-pages-corporate-site": {
+      "source": "local",
+      "desc": "用 CNAME + DESIGN.md + STATE.md 模式建立企業官網（靜態 + 自訂域名 + GitHub Pages）。"
+    },
+    "rbac-setup": {
+      "source": "local",
+      "desc": "在全端 App 中加入角色型存取控制（admin/user、內帳/外帳可見性）"
+    },
+    "mops-business-description-scraper": {
+      "source": "local",
+      "desc": "從 MOPS 網站 `t05st03` 頁面爬取台灣上市/櫃/興櫃公司的「主要業務」（主營業務描述），支援單公司查詢與批次查詢，結果存入本機資料庫或回傳 JSO"
+    },
+    "3-obsidian-vault-link-rules": {
+      "source": "local",
+      "desc": "Codify Obsidian vault 內的 wikilink 寫法規則。"
+    },
+    "5-local-first-pdf-excel-company-extractor": {
+      "source": "local",
+      "desc": "地端 PDF / Excel 檔案 → 公司名稱抽取 → 既有公司去重的整合工作流。"
+    },
+    "llm-field-regenerate-ux": {
+      "source": "local",
+      "desc": "整合 LLM 重新生成既有 DB 欄位（公司簡介、職缺描述、案件摘要等）的端對端 UX flow"
+    },
+    "cross-project-docs-symlink-bridge": {
+      "source": "local",
+      "desc": ""
+    },
+    "audio-transcription": {
+      "source": "local",
+      "desc": "Add audio upload, transcription, and transcript display to a web app."
+    },
+    "benchmark-models": {
+      "source": "local",
+      "desc": "Cross-model benchmark for gstack skills. Runs the same prompt through Claude, GP"
+    },
+    "context-save": {
+      "source": "local",
+      "desc": "Save working context. Captures git state, decisions made, and remaining work so "
+    },
+    "mops-filer-list-reconcile": {
+      "source": "local",
+      "desc": "把本地 `mops_master.filers` 名單與權威來源（TWSE 上市 / OTC 上櫃 / ROTC 興櫃 / 公發 四份 opendata CSV"
+    },
+    "canvas-design": {
+      "source": "local",
+      "desc": "Create beautiful visual art in .png and .pdf documents using design philosophy. "
+    },
+    "context-restore": {
+      "source": "local",
+      "desc": "Restore working context saved earlier by /context-save. Loads the most recent sa"
+    },
+    "plan-tune": {
+      "source": "local",
+      "desc": "Self-tuning question sensitivity + developer psychographic for gstack (v1: obser"
+    },
+    "tw-company-website-finder": {
+      "source": "local",
+      "desc": "給定台灣公司名稱與統一編號，用 WebSearch 找出最可能的官方網站 URL。 寧缺勿錯：找不到就回 null，絕不因「同名異公司」或「舊名」誤判統編不符。"
+    },
+    "tw-company-identify": {
+      "source": "local",
+      "desc": "Identify and normalize Taiwan companies from unstructured input (text, image, or"
+    },
+    "continuous-learning-v2": {
+      "source": "local",
+      "desc": "Instinct-based learning system that observes sessions via hooks, creates atomic "
+    },
+    "workflow-retro": {
+      "source": "local",
+      "desc": "Weekly observability retrospective for the rivendell skills + agents system. Rea"
+    },
+    "pptx": {
+      "source": "local",
+      "desc": "Use this skill any time a .pptx file is involved in any way"
+    },
+    "scrape": {
+      "source": "local",
+      "desc": "Pull data from a web page. First call on a new intent prototypes the flow via $B"
+    },
+    "theme-factory": {
+      "source": "local",
+      "desc": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs,"
+    },
+    "claude-api": {
+      "source": "local",
+      "desc": "Build, debug, and optimize Claude API / Anthropic SDK apps. Apps built with this"
+    },
+    "make-pdf": {
+      "source": "local",
+      "desc": "Turn any markdown file into a publication-quality PDF. Proper 1in margins, intel"
+    },
+    "internal-comms": {
+      "source": "local",
+      "desc": "Templates and formats for ongoing organizational communications during and after"
+    },
+    "slack-gif-creator": {
+      "source": "local",
+      "desc": "Knowledge and utilities for creating animated GIFs optimized for Slack. Provides"
+    },
+    "brand-guidelines": {
+      "source": "local",
+      "desc": "Applies Anthropic's official brand colors and typography to any sort of artifact"
+    },
+    "webapp-testing": {
+      "source": "local",
+      "desc": "Toolkit for interacting with and testing local web applications using Playwright"
+    },
+    "docx": {
+      "source": "local",
+      "desc": "Use this skill whenever the user wants to create, read, edit, or manipulate Word"
+    },
+    "1-service-watchdog-launchd": {
+      "source": "local",
+      "desc": "為 Linux / WSL2 上的 HTTP 服務（FastAPI / Next.js / dashboard）建立「HTTP probe + 自動重啟」 wa"
+    },
+    "cron-script-範式段落-加進-headless-agent-或-launchd-agent": {
+      "source": "local",
+      "desc": "rivendell 所有 cron-style 維護腳本（bin/sk-*-cron，由 systemd user timer 觸發）共用的「shape」。 c"
+    },
+    "xlsx": {
+      "source": "local",
+      "desc": "Use this skill any time a spreadsheet file is the primary input or output. This "
+    },
+    "skillify": {
+      "source": "local",
+      "desc": "Codify the most recent successful /scrape flow into a permanent browser-skill on"
+    },
+    "algorithmic-art": {
+      "source": "local",
+      "desc": "Creating algorithmic art using p5.js with seeded randomness and interactive para"
+    },
+    "pdf": {
+      "source": "local",
+      "desc": "Use this skill whenever the user wants to do anything with PDF files. This inclu"
+    },
+    "setup-gbrain": {
+      "source": "local",
+      "desc": "Set up gbrain for this coding agent: install the CLI, initialize a local PGLite "
+    },
+    "web-artifacts-builder": {
+      "source": "local",
+      "desc": "Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts "
+    },
+    "landing-report": {
+      "source": "local",
+      "desc": "Read-only queue dashboard for workspace-aware ship. Shows which VERSION slots ar"
+    },
+    "tw-call-memo": {
+      "source": "local",
+      "desc": "Generate a Taiwan PE/VC investment Call Memo from a meeting transcript or audio "
+    },
+    "doc-coauthoring": {
+      "source": "local",
+      "desc": "Structured workflow for collaboratively co-authoring documentation through three"
+    },
+    "find-skills": {
+      "source": "rivendell",
+      "desc": "想做某件事時，幫你找出並安裝對應的 skill"
+    },
+    "smart-search": {
+      "source": "rivendell",
+      "desc": "推斷意圖的智慧搜尋，回傳前 5 筆最相關、最具權威性的結果"
+    },
+    "deep-research-explainer": {
+      "source": "rivendell",
+      "desc": "把主題寫成 3000–5000 字的研究型深度解說長文"
+    },
+    "infographic-builder": {
+      "source": "rivendell",
+      "desc": "把文字／數據做成單檔自包含的 HTML 資訊圖表"
+    },
+    "error-screenshot-helper": {
+      "source": "rivendell",
+      "desc": "看懂錯誤截圖／訊息，給逐步修復指引"
     }
   },
   "stageRouter": {
@@ -492,16 +908,16 @@
       {
         "stage": "思考",
         "mode": "反問模式",
-        "desc": "問題本身還沒想清 → 丟 5–8 個鋒利問題逼出具體，不出成品",
+        "desc": "連『要解決什麼』都還模糊時用 → 丟 5–8 個鋒利問題把問題逼具體；只釐清問題，不給答案、不出成品",
         "skills": [
-          "gstack-office-hours"
+          "office-hours"
         ],
         "enters": false
       },
       {
         "stage": "探索",
         "mode": "選項模式",
-        "desc": "問題清楚要看選項 → 列 2–4 方向 + trade-off，不下推薦",
+        "desc": "問題已清楚、但還不知道有哪些做法時用 → 攤開 2–4 條路線各自的 trade-off；只鋪選項，不替你拍板",
         "skills": [
           "task-brief"
         ],
@@ -510,7 +926,7 @@
       {
         "stage": "決定",
         "mode": "評估模式",
-        "desc": "選項已知要選一個 → 拿你的判準評分、給傾向，不重新發散",
+        "desc": "選項都擺上桌、要挑一個時用 → 依你的判準逐項評分並給傾向；只幫你選，不再丟新點子發散",
         "skills": [
           "task-brief"
         ],
@@ -519,7 +935,7 @@
       {
         "stage": "執行",
         "mode": "五欄位 brief",
-        "desc": "方向已定要產出 → 用五欄位定義任務，再進入下方 track",
+        "desc": "方向已拍板、要真的做出東西時用 → 用五欄位（目標/背景/素材/邊界/完成定義）把任務框死，再進入下方開發 track",
         "skills": [
           "task-brief"
         ],
@@ -572,7 +988,7 @@
             "requirement"
           ],
           "optional": [
-            "gstack-office-hours"
+            "office-hours"
           ]
         },
         {
@@ -589,7 +1005,7 @@
           "label": "品牌方向",
           "desc": "設計系統 / 品牌諮詢",
           "mandatory": [
-            "gstack-design-consultation"
+            "design-consultation"
           ],
           "optional": []
         },
@@ -598,7 +1014,7 @@
           "label": "設計變體",
           "desc": "生成多個設計變體，選定一個",
           "mandatory": [
-            "gstack-design-shotgun"
+            "design-shotgun"
           ],
           "optional": []
         },
@@ -610,7 +1026,7 @@
             "mockup"
           ],
           "optional": [
-            "gstack-design-html"
+            "design-html"
           ]
         },
         {
@@ -621,10 +1037,10 @@
             "planning-with-files"
           ],
           "optional": [
-            "gstack-plan-eng-review",
-            "gstack-plan-design-review",
-            "gstack-plan-ceo-review",
-            "gstack-autoplan"
+            "plan-eng-review",
+            "plan-design-review",
+            "plan-ceo-review",
+            "autoplan"
           ]
         },
         {
@@ -633,11 +1049,11 @@
           "desc": "如遇阻礙：調查 / 鎖定穩定區 / 安全操作 / 第二意見",
           "mandatory": [],
           "optional": [
-            "gstack-investigate",
-            "gstack-freeze",
-            "gstack-unfreeze",
-            "gstack-careful",
-            "gstack-codex"
+            "investigate",
+            "freeze",
+            "unfreeze",
+            "careful",
+            "codex"
           ]
         },
         {
@@ -645,7 +1061,7 @@
           "label": "Pre-commit 審查",
           "desc": "提交前 diff 審查 — 改動 backend endpoint 時順手檢查：/docs 仍可開啟、response_model 已寫、production 環境的 docs/openapi URL 有 gate",
           "mandatory": [
-            "gstack-review"
+            "review"
           ],
           "optional": []
         },
@@ -654,11 +1070,11 @@
           "label": "QA",
           "desc": "無頭瀏覽器 UI flow 測試",
           "mandatory": [
-            "gstack-qa"
+            "qa"
           ],
           "optional": [
-            "gstack-qa-only",
-            "gstack-design-review"
+            "qa-only",
+            "design-review"
           ]
         },
         {
@@ -666,12 +1082,12 @@
           "label": "Ship",
           "desc": "合併 PR → 等待 CI → 部署 → 監控",
           "mandatory": [
-            "gstack-land-and-deploy",
-            "gstack-ship"
+            "land-and-deploy",
+            "ship"
           ],
           "optional": [
-            "gstack-canary",
-            "gstack-document-release"
+            "canary",
+            "document-release"
           ]
         }
       ]
@@ -695,7 +1111,7 @@
           "label": "調查根因",
           "desc": "系統性除錯找出根本原因",
           "mandatory": [
-            "gstack-investigate"
+            "investigate"
           ],
           "optional": []
         },
@@ -711,7 +1127,7 @@
           "label": "Diff 審查",
           "desc": "提交前 diff 審查 — 改動 backend endpoint 時順手檢查：/docs 仍可開啟、response_model 已寫、production 環境的 docs/openapi URL 有 gate",
           "mandatory": [
-            "gstack-review"
+            "review"
           ],
           "optional": []
         },
@@ -720,7 +1136,7 @@
           "label": "安全檢查",
           "desc": "破壞性操作前的護欄",
           "mandatory": [
-            "gstack-careful"
+            "careful"
           ],
           "optional": []
         },
@@ -729,12 +1145,12 @@
           "label": "Ship",
           "desc": "部署 + 效能監控（效能敏感路徑）",
           "mandatory": [
-            "gstack-land-and-deploy",
-            "gstack-ship"
+            "land-and-deploy",
+            "ship"
           ],
           "optional": [
-            "gstack-benchmark",
-            "gstack-canary"
+            "benchmark",
+            "canary"
           ]
         }
       ]
@@ -744,53 +1160,53 @@
     {
       "trigger": "遇到不明 bug",
       "skills": [
-        "gstack-investigate"
+        "investigate"
       ]
     },
     {
       "trigger": "每次 ship 前",
       "skills": [
-        "gstack-careful",
-        "gstack-review",
-        "gstack-qa"
+        "careful",
+        "review",
+        "qa"
       ]
     },
     {
       "trigger": "每次 ship 後",
       "skills": [
-        "gstack-canary",
-        "gstack-document-release"
+        "canary",
+        "document-release"
       ]
     },
     {
       "trigger": "定期 UI 健檢（不修）",
       "skills": [
-        "gstack-qa-only"
+        "qa-only"
       ]
     },
     {
       "trigger": "重構時保護穩定區域",
       "skills": [
-        "gstack-freeze",
-        "gstack-unfreeze"
+        "freeze",
+        "unfreeze"
       ]
     },
     {
       "trigger": "需要獨立第二意見",
       "skills": [
-        "gstack-codex"
+        "codex"
       ]
     },
     {
       "trigger": "每週 retro",
       "skills": [
-        "gstack-retro"
+        "retro"
       ]
     },
     {
       "trigger": "安全審計（上線前）",
       "skills": [
-        "gstack-cso"
+        "cso"
       ]
     },
     {
@@ -802,7 +1218,7 @@
     {
       "trigger": "學到新東西 / 踩坑",
       "skills": [
-        "gstack-learn"
+        "learn"
       ]
     },
     {
@@ -916,6 +1332,14 @@
           "skills": [
             "office-pptx",
             "office-pdf"
+          ]
+        },
+        {
+          "num": 5,
+          "label": "通話備忘",
+          "desc": "法說 / 通話 memo",
+          "skills": [
+            "tw-call-memo"
           ]
         }
       ]
@@ -1066,8 +1490,17 @@
           "label": "定期回顧",
           "desc": "每週工程回顧",
           "skills": [
-            "gstack-retro"
+            "retro"
           ]
+        },
+        {
+          "label": "規格 / 外部基準",
+          "desc": "分階段 spec、外部 benchmark 規劃",
+          "skills": [
+            "phased-spec-builder",
+            "plan-with-external-benchmarks"
+          ],
+          "num": 7
         }
       ]
     },
@@ -1146,6 +1579,15 @@
           "skills": [
             "doc-to-structured-data"
           ]
+        },
+        {
+          "label": "策略 / 線索路由",
+          "desc": "前門 vs 後門、標案線索",
+          "skills": [
+            "scraping-frontdoor-vs-backdoor",
+            "3-tender-lead-router"
+          ],
+          "num": 5
         }
       ]
     },
@@ -1170,6 +1612,14 @@
           "skills": [
             "imap-smtp-integration"
           ]
+        },
+        {
+          "label": "OAuth 辨識橋接",
+          "desc": "Claude SDK ↔ Telegram",
+          "skills": [
+            "3-claude-sdk-oauth-telegram-bridge"
+          ],
+          "num": 3
         }
       ]
     },
@@ -1237,7 +1687,25 @@
           "desc": "上線後監控 + 維護 + 定期回顧",
           "skills": [
             "agent-observability",
-            "gstack-canary"
+            "canary"
+          ]
+        },
+        {
+          "label": "技術評估 / 產品目錄",
+          "desc": "技術評估文件、產品線索引",
+          "skills": [
+            "tech-evaluation-doc",
+            "product-index"
+          ],
+          "num": 8
+        },
+        {
+          "num": 9,
+          "label": "內部溝通 / 協作",
+          "desc": "internal comms、文件協作",
+          "skills": [
+            "internal-comms",
+            "doc-coauthoring"
           ]
         }
       ]
@@ -1297,6 +1765,189 @@
           "skills": [
             "office-pptx"
           ]
+        },
+        {
+          "label": "甘特圖",
+          "desc": "時程簡報",
+          "skills": [
+            "gantt-slide"
+          ],
+          "num": 7
+        }
+      ]
+    },
+    {
+      "id": "knowledge-wiki",
+      "icon": "📚",
+      "label": "個人知識庫 / 筆記流程",
+      "steps": [
+        {
+          "label": "建立庫",
+          "desc": "raw→inbox→wiki 三層結構",
+          "skills": [
+            "1-llm-wiki-knowledge-base",
+            "personal-knowledge-wiki",
+            "personal-workspace"
+          ],
+          "num": 1
+        },
+        {
+          "label": "自動攝取",
+          "desc": "watcher / clipper / headless 落地",
+          "skills": [
+            "3-raw-watcher-file-ingestion",
+            "4-windows-clipper-to-wsl",
+            "2-headless-agent-knowledge-pipeline"
+          ],
+          "num": 2
+        },
+        {
+          "label": "消化",
+          "desc": "consume / digest 進 wiki",
+          "skills": [
+            "2-jk-nb-consume",
+            "jk-nb-digest",
+            "jk-nb-inbox-digest"
+          ],
+          "num": 3
+        },
+        {
+          "label": "維護",
+          "desc": "lint / 連結規則",
+          "skills": [
+            "3-jk-nb-lint",
+            "3-obsidian-vault-link-rules"
+          ],
+          "num": 4
+        }
+      ]
+    },
+    {
+      "id": "mops-data",
+      "icon": "📈",
+      "label": "MOPS / 台股財報資料流程",
+      "steps": [
+        {
+          "label": "抓取",
+          "desc": "營業描述 / 個股財報",
+          "skills": [
+            "mops-business-description-scraper",
+            "mops-individual-financial-report"
+          ],
+          "num": 1
+        },
+        {
+          "label": "對帳 / 監控",
+          "desc": "名單對齊、持股 debug、附註補回",
+          "skills": [
+            "mops-cluster-master-alignment-audit",
+            "mops-investee-holdings-debug",
+            "mops-notes-backfill-monitor"
+          ],
+          "num": 2
+        },
+        {
+          "label": "指標計算",
+          "desc": "財報指標、補完重算、基本面評等",
+          "skills": [
+            "financial-indicators-from-statements",
+            "post-backfill-indicator-recompute",
+            "stock-fundamentals-grading"
+          ],
+          "num": 3
+        },
+        {
+          "label": "正規化 / 診斷",
+          "desc": "類別正規化、子產業分類、缺口診斷",
+          "skills": [
+            "taiwan-financial-category-display",
+            "tej-sub-code-classifier",
+            "stock-data-gap-diagnose"
+          ],
+          "num": 4
+        },
+        {
+          "num": 5,
+          "label": "名單對帳",
+          "desc": "filer 名單 reconcile",
+          "skills": [
+            "mops-filer-list-reconcile"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tw-dd-pe",
+      "icon": "🏢",
+      "label": "台灣公司盡調 / PE Memo 流程",
+      "steps": [
+        {
+          "label": "識別 / 攝取",
+          "desc": "公司名抽取、deck / IC 報告攝取",
+          "skills": [
+            "tw-company-name-extractor",
+            "company-deck-ingestion",
+            "ic-report-multimodal-ingest"
+          ],
+          "num": 1
+        },
+        {
+          "label": "證據 / 研究",
+          "desc": "新聞證據、機會掃描、深度研究",
+          "skills": [
+            "tw-company-news-evidence-search",
+            "proposal-opportunity-scan",
+            "pe-memo-deep-research",
+            "pe-dd-structured-source-first"
+          ],
+          "num": 2
+        },
+        {
+          "label": "批次編排",
+          "desc": "批次 DD pipeline 與守門",
+          "skills": [
+            "tw-company-batch-dd-orchestrator",
+            "tw-company-batch-dd-pipeline",
+            "tw-company-dd-orchestrator-guard"
+          ],
+          "num": 3
+        },
+        {
+          "label": "Memo 產出 / 守門",
+          "desc": "refine、trigger 修復、重複 / silent-fail 告警",
+          "skills": [
+            "tw-company-pe-memo-refine",
+            "tw-company-pe-memo-trigger-fix",
+            "pe-memo-already-generated-guard",
+            "pe-memo-silent-fail-rate-alert"
+          ],
+          "num": 4
+        },
+        {
+          "num": 5,
+          "label": "官網 / 識別補強",
+          "desc": "公司官網查找、公司識別",
+          "skills": [
+            "tw-company-website-finder",
+            "tw-company-identify"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tw-news",
+      "icon": "📰",
+      "label": "台灣產業新聞流程",
+      "steps": [
+        {
+          "label": "多源彙整",
+          "desc": "多產業編排 → 多日 / 週度 digest",
+          "skills": [
+            "multi-industry-news-pipeline-orchestrator",
+            "1-taiwan-news-multiday-digest",
+            "taiwan-news-weekly-digest"
+          ],
+          "num": 1
         }
       ]
     }
@@ -1318,7 +1969,8 @@
       "skills": [
         "oauth-token-vault",
         "protect-secrets",
-        "rbac-permissions"
+        "rbac-permissions",
+        "rbac-setup"
       ]
     },
     {
@@ -1341,7 +1993,10 @@
       "icon": "🎨",
       "skills": [
         "frontend-design",
-        "ui-ux-pro-max"
+        "ui-ux-pro-max",
+        "react-fab-search-pattern",
+        "llm-field-regenerate-ux",
+        "hierarchy-breadcrumb-from-flat-category"
       ]
     },
     {
@@ -1354,7 +2009,10 @@
         "launchd-agent",
         "headless-agent",
         "docker-compose-setup",
-        "agent-persona"
+        "agent-persona",
+        "cross-device-deploy",
+        "4-github-pages-corporate-site",
+        "cron-script-範式段落-加進-headless-agent-或-launchd-agent"
       ]
     },
     {
@@ -1376,7 +2034,9 @@
         "init-project",
         "setup-permissions",
         "settings-audit",
-        "gstack-setup-deploy"
+        "setup-deploy",
+        "1-repo-cold-start",
+        "github-repo-onboard"
       ]
     },
     {
@@ -1385,7 +2045,11 @@
       "skills": [
         "skill-creator",
         "skill-scout",
-        "sync-readme"
+        "sync-readme",
+        "cross-project-docs-symlink-bridge",
+        "github-skill-installer",
+        "anthropic-skills-bulk-port",
+        "find-skills"
       ]
     },
     {
@@ -1403,7 +2067,8 @@
         "audit-fix",
         "plan-check-style",
         "dev-process-gate",
-        "repo-rename"
+        "repo-rename",
+        "project-redteam-review"
       ]
     },
     {
@@ -1411,8 +2076,10 @@
       "icon": "📡",
       "skills": [
         "agent-observability",
-        "gstack-health",
-        "gstack-guard"
+        "health",
+        "guard",
+        "1-service-watchdog-launchd",
+        "workflow-retro"
       ]
     },
     {
@@ -1420,9 +2087,9 @@
       "icon": "🌐",
       "skills": [
         "gstack",
-        "gstack-browse",
-        "gstack-connect-chrome",
-        "gstack-setup-browser-cookies",
+        "browse",
+        "connect-chrome",
+        "setup-browser-cookies",
         "gstack-checkpoint"
       ]
     },
@@ -1437,7 +2104,8 @@
       "trigger": "需要 Markdown SSOT",
       "icon": "📝",
       "skills": [
-        "markdown-file-ssot"
+        "markdown-file-ssot",
+        "excel-ssot-display-order-sync"
       ]
     },
     {
@@ -1448,14 +2116,17 @@
         "office-pdf",
         "office-pptx",
         "office-xlsx",
-        "doc-to-structured-data"
+        "doc-to-structured-data",
+        "5-local-first-pdf-excel-company-extractor",
+        "pdf-ocr-routing"
       ]
     },
     {
       "trigger": "需要音訊 / 語音功能",
       "icon": "🎙",
       "skills": [
-        "audio-transcription-flow"
+        "audio-transcription-flow",
+        "audio-transcription"
       ]
     },
     {
@@ -1466,79 +2137,135 @@
       ]
     },
     {
-      "label": "Gstack Framework Skills",
+      "trigger": "需要本地開發環境排錯",
+      "icon": "🔧",
       "skills": [
-        "algorithmic-art",
-        "autoplan",
-        "benchmark",
-        "benchmark-models",
-        "brand-guidelines",
-        "browse",
-        "canary",
-        "canvas-design",
-        "careful",
-        "claude-api",
-        "codex",
-        "connect-chrome",
-        "context-restore",
-        "context-save",
-        "continuous-learning-v2",
-        "cso",
+        "2-dev-server-restart-verify",
+        "dev-port-conflict-fix",
+        "multi-project-port-replan",
+        "vscode-wsl-port-forwarding-debug"
+      ]
+    },
+    {
+      "trigger": "需要後端資料 / AI 分層",
+      "icon": "🧱",
+      "skills": [
+        "ai-data-layer"
+      ]
+    },
+    {
+      "trigger": "gstack — 設計 / 視覺",
+      "icon": "🎨",
+      "skills": [
         "design-consultation",
         "design-html",
         "design-review",
         "design-shotgun",
-        "devex-review",
-        "document-release",
-        "docx",
-        "freeze",
-        "guard",
-        "health",
-        "investigate",
-        "land-and-deploy",
-        "landing-report",
-        "learn",
-        "make-pdf",
-        "office-hours",
-        "open-gstack-browser",
-        "pair-agent",
-        "pdf",
-        "plan-ceo-review",
-        "plan-design-review",
-        "plan-devex-review",
-        "plan-eng-review",
-        "plan-tune",
-        "pptx",
-        "qa",
-        "qa-only",
-        "retro",
-        "review",
-        "scrape",
-        "setup-browser-cookies",
-        "setup-deploy",
-        "setup-gbrain",
-        "ship",
-        "skillify",
-        "slack-gif-creator",
         "theme-factory",
-        "tw-call-memo",
-        "tw-company-identify",
-        "unfreeze",
-        "web-artifacts-builder",
-        "webapp-testing",
-        "xlsx"
+        "brand-guidelines",
+        "canvas-design",
+        "algorithmic-art"
       ]
     },
     {
-      "label": "Rivendell Local Skills",
+      "trigger": "gstack — 瀏覽器 / QA / 效能",
+      "icon": "🌐",
       "skills": [
-        "1-service-watchdog-launchd",
-        "cron-script-範式段落-加進-headless-agent-或-launchd-agent",
-        "doc-coauthoring",
-        "internal-comms",
-        "mops-filer-list-reconcile",
-        "tw-company-website-finder",
-        "workflow-retro"
+        "browse",
+        "connect-chrome",
+        "setup-browser-cookies",
+        "open-gstack-browser",
+        "webapp-testing",
+        "benchmark",
+        "benchmark-models",
+        "canary"
+      ]
+    },
+    {
+      "trigger": "gstack — 文件 / 產出物",
+      "icon": "📄",
+      "skills": [
+        "docx",
+        "pdf",
+        "pptx",
+        "xlsx",
+        "make-pdf",
+        "web-artifacts-builder",
+        "slack-gif-creator"
+      ]
+    },
+    {
+      "trigger": "gstack — 規劃 / 審查",
+      "icon": "🧐",
+      "skills": [
+        "autoplan",
+        "plan-ceo-review",
+        "plan-design-review",
+        "plan-eng-review",
+        "plan-devex-review",
+        "plan-tune",
+        "devex-review",
+        "review"
+      ]
+    },
+    {
+      "trigger": "gstack — 開發生命週期",
+      "icon": "🚢",
+      "skills": [
+        "office-hours",
+        "investigate",
+        "ship",
+        "land-and-deploy",
+        "setup-deploy",
+        "setup-gbrain",
+        "document-release",
+        "landing-report",
+        "qa",
+        "qa-only",
+        "retro"
+      ]
+    },
+    {
+      "trigger": "gstack — 工具 / 狀態 / session",
+      "icon": "🧰",
+      "skills": [
+        "careful",
+        "freeze",
+        "unfreeze",
+        "guard",
+        "health",
+        "context-save",
+        "context-restore",
+        "continuous-learning-v2",
+        "codex",
+        "cso",
+        "pair-agent",
+        "skillify",
+        "learn",
+        "claude-api",
+        "scrape"
+      ]
+    },
+    {
+      "icon": "🔎",
+      "trigger": "需要搜尋 / 研究 / 解說一個主題",
+      "skills": [
+        "smart-search",
+        "deep-research-explainer"
+      ]
+    },
+    {
+      "icon": "📊",
+      "trigger": "需要把內容做成資訊圖表 / 視覺懶人包",
+      "skills": [
+        "infographic-builder"
+      ]
+    },
+    {
+      "icon": "🖼",
+      "trigger": "看不懂錯誤訊息 / 想解讀錯誤截圖",
+      "skills": [
+        "error-screenshot-helper"
       ]
     }
   ],
