@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+
+  <!--
+    Font imports: choose the link tag from references/aesthetics.md
+    for the chosen preset. Remove this comment block before shipping.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="{{FONT_URL}}" rel="stylesheet">
+
+  <style>
+    /* --- CSS reset (keep) --- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    img, svg { display: block; max-width: 100%; }
+    button { font: inherit; cursor: pointer; }
+
+    /* --- Aesthetic preset variables ---
+       Paste the :root block from references/aesthetics.md for the chosen preset.
+       Don't mix variables from multiple presets.
+    */
+    :root {
+      /* PASTE PRESET HERE */
+    }
+
+    /* --- Body / canvas --- */
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .canvas {
+      /* Set width and height from references/dimensions.md based on destination */
+      width: {{CANVAS_WIDTH}}px;
+      height: {{CANVAS_HEIGHT}}px;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+      /* Optional: subtle shadow to separate from page background when viewed in browser */
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.08);
+    }
+
+    /* --- Build your sections here ---
+       Each major content section should be a semantic element with a clear role.
+       Avoid generic .card .box .container naming.
+    */
+
+  </style>
+</head>
+<body>
+  <main class="canvas">
+    <!-- Build content here. See assets/examples/ for full reference builds. -->
+  </main>
+</body>
+</html>

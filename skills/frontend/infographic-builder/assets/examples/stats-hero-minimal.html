@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Q4 in numbers — ListingView</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    img, svg { display: block; max-width: 100%; }
+
+    :root {
+      --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --bg: #FAFAF9;
+      --surface: #FFFFFF;
+      --text: #0A0A0A;
+      --text-muted: #6B7280;
+      --text-subtle: #9CA3AF;
+      --border: #E5E7EB;
+      --accent: #625EEB;
+      --accent-soft: #ECECFB;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px;
+      min-height: 100vh;
+      font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .canvas {
+      width: 1200px;
+      height: 900px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      position: relative;
+      overflow: hidden;
+      padding: 64px 72px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.04);
+    }
+
+    /* --- Header --- */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .brand-mark {
+      width: 22px; height: 22px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: grid; place-items: center;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* --- Hero stat --- */
+    .hero {
+      padding-top: 48px;
+      padding-bottom: 56px;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 64px;
+      align-items: end;
+    }
+    .hero-headline {
+      font-size: 40px;
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+      font-weight: 600;
+      max-width: 14ch;
+    }
+    .hero-headline em {
+      font-style: normal;
+      color: var(--accent);
+    }
+    .hero-stat {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .hero-number {
+      font-family: var(--font-mono);
+      font-feature-settings: 'tnum', 'zero';
+      font-size: 140px;
+      line-height: 0.9;
+      letter-spacing: -0.05em;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .hero-unit {
+      font-size: 32px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .hero-caption {
+      grid-column: 2;
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      max-width: 32ch;
+      margin-top: 8px;
+    }
+
+    /* --- Stat grid --- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      flex: 1;
+    }
+    .stat {
+      padding: 36px 28px 32px 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .stat:nth-child(4n) { border-right: none; }
+    .stat:not(:first-child) { padding-left: 28px; }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .stat-value {
+      font-family: var(--font-mono);
+      font-feature-settings: 'tnum', 'zero';
+      font-size: 48px;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      font-weight: 500;
+    }
+    .stat-detail {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-top: auto;
+    }
+    .delta-up {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* --- Footer --- */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 24px;
+      font-size: 13px;
+      color: var(--text-subtle);
+    }
+    .footer-mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <main class="canvas">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <span>ListingView</span>
+      </div>
+      <div class="eyebrow">Quarterly Recap · Q4 2026</div>
+    </header>
+
+    <section class="hero">
+      <h1 class="hero-headline">
+        Q4 was the quarter we <em>broke through</em>.
+      </h1>
+      <div>
+        <div class="hero-stat">
+          <span class="hero-number">+47</span>
+          <span class="hero-unit">% MoM growth</span>
+        </div>
+        <p class="hero-caption">Compounding monthly across active users, paid conversion, and listings analyzed.</p>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-label">New signups</div>
+        <div class="stat-value">12,418</div>
+        <div class="stat-detail"><span class="delta-up">↑ 3.1×</span> vs. Q3</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">NPS</div>
+        <div class="stat-value">54</div>
+        <div class="stat-detail"><span class="delta-up">↑ from 32</span> last quarter</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Features shipped</div>
+        <div class="stat-value">8</div>
+        <div class="stat-detail">Bulk editor, AI builder, orders, more</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Listings analyzed</div>
+        <div class="stat-value">128M</div>
+        <div class="stat-detail">Across the full Etsy index</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span>The full breakdown lives in the team Notion.</span>
+      <span class="footer-mono">Updated · Q4 2026</span>
+    </footer>
+  </main>
+</body>
+</html>
