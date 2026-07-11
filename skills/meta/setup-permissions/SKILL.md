@@ -42,6 +42,7 @@ Read `~/.claude/settings.json`. If it doesn't have a `permissions` key, write th
       "WebFetch(domain:localhost)",
       "Bash(git *)",
       "Bash(gh *)",
+      "Bash(claude plugin *)",
       "Bash(which *)",
       "Bash(command -v *)",
       "Bash(command *)",

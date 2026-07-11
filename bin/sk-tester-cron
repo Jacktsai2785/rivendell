@@ -155,37 +155,24 @@ agent_errors=""
 agent_pass=0
 agent_fail=0
 
-# Check all project agents via launchctl
+# Check all project agents via crontab (WSL/Linux)
+crontab_content=$(crontab -l 2>/dev/null || true)
 for agent_name in maintain harvest tester doctor; do
-  label="com.sk.agent.${PROJECT_NAME}.${agent_name}"
-  plist_path="$HOME/Library/LaunchAgents/${label}.plist"
+  case "$agent_name" in
+    doctor) script_name="sk-agent-doctor" ;;
+    *)      script_name="sk-${agent_name}-cron" ;;
+  esac
 
-  if ! launchctl list "$label" &>/dev/null; then
-    agent_errors+="| \`$agent_name\` | Not loaded in launchd | FAIL |\n"
+  if ! echo "$crontab_content" | grep -q "$script_name"; then
+    agent_errors+="| \`$agent_name\` | Not found in crontab | FAIL |\n"
     agent_fail=$((agent_fail + 1))
     continue
   fi
 
-  # Check exit code — launchctl list <label> returns LastExitStatus as raw POSIX
-  # wait() value (exit_code << 8), so decode it before comparing
-  exit_status=$(launchctl list "$label" 2>/dev/null | awk '/\"LastExitStatus\"/ {print $3}' | tr -d ';' || true)
-  if [ -z "$exit_status" ]; then
-    # Try alternate format: launchctl list output for the label
-    exit_status=$(launchctl list | grep "$label" | awk '{print $2}' || true)
-  fi
-
-  # Decode raw POSIX wait() value: actual_exit = raw >> 8
-  if [[ "$exit_status" =~ ^[0-9]+$ ]] && [ "$exit_status" -gt 255 ]; then
-    decoded_exit=$(( exit_status >> 8 ))
-  else
-    decoded_exit="$exit_status"
-  fi
-
-  if [ "$decoded_exit" = "126" ]; then
-    agent_errors+="| \`$agent_name\` | Exit 126 (permission/PATH issue) | FAIL |\n"
-    agent_fail=$((agent_fail + 1))
-  elif [ -n "$decoded_exit" ] && [ "$decoded_exit" != "0" ] && [ "$decoded_exit" != "-" ]; then
-    agent_errors+="| \`$agent_name\` | Last exit code: $decoded_exit | WARN |\n"
+  # Check for non-empty error log from today's run
+  today_error="$REPORT_DIR/${agent_name}-${TODAY}-error.log"
+  if [ -f "$today_error" ] && [ -s "$today_error" ]; then
+    agent_errors+="| \`$agent_name\` | Error log has content ($(wc -l < "$today_error") lines) | WARN |\n"
     total_warn=$((total_warn + 1))
     agent_pass=$((agent_pass + 1))
   else
