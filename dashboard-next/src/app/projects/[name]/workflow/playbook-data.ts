@@ -59,17 +59,112 @@ const core = (key: string): Chip => ({ key, category: "core" });
 const gst = (key: string): Chip => ({ key, category: "gstack" });
 const crit = (key: string): Chip => ({ key, category: "critical" });
 
+// ─────────────────────────────────────────────────────────────── STAGE GATE
+// 任務階段判斷 — task-brief 主導的前置 gate，發生在選 track 之前。
+// 前三階段是 task-brief 一支 skill 內的模式且不出成品，所以呈現為 track
+// 上游的分支圖，而非污染各 track 的線性步驟。
+
+export interface StageGateField {
+  name: string;
+  desc: string;
+}
+
+export interface StageGateBranch {
+  stage: string;
+  mode: string;
+  desc: string;
+  chips: Chip[];
+  /** true → 此階段才往下進入下方開發 track */
+  enters: boolean;
+  /** 五欄位 brief 的欄位定義（僅「執行」階段有） */
+  fields?: StageGateField[];
+}
+
+export interface StageGate {
+  title: string;
+  subtitle: string;
+  /** 在哪些 flow 頁面上方渲染這個 gate */
+  appliesTo: WorkflowId[];
+  branches: StageGateBranch[];
+}
+
+export const stageGate: StageGate = {
+  title: "任務階段判斷",
+  subtitle:
+    "由 task-brief 主導的前置 gate：先判斷任務落在哪一階段，前三階段各有自己的模式且不出成品；只有「執行」才往下進入核心開發流程。",
+  appliesTo: ["ui", "backend"],
+  branches: [
+    {
+      stage: "思考",
+      mode: "反問模式",
+      desc: "連『要解決什麼』都還模糊時用 → 丟 5–8 個鋒利問題把問題逼具體；只釐清問題，不給答案、不出成品",
+      chips: [gst("gstack-office-hours")],
+      enters: false,
+    },
+    {
+      stage: "探索",
+      mode: "選項模式",
+      desc: "問題已清楚、但還不知道有哪些做法時用 → 攤開 2–4 條路線各自的 trade-off；只鋪選項，不替你拍板",
+      chips: [core("task-brief")],
+      enters: false,
+    },
+    {
+      stage: "決定",
+      mode: "評估模式",
+      desc: "選項都擺上桌、要挑一個時用 → 依你的判準逐項評分並給傾向；只幫你選，不再丟新點子發散",
+      chips: [core("task-brief")],
+      enters: false,
+    },
+    {
+      stage: "執行",
+      mode: "五欄位 brief",
+      desc: "方向已拍板、要真的做出東西時用 → 用五欄位（目標/背景/素材/邊界/完成定義）把任務框死，再進入下方開發 track",
+      chips: [core("task-brief")],
+      enters: true,
+      fields: [
+        {
+          name: "目標 Goal",
+          desc: "這份產出要支持你做什麼「決定」或行動？（寫成決定，不是動作）",
+        },
+        {
+          name: "背景 Context",
+          desc: "一個今天才空降但很聰明的同事，要先知道哪些才不會抓錯方向？",
+        },
+        {
+          name: "素材 Materials",
+          desc: "可用哪些來源（主要/次要）？哪些不准用？找不到就說找不到，不要捏造。",
+        },
+        {
+          name: "邊界 Boundaries",
+          desc: "有什麼是不要碰、不要假設、不要編的？（最多人漏的一欄）",
+        },
+        {
+          name: "完成定義 DoD",
+          desc: "什麼結構、到什麼程度算完成？先給 outline／框架，審過再展開。",
+        },
+      ],
+    },
+  ],
+};
+
 export const workflows: Workflow[] = [
   // ───────────────────────────────────────────────────────────────────────── UI
   {
     id: "ui",
     label: "UI Feature / New Page",
-    heading: "UI Feature / New Page — 10 步驟",
+    heading: "UI Feature / New Page — 11 步驟",
     lead: {
       tone: "warn",
       text: "若使用者說「幫我做 X / 新增 Y / build Z page」要先問：「要從哪個步驟開始？requirement → design → plan → 直接實作？」",
     },
     steps: [
+      {
+        num: "0",
+        action: "任務定義",
+        detail:
+          "先判斷任務在思考/探索/決定/執行哪一階段——前三階段分別走反問/選項/評估模式（不出成品）；確認進入「執行」後，才用五欄位 brief（目標/背景/素材/邊界/完成定義）定義任務再動手。（已有 prompt 時改走稽核模式逐欄補缺）",
+        chips: [core("task-brief")],
+      },
       {
         num: "1",
         action: "驗證「why」、user story、acceptance criteria",
@@ -147,12 +242,19 @@ export const workflows: Workflow[] = [
   {
     id: "backend",
     label: "Backend / Bug Fix / Refactor",
-    heading: "Backend-only / Bug Fix / Refactor — 5 步驟",
+    heading: "Backend-only / Bug Fix / Refactor — 6 步驟",
     lead: {
       tone: "info",
       text: "Exceptions: 使用者明確說「直接實作」或「skip design」→ 跳到 step 2",
     },
     steps: [
+      {
+        num: "0",
+        action: "任務定義",
+        detail:
+          "先判斷任務在思考/探索/決定/執行哪一階段——前三階段分別走反問/選項/評估模式（不出成品）；確認進入「執行」後，用五欄位 brief 劃定範圍：症狀 / 重現條件 / 已排除假設（即背景・素材・邊界），先定 AI 該往哪找再調查。（已有 prompt 時改走稽核模式逐欄補缺）",
+        chips: [core("task-brief")],
+      },
       { num: "1", action: "Root cause first（bugs）", chips: [gst("gstack-investigate")] },
       { num: "2", action: "實作" },
       { num: "3", action: "Diff review", chips: [gst("gstack-review")] },
@@ -333,6 +435,12 @@ export interface SkillDetail {
 }
 
 export const skillDetails: Record<string, SkillDetail> = {
+  "task-brief": {
+    desc: "把模糊的交辦翻譯成 AI 能正確執行的「任務定義」。先判斷任務落在四階段（思考/探索/決定/執行）的哪一階段，每階段餵 AI 不同的東西；到執行階段用五欄位（目標/背景/素材/邊界/完成定義）產出可直接貼上的 brief，也能反過來稽核一份已寫好的 prompt 還缺哪一欄。",
+    trigger:
+      "「幫我建 brief」/「定義任務」/「幫我寫 prompt」/「這 prompt 夠不夠」/「這任務怎麼交給 AI」；或丟來模糊、多步驟、缺目標/素材/邊界/完成定義的交辦時主動建議",
+    skip: "任務已定義清楚、只要執行；單步驟瑣事；使用者明確說「直接做」/「skip」",
+  },
   requirement: {
     desc: "定義結構化的需求、user stories、acceptance criteria。",
     trigger: "user 說 'define requirement' / 'write user story' / 'what should we build'；或描述一個沒清楚範疇的功能想法",

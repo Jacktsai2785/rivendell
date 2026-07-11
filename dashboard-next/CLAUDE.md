@@ -36,7 +36,10 @@ section. When that doc changes substantively, update playbook-data.ts to
 match.
 
 `FlowView.tsx` renders one flow as a vertical step list with `↳` branch
-lines for `optionals`. `[flow]/page.tsx` wires the breadcrumb, title, and
+lines for `optionals`. Above the ui / backend flows it also renders the
+任務階段判斷 stage gate (`stageGate` in playbook-data.ts) — task-brief's
+four-stage router (思考/探索/決定/執行), where only 執行 enters the track
+below; the 執行 row expands to show the 五欄位 brief fields. `[flow]/page.tsx` wires the breadcrumb, title, and
 the active flow. Slide branch tabs (A/B/C/D) are in-page state inside
 FlowView.
 

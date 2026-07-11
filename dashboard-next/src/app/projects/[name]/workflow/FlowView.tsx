@@ -6,12 +6,14 @@ import { X } from "lucide-react";
 import {
   workflows,
   skillDetails,
+  stageGate,
   type Chip as ChipData,
   type ChipCategory,
   type WorkflowId,
   type Step as StepData,
   type OptionalRow,
   type MaintenanceRow,
+  type StageGateBranch,
 } from "./playbook-data";
 
 // ─────────────────────────────────────────────────────────── Chip component
@@ -404,6 +406,166 @@ function SkillModal({
   );
 }
 
+// ─────────────────────────────────────────────────────── Stage gate (前置)
+function StageGateRow({
+  branch,
+  onChipClick,
+}: {
+  branch: StageGateBranch;
+  onChipClick: (key: string) => void;
+}) {
+  const [showFields, setShowFields] = useState(false);
+  return (
+    <div
+      className="py-4"
+      style={{
+        borderTop: "1px solid var(--border)",
+        ...(branch.enters
+          ? {
+              background: "var(--accent-bg)",
+              margin: "0 -12px",
+              padding: "16px 12px",
+              borderRadius: "var(--radius-lg)",
+            }
+          : {}),
+      }}
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className="shrink-0"
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            padding: "2px 7px",
+            borderRadius: 3,
+            border: branch.enters
+              ? "1px solid var(--accent)"
+              : "1px solid var(--border-strong)",
+            color: branch.enters ? "var(--accent)" : "var(--text-muted)",
+            background: "var(--surface)",
+          }}
+        >
+          {branch.stage}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span style={{ color: "var(--text)", fontSize: 14, fontWeight: 500 }}>
+              {branch.mode}
+            </span>
+            <span
+              style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6 }}
+            >
+              {branch.desc}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {branch.chips.map((c) => (
+              <ChipPill key={c.key} chip={c} onClick={onChipClick} />
+            ))}
+            {branch.enters && (
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 12,
+                  color: "var(--accent)",
+                }}
+              >
+                ↓ 進入下方 track
+              </span>
+            )}
+            {branch.fields && (
+              <button
+                type="button"
+                onClick={() => setShowFields((v) => !v)}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                }}
+              >
+                {showFields ? "五欄位 ▾" : "五欄位 ▸"}
+              </button>
+            )}
+          </div>
+          {branch.fields && showFields && (
+            <div
+              className="mt-3 pl-3"
+              style={{ borderLeft: "2px solid var(--accent-soft)" }}
+            >
+              {branch.fields.map((f) => (
+                <div key={f.name} className="py-1" style={{ lineHeight: 1.6 }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 12,
+                      color: "var(--text)",
+                      marginRight: 8,
+                    }}
+                  >
+                    {f.name}
+                  </span>
+                  <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                    {f.desc}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageGateSection({
+  onChipClick,
+}: {
+  onChipClick: (key: string) => void;
+}) {
+  return (
+    <section className="mb-10">
+      <div className="flex flex-wrap items-baseline gap-2.5">
+        <h2
+          style={{
+            fontSize: 16,
+            fontWeight: 500,
+            color: "var(--text)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {stageGate.title}
+        </h2>
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            padding: "2px 7px",
+            borderRadius: 3,
+            border: "1px solid var(--border-strong)",
+            color: "var(--text-subtle)",
+            background: "var(--surface)",
+          }}
+        >
+          前置 gate · 進入下方 track 前
+        </span>
+      </div>
+      <p
+        className="mt-2 mb-3"
+        style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.65 }}
+      >
+        {stageGate.subtitle}
+      </p>
+      {stageGate.branches.map((b) => (
+        <StageGateRow key={b.stage} branch={b} onChipClick={onChipClick} />
+      ))}
+    </section>
+  );
+}
+
 // ──────────────────────────────────────────────────────── Public FlowView
 export default function FlowView({ flowId }: { flowId: WorkflowId }) {
   const [openSkill, setOpenSkill] = useState<string | null>(null);
@@ -428,6 +590,10 @@ export default function FlowView({ flowId }: { flowId: WorkflowId }) {
 
   return (
     <>
+      {stageGate.appliesTo.includes(flowId) && (
+        <StageGateSection onChipClick={setOpenSkill} />
+      )}
+
       <h2
         style={{
           fontSize: 16,
