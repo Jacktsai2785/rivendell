@@ -1556,6 +1556,17 @@ def _slugify(name: str) -> str:
     return slug
 
 
+def _yaml_scalar(value: str) -> str:
+    """Serialize a string as a safe single-line YAML scalar.
+
+    JSON double-quoted strings are valid YAML — this escapes quotes,
+    colons-in-text, backslashes and newlines that would otherwise break
+    the frontmatter (e.g. `TRIGGER when: ...` or `"a", "b"` lists).
+    """
+    import json
+    return json.dumps(" ".join(str(value).split()), ensure_ascii=False)
+
+
 def _generate_skill_md(candidate: dict[str, Any]) -> str:
     """Generate SKILL.md content from a harvest candidate."""
     name = candidate.get("name", "unknown")
@@ -1564,22 +1575,23 @@ def _generate_skill_md(candidate: dict[str, Any]) -> str:
     category = candidate.get("category", "workflow")
     reasoning = candidate.get("reasoning", "")
 
-    # Build description — truncate if too long
-    description = purpose[:200] if purpose else f"{name} skill"
+    # Build description — truncate if too long; collapse newlines so block
+    # scalar continuation lines stay correctly indented
+    description = " ".join((purpose[:200] if purpose else f"{name} skill").split())
 
     # Build when_to_use from trigger
-    when_to_use = trigger[:200] if trigger else f"when working with {name}"
+    when_to_use = " ".join((trigger[:200] if trigger else f"when working with {name}").split())
 
     # Build tags from category
-    tags = [category] if category else ["workflow"]
+    tags = [_slugify(category)] if category else ["workflow"]
 
     lines = [
         "---",
-        f"name: {name}",
-        "description: >",
+        f"name: {_slugify(name)}",
+        "description: >-",
         f"  {description}",
         f"  TRIGGER when: {when_to_use}",
-        f"when_to_use: {when_to_use}",
+        f"when_to_use: {_yaml_scalar(when_to_use)}",
         "version: 1.0.0",
         f"tags: [{', '.join(tags)}]",
         "languages: all",
@@ -1620,7 +1632,23 @@ def _generate_skill_md(candidate: dict[str, Any]) -> str:
         "",
     ]
 
-    return "\n".join(lines)
+    content = "\n".join(lines)
+
+    # Guard: never ship a SKILL.md whose frontmatter doesn't parse — broken
+    # frontmatter makes codex/claude log errors on every startup.
+    import re as _re
+    try:
+        import yaml as _yaml
+        fm = _re.match(r"^---\n(.*?)\n---\n", content, _re.DOTALL)
+        if fm is None:
+            raise ValueError("generated SKILL.md has no frontmatter block")
+        _yaml.safe_load(fm.group(1))
+    except ImportError:
+        pass  # pyyaml unavailable: skip validation rather than block harvest
+    except Exception as exc:
+        raise ValueError(f"generated frontmatter is invalid YAML: {exc}") from exc
+
+    return content
 
 
 def _auto_create_skill(candidate: dict[str, Any]) -> dict[str, Any]:

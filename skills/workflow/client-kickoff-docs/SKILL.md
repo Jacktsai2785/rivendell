@@ -3,7 +3,8 @@ name: client-kickoff-docs
 description: >
   新客戶 kickoff 時（NDA 簽過、首次討論前），讀客戶提供的 homework 檔 → 建立 `scope.md` + `deadline.md` + `MEMORY.md` + `README.md` 四件套。
   TRIGGER when: "新客戶 kickoff", "NDA 簽完準備討論", "讀 homework 建專案檔", "建立客戶專案初始檔"
-when_to_use: "新客戶 kickoff", "NDA 簽完準備討論", "讀 homework 建專案檔", "建立客戶專案初始檔"
+when_to_use: >-
+  "新客戶 kickoff", "NDA 簽完準備討論", "讀 homework 建專案檔", "建立客戶專案初始檔"
 version: 1.0.0
 tags: [workflow]
 languages: all
